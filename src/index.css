@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #3B82F6;
+  --color-secondary: #8B5CF6;
+  --color-background: #F7F9FC;
+  --color-surface: #FFFFFF;
+  --color-text-main: #1F2937;
+  --color-text-muted: #6B7280;
+  --color-border-light: #E5E7EB;
+  
+  --radius-custom: 12px;
+  
+  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--color-background)] text-[var(--color-text-main)] font-sans antialiased;
+  }
+}
+
+.glass-card {
+  @apply bg-white border border-[var(--color-border-light)] rounded-[var(--radius-custom)] shadow-[var(--shadow-soft)] p-6;
+}
+
+.sidebar-link {
+  @apply flex items-center gap-3 px-4 py-3 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:bg-blue-50 rounded-xl transition-all duration-200;
+}
+
+.sidebar-link.active {
+  @apply text-[var(--color-primary)] bg-blue-50 font-semibold shadow-sm;
+}
+
+.kanban-column {
+  @apply bg-gray-100/50 p-4 rounded-2xl min-w-[320px] max-w-[320px] flex flex-col gap-4;
+}
+
+.kanban-card {
+  @apply bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing;
+}
+
+/* Custom transitions */
+.fade-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.fade-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}

@@ -12,7 +12,7 @@ import { orgSettingsRoutes } from "./routes/orgSettings.js";
 import { crmRoutes } from "./routes/crm.js";
 import { marketingRoutes } from "./routes/marketing.js";
 import { financeRoutes } from "./routes/finance.js";
-import { opsRoutes } from "./routes/ops";
+import { opsRoutes } from "./routes/ops.js";
 import { adminRoutes } from "./routes/admin.js";
 import { adsRoutes } from "./routes/ads.js";
 import { clientRoutes } from "./routes/clients.js";

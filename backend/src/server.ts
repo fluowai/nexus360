@@ -35,6 +35,15 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 
+// Rota raiz (Boas-vindas da API)
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "Nexus360 API está rodando! Acesse o frontend em vez desta URL.",
+    docs: "/api/health"
+  });
+});
+
 // Rota de Health Check para Railway
 app.get("/api/health", (req, res) => {
   res.json({ 

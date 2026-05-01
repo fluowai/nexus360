@@ -17,20 +17,39 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  BarChart,
-  Bar
 } from "recharts";
+import { apiFetch } from "../lib/api";
 
 export default function Dashboard() {
+
   const [data, setData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then(res => res.json())
-      .then(setData);
+    const orgId = localStorage.getItem('nexus_org_id') || '';
+    apiFetch(`/api/admin/dashboard${orgId ? `?orgId=${orgId}` : ''}`)
+      .then(res => {
+        if (!res.ok) throw new Error("Não autorizado ou erro no servidor");
+        return res.json();
+      })
+      .then(setData)
+      .catch(err => setError(err.message));
   }, []);
 
-  if (!data) return <div className="flex items-center justify-center h-64 text-muted-foreground animate-pulse">Carregando painel...</div>;
+  if (error) return (
+    <div className="flex flex-col items-center justify-center h-64 gap-4">
+      <p className="text-red-500 font-medium">{error}</p>
+      <button 
+        onClick={() => window.location.href = '/login'}
+        className="px-4 py-2 bg-primary text-white rounded-lg"
+      >
+        Ir para Login
+      </button>
+    </div>
+  );
+
+  if (!data || !data.metrics) return <div className="flex items-center justify-center h-64 text-muted-foreground animate-pulse">Carregando painel...</div>;
+
 
   const stats = [
     { label: "Total de Leads", value: data.metrics.leads, icon: Users, color: "bg-blue-50 text-blue-600", trend: "+12%" },
@@ -83,8 +102,9 @@ export default function Dashboard() {
               <span className="flex items-center gap-1 text-xs font-medium bg-green-50 text-green-600 px-2 py-1 rounded">Conversão</span>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height="80%">
-            <AreaChart data={data.chartData}>
+          <div className="w-full h-[300px] min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={data.chartData}>
               <defs>
                 <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.1}/>
@@ -99,8 +119,9 @@ export default function Dashboard() {
               />
               <Area type="monotone" dataKey="leads" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorLeads)" />
               <Area type="monotone" dataKey="conv" stroke="#10B981" strokeWidth={3} fillOpacity={0} />
-            </AreaChart>
-          </ResponsiveContainer>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         {/* Side Summary */}

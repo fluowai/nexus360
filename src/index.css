@@ -1,17 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #3B82F6;
-  --color-secondary: #8B5CF6;
-  --color-background: #F7F9FC;
-  --color-surface: #FFFFFF;
-  --color-text-main: #1F2937;
-  --color-text-muted: #6B7280;
-  --color-border-light: #E5E7EB;
-  
+  --color-primary: #3b82f6;
+  --color-secondary: #8b5cf6;
+  --color-background: #f7f9fc;
+  --color-surface: #ffffff;
+  --color-text-main: #1f2937;
+  --color-text-muted: #6b7280;
+  --color-border-light: #e5e7eb;
+
   --radius-custom: 12px;
-  
-  --shadow-soft: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+
+  --shadow-soft:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
 @layer base {
@@ -40,6 +41,10 @@
   @apply bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing;
 }
 
+.modal-input {
+  @apply w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:bg-white outline-none transition-all text-sm;
+}
+
 /* Custom transitions */
 .fade-enter {
   opacity: 0;
@@ -48,5 +53,7 @@
 .fade-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 300ms, transform 300ms;
+  transition:
+    opacity 300ms,
+    transform 300ms;
 }

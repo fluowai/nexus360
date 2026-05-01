@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Sparkles, 
   Instagram, 
@@ -19,9 +19,30 @@ import {
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { motion, AnimatePresence } from "motion/react";
-import { GoogleGenAI } from "@google/genai";
+import { apiFetch } from "../lib/api";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const PROVIDERS = {
+  groq: {
+    name: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1/chat/completions"
+  },
+  gemini: {
+    name: "Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/models"
+  },
+  openai: {
+    name: "OpenAI",
+    baseUrl: "https://api.openai.com/v1/chat/completions"
+  }
+};
+
+function getActiveConfig() {
+  const saved = localStorage.getItem("nexus_api_configs");
+  if (!saved) return null;
+  
+  const configs = JSON.parse(saved);
+  return configs.find((c: any) => c.enabled);
+}
 
 export default function Content() {
   const [prompt, setPrompt] = useState("");
@@ -31,18 +52,51 @@ export default function Content() {
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
   const [generatedArts, setGeneratedArts] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [activeProvider, setActiveProvider] = useState<any>(null);
+
+  useEffect(() => {
+    const config = getActiveConfig();
+    setActiveProvider(config);
+  }, []);
 
   const handleGenerate = async () => {
-    if (!prompt) return;
+    if (!prompt || !activeProvider) return;
     setIsGenerating(true);
-    setGeneratedArts([]); // Clear previous arts
+    setGeneratedArts([]);
+    
     try {
       const refinedPrompt = `Como um especialista em marketing 360, crie um conteúdo do tipo ${type} baseado no seguinte tema: ${prompt}. Retorne em formato markdown. Use um tom profissional e persuasivo em Português do Brasil.`;
       
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ role: "user", parts: [{ text: refinedPrompt }] }],
-      });
+      let response;
+      
+      if (activeProvider.provider === "gemini") {
+        const res = await fetch(`${PROVIDERS.gemini.baseUrl}/${activeProvider.model}:generateContent?key=${activeProvider.apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: refinedPrompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
+          })
+        });
+        const data = await res.json();
+        response = { text: data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro ao gerar" };
+      } else {
+        const res = await fetch(PROVIDERS[activeProvider.provider as keyof typeof PROVIDERS].baseUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${activeProvider.apiKey}`
+          },
+          body: JSON.stringify({
+            model: activeProvider.model,
+            messages: [{ role: "user", content: refinedPrompt }],
+            temperature: 0.7,
+            max_tokens: 2048
+          })
+        });
+        const data = await res.json();
+        response = { text: data.choices?.[0]?.message?.content || "Erro ao gerar" };
+      }
 
       setGeneratedContent(response.text || "Não foi possível gerar o conteúdo.");
     } catch (error) {
@@ -156,7 +210,13 @@ export default function Content() {
           </div>
 
           <button
-            onClick={handleGenerate}
+            onClick={() => {
+              if (!activeProvider) {
+                alert("Configure um provedor de IA em Configurações primeiro!");
+                return;
+              }
+              handleGenerate();
+            }}
             disabled={isGenerating || !prompt}
             className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
               isGenerating || !prompt
@@ -248,7 +308,7 @@ export default function Content() {
                 <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-2">
                     <ImageIcon size={14} />
-                    Artes Geradas (${generatedArts.length})
+                    Artes Geradas ({generatedArts.length})
                   </h4>
                   <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                     {generatedArts.map((path, idx) => (

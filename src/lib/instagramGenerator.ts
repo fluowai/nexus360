@@ -26,7 +26,7 @@ const getSlideTemplate = (title: string, content: string, colors: PostData['core
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
       <style>
-        * { margin: 0; padding: 0; box-box: border-box; }
+         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
           width: 1080px;
           height: 1080px;
@@ -104,7 +104,7 @@ const getSlideTemplate = (title: string, content: string, colors: PostData['core
           left: 80px;
           right: 80px;
           display: flex;
-          justify-content: justify;
+          justify-content: space-between;
           align-items: center;
           z-index: 2;
         }
@@ -126,26 +126,39 @@ const getSlideTemplate = (title: string, content: string, colors: PostData['core
       </style>
     </head>
     <body>
-      <div className="decoration"></div>
-      
-      <div className="header">
-        <div className="logo-box"></div>
-        <div className="brand-name">NEXUS360</div>
-      </div>
+       <div class="decoration"></div>
+       
+       <div class="header">
+         <div class="logo-box"></div>
+         <div class="brand-name">NEXUS360</div>
+       </div>
 
-      <div className="main-container">
-        <h1>${title.toUpperCase()}</h1>
-        <div className="content">${content}</div>
-      </div>
+       <div class="main-container">
+         <h1>${title.toUpperCase()}</h1>
+         <div class="content">${content}</div>
+       </div>
 
-      <div className="footer">
-        <div className="cta">nexus360.ai</div>
-        ${totalSlides > 1 ? `<div className="slide-indicator">${slideIndex}/${totalSlides}</div>` : ''}
-      </div>
+       <div class="footer">
+         <div class="cta">nexus360.ai</div>
+         ${totalSlides > 1 ? `<div class="slide-indicator">${slideIndex}/${totalSlides}</div>` : ''}
+       </div>
     </body>
     </html>
   `;
 };
+
+let browserInstance: any = null;
+
+async function getBrowser() {
+  if (browserInstance && browserInstance.connected) {
+    return browserInstance;
+  }
+  browserInstance = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+  return browserInstance;
+}
 
 /**
  * Função principal para gerar as artes do Instagram
@@ -153,24 +166,20 @@ const getSlideTemplate = (title: string, content: string, colors: PostData['core
 export async function generateInstagramPost(data: PostData): Promise<string[]> {
   const outputDir = path.join(process.cwd(), 'outputs');
   
-  // Garante que a pasta output existe
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
-
+  const browser = await getBrowser();
   const page = await browser.newPage();
-  await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 2 });
-
-  const paths: string[] = [];
-  const slides = data.tipo === 'post' ? [data.titulo] : [data.titulo, ...data.conteudos];
-  const totalSlides = slides.length;
-
+  
   try {
+    await page.setViewport({ width: 1080, height: 1080, deviceScaleFactor: 2 });
+
+    const paths: string[] = [];
+    const slides = data.tipo === 'post' ? [data.titulo] : [data.titulo, ...data.conteudos];
+    const totalSlides = slides.length;
+
     for (let i = 0; i < totalSlides; i++) {
         const isFirstSlide = i === 0;
         const currentTitle = isFirstSlide ? data.titulo : "CONTINUANDO...";
@@ -191,24 +200,19 @@ export async function generateInstagramPost(data: PostData): Promise<string[]> {
         const finalFileName = `instagram_slide_${Date.now()}_${i}.png`;
         const finalPath = path.join(outputDir, finalFileName);
 
-        // Screenshot inicial com Puppeteer
         await page.screenshot({ path: tempPath });
 
-        // Otimização com Sharp
         await sharp(tempPath)
           .png({ quality: 90, compressionLevel: 9 })
           .toFile(finalPath);
 
-        // Remove o arquivo temporário
-        fs.unlinkSync(tempPath);
-
+        if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
         paths.push(path.join('outputs', finalFileName));
     }
+    return paths;
   } finally {
-    await browser.close();
+    await page.close();
   }
-
-  return paths;
 }
 
 /**

@@ -19,6 +19,18 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
     }
   }
 
+  // Clone a resposta para não esgotar o body
+  const clonedResponse = response.clone();
+
+  // Método robusto para parsear JSON
+  clonedResponse.json = async () => {
+    const text = await response.text();
+    try {
+      return text ? JSON.parse(text) : {};
+    } catch (e) {
+      throw new Error(text || 'Resposta inválida do servidor');
+    }
+  };
 
   return response;
 }

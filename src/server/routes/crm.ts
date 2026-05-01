@@ -12,7 +12,7 @@ export function crmRoutes(prisma: PrismaClient) {
   // Win Lead - Transação completa
   router.post("/leads/:id/win", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
-    const userId = req.user?.userId;
+    const userId = req.user?.id;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     const { 
@@ -31,7 +31,7 @@ export function crmRoutes(prisma: PrismaClient) {
 
         const client = await tx.client.create({
           data: {
-            corporateName, tradeName, cnpj, email: respEmail, emailFinance, website, 
+            corporateName, tradeName, cnpj, email: respEmail, website, 
             city, state, address, responsibleName: respName, responsibleCpf: respCpf,
             responsibleEmail: respEmail, responsiblePhone: respPhone, responsibleRole: respRole,
             status: 'onboarding', organizationId: orgId, assignedToId: userId
@@ -50,6 +50,7 @@ export function crmRoutes(prisma: PrismaClient) {
         await tx.contract.create({
           data: {
             clientId: client.id, soldProductId: soldProduct.id, status: 'draft',
+            organizationId: orgId,
             contractData: { scope, additionalClauses, generatedAt: new Date() }
           }
         });

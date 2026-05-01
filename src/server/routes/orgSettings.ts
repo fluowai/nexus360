@@ -41,7 +41,10 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     try {
       const org = await prisma.organization.update({
         where: { id: orgId },
-        data: { corporateName, tradeName, cnpj, email, phone, website, address }
+        data: {
+          name: req.body.corporateName || req.body.name,
+          domain: req.body.domain
+        }
       });
       res.json(org);
     } catch (error) {

@@ -86,7 +86,7 @@ export function financeRoutes(prisma: PrismaClient) {
           ...(status ? { status: String(status) } : {})
         },
         include: { client: true, invoices: true },
-        orderBy: { startDate: 'desc' }
+        orderBy: { createdAt: 'desc' }
       });
       res.json(contracts);
     } catch (error) {

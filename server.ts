@@ -1,99 +1,66 @@
 import dotenv from "dotenv";
-dotenv.config(); // DEVE ser o primeiro a rodar
+dotenv.config();
 
 import express from "express";
-import path from "path";
-import { createServer as createViteServer } from "vite";
-import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
-import { generateInstagramPost } from "./src/lib/instagramGenerator.ts";
+import cors from "cors";
+import helmet from "helmet";
 
-// Import Modulares
+// Import Rotas
+import { authRoutes } from "./src/server/routes/auth";
+import { orgSettingsRoutes } from "./src/server/routes/orgSettings";
 import { crmRoutes } from "./src/server/routes/crm";
 import { marketingRoutes } from "./src/server/routes/marketing";
 import { financeRoutes } from "./src/server/routes/finance";
 import { opsRoutes } from "./src/server/routes/ops";
 import { adminRoutes } from "./src/server/routes/admin";
 import { adsRoutes } from "./src/server/routes/ads";
-import { authRoutes } from "./src/server/routes/auth";
-import { usersRoutes } from "./src/server/routes/users";
-import { aiRoutes } from "./src/server/routes/ai";
-import { orgSettingsRoutes } from "./src/server/routes/orgSettings";
 import { clientRoutes } from "./src/server/routes/clients";
-
-import helmet from "helmet";
-import cors from "cors";
 import { authenticateToken } from "./src/server/middleware/auth";
 
 const prisma = new PrismaClient();
 const app = express();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Middlewares Globais
-app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,
-}));
+// Middlewares
 app.use(express.json());
 app.use(cors());
+app.use(helmet({
+  contentSecurityPolicy: false,
+}));
 
-// Health Check
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date() });
+// Rota de Teste de Vida
+app.get("/api/health", (req, res) => {
+  res.json({ status: "alive", environment: process.env.NODE_ENV });
 });
 
-// Serve generated images
-app.use('/outputs', express.static(path.join(process.cwd(), 'outputs')));
-
-// Image Generation API
-app.post("/api/content/generate-art", async (req, res) => {
-  try {
-    const paths = await generateInstagramPost(req.body);
-    res.json({ paths });
-  } catch (error) {
-    res.status(500).json({ error: "Falha ao gerar arte" });
-  }
-});
-
-// ============ ROTAS MODULARES ============
-
-// Auth (Pública)
-console.log("[Server] Iniciando registro de rotas modulares...");
+// Rotas de API
 app.use("/api/auth", authRoutes(prisma));
-
-// Rotas Protegidas (JWT)
 app.use("/api/org", authenticateToken, orgSettingsRoutes(prisma));
-app.use("/api/users", authenticateToken, usersRoutes(prisma));
-app.use("/api/ai", authenticateToken, aiRoutes(prisma));
 app.use("/api/clients", authenticateToken, clientRoutes(prisma));
 app.use("/api/admin", authenticateToken, adminRoutes(prisma));
 
-// CRM e Operação (Montadas em /api)
+// CRM e Outros
 app.use("/api", authenticateToken, crmRoutes(prisma));
 app.use("/api", authenticateToken, marketingRoutes(prisma));
 app.use("/api", authenticateToken, financeRoutes(prisma));
 app.use("/api", authenticateToken, opsRoutes(prisma));
 app.use("/api", authenticateToken, adsRoutes(prisma));
 
-// ============ VITE / STATIC SETUP ============
-if (process.env.NODE_ENV !== "production") {
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
+// Middleware de Erro Global (Para pegar o erro real na Vercel)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("🚨 [VERCEL ERROR]:", err);
+  res.status(500).json({ 
+    error: "Erro interno no servidor", 
+    message: err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
-  app.use(vite.middlewares);
-} else {
-  const distPath = path.join(__dirname, "dist");
-  app.use(express.static(distPath));
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(distPath, "index.html"));
-  });
-}
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Nexus360 rodando em http://localhost:${PORT}`);
 });
 
+// Exporta para Vercel
 export default app;
+
+// Listener apenas para local
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`Nexus360 local na porta ${PORT}`));
+}

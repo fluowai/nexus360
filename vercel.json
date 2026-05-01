@@ -19,16 +19,7 @@
       "dest": "server.ts"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "/assets/$1"
-    },
-    {
-      "src": "/outputs/(.*)",
-      "dest": "/outputs/$1"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "/favicon.ico"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",

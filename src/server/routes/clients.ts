@@ -23,6 +23,7 @@ export function clientRoutes(prisma: PrismaClient) {
       });
       res.json(clients);
     } catch (error) {
+      console.error("[CLIENTS ERROR] Failed to fetch clients:", error);
       res.status(500).json({ error: "Failed to fetch clients" });
     }
   });
@@ -36,6 +37,7 @@ export function clientRoutes(prisma: PrismaClient) {
       });
       res.json(context);
     } catch (error) {
+      console.error("[CLIENTS ERROR] Failed to fetch context:", error);
       res.status(500).json({ error: "Failed to fetch context" });
     }
   });

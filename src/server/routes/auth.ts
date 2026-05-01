@@ -77,6 +77,7 @@ export function authRoutes(prisma: PrismaClient) {
          }
        });
     } catch (error) {
+      console.error("[AUTH ERROR] Falha no Login:", error);
       res.status(500).json({ error: "Erro interno no servidor." });
     }
   });

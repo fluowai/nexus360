@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm --prefix backend run dev",
+    "build": "npm --prefix frontend run build",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
     "lint": "tsc --noEmit"

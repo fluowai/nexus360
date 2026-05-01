@@ -55,7 +55,7 @@ app.use("/finance", authenticateToken, financeRoutes(prisma));
 app.use("/ops", authenticateToken, opsRoutes(prisma));
 app.use("/ads", authenticateToken, adsRoutes(prisma));
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Backend Nexus360 rodando na porta ${PORT}`);
 });

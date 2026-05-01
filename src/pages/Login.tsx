@@ -44,6 +44,7 @@ export default function Login() {
       if (isRegister) {
         navigate("/onboarding");
       } else {
+        localStorage.setItem("nexus_onboarding_done", "true");
         navigate("/");
       }
 

@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-only";
+const getJwtSecret = () => process.env.JWT_SECRET || "dev-secret-only";
 
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -47,23 +47,35 @@ export function authRoutes(prisma: PrismaClient) {
       }
 
 
+      let orgId = user.organizationId;
+      let orgName = user.organization?.name || "Sem Organização";
+
+      // Se for Super Admin e não tiver Org, vincula à Master ou à primeira que encontrar
+      if (user.role === 'SUPER_ADMIN' && !orgId) {
+        const firstOrg = await prisma.organization.findFirst();
+        if (firstOrg) {
+          orgId = firstOrg.id;
+          orgName = firstOrg.name;
+        }
+      }
+
       const token = jwt.sign(
-        { id: user.id, orgId: user.organizationId, role: user.role },
-        JWT_SECRET,
+        { id: user.id, orgId: orgId, role: user.role },
+        getJwtSecret(),
         { expiresIn: '8h' }
       );
-
-      res.json({
-        token,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          orgId: user.organizationId,
-          orgName: user.organization?.name || "Sem Organização"
-        }
-      });
+ 
+       res.json({
+         token,
+         user: {
+           id: user.id,
+           name: user.name,
+           email: user.email,
+           role: user.role,
+           orgId: orgId,
+           orgName: orgName
+         }
+       });
     } catch (error) {
       res.status(500).json({ error: "Erro interno no servidor." });
     }
@@ -114,7 +126,7 @@ export function authRoutes(prisma: PrismaClient) {
 
       const token = jwt.sign(
         { id: result.user.id, orgId: result.org.id, role: result.user.role },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: '8h' }
       );
 
@@ -130,8 +142,51 @@ export function authRoutes(prisma: PrismaClient) {
         }
       });
     } catch (error) {
-      console.error("Registration Error:", error);
+      console.error("Registration Error Details:", error);
       res.status(500).json({ error: "Falha ao registrar agência." });
+    }
+  });
+
+  router.get("/me", async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      console.log("[AUTH] /me - Token não fornecido");
+      return res.status(401).json({ error: "No token" });
+    }
+
+    try {
+      const decoded: any = jwt.verify(token, getJwtSecret());
+      console.log(`[AUTH] /me - Token verificado para User: ${decoded.id}`);
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        include: { organization: true }
+      });
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+      
+      let orgId = user.organizationId;
+      let orgName = user.organization?.name || "No Org";
+
+      if (user.role === 'SUPER_ADMIN' && !orgId) {
+        const firstOrg = await prisma.organization.findFirst();
+        if (firstOrg) {
+          orgId = firstOrg.id;
+          orgName = firstOrg.name;
+        }
+      }
+
+      res.json({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        orgId: orgId,
+        orgName: orgName
+      });
+    } catch (error) {
+      res.status(401).json({ error: "Invalid token" });
     }
   });
 

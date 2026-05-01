@@ -1,44 +1,35 @@
+import dotenv from "dotenv";
+dotenv.config(); // DEVE ser o primeiro a rodar
+
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { generateInstagramPost } from "./src/lib/instagramGenerator.ts";
 
 // Import Modulares
-import { crmRoutes } from "./src/server/routes/crm.ts";
-import { marketingRoutes } from "./src/server/routes/marketing.ts";
-import { financeRoutes } from "./src/server/routes/finance.ts";
-import { opsRoutes } from "./src/server/routes/ops.ts";
-import { adminRoutes } from "./src/server/routes/admin.ts";
-import { adsRoutes } from "./src/server/routes/ads.ts";
-import { authRoutes } from "./src/server/routes/auth.ts";
-import { usersRoutes } from "./src/server/routes/users.ts";
+import { crmRoutes } from "./src/server/routes/crm";
+import { marketingRoutes } from "./src/server/routes/marketing";
+import { financeRoutes } from "./src/server/routes/finance";
+import { opsRoutes } from "./src/server/routes/ops";
+import { adminRoutes } from "./src/server/routes/admin";
+import { adsRoutes } from "./src/server/routes/ads";
+import { authRoutes } from "./src/server/routes/auth";
+import { usersRoutes } from "./src/server/routes/users";
+import { aiRoutes } from "./src/server/routes/ai";
+import { orgSettingsRoutes } from "./src/server/routes/orgSettings";
+import { clientRoutes } from "./src/server/routes/clients";
 
 import helmet from "helmet";
 import cors from "cors";
-import { authenticateToken } from "./src/server/middleware/auth.ts";
+import { authenticateToken } from "./src/server/middleware/auth";
 
-dotenv.config();
 const prisma = new PrismaClient();
 const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// Sincronização de Cargos
-async function syncRoles() {
-  try {
-    await prisma.user.updateMany({
-      where: { role: "SUPERADMIN" },
-      data: { role: "SUPER_ADMIN" }
-    });
-  } catch (e) {
-    console.log("[DB] Tabela vazia ou erro na sync de cargos.");
-  }
-}
-syncRoles();
 
 // Middlewares Globais
 app.use(helmet({
@@ -66,10 +57,19 @@ app.post("/api/content/generate-art", async (req, res) => {
 });
 
 // ============ ROTAS MODULARES ============
+
+// Auth (Pública)
+console.log("[Server] Iniciando registro de rotas modulares...");
 app.use("/api/auth", authRoutes(prisma));
-const adminRouter = adminRoutes(prisma);
-app.use("/api/admin", authenticateToken, adminRouter);
+
+// Rotas Protegidas (JWT)
+app.use("/api/org", authenticateToken, orgSettingsRoutes(prisma));
 app.use("/api/users", authenticateToken, usersRoutes(prisma));
+app.use("/api/ai", authenticateToken, aiRoutes(prisma));
+app.use("/api/clients", authenticateToken, clientRoutes(prisma));
+app.use("/api/admin", authenticateToken, adminRoutes(prisma));
+
+// CRM e Operação (Montadas em /api)
 app.use("/api", authenticateToken, crmRoutes(prisma));
 app.use("/api", authenticateToken, marketingRoutes(prisma));
 app.use("/api", authenticateToken, financeRoutes(prisma));
@@ -91,13 +91,9 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Inicialização (Apenas se não for Vercel)
-if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Nexus360 rodando em http://localhost:${PORT}`);
-  });
-}
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Nexus360 rodando em http://localhost:${PORT}`);
+});
 
-// Export para Vercel
 export default app;

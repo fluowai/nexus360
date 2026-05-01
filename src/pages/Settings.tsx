@@ -1,356 +1,382 @@
 import { useState, useEffect } from "react";
 import { 
-  Settings as SettingsIcon,
-  Key, 
-  Check, 
-  Eye, 
-  EyeOff, 
-  RefreshCw, 
-  Zap,
-  Brain,
-  Cloud,
-  Save,
-  AlertCircle,
-  ChevronDown
+  Building2, 
+  Users, 
+  FileText, 
+  Sparkles, 
+  Plus, 
+  Mail, 
+  Shield, 
+  Trash2, 
+  Save, 
+  Upload,
+  Globe,
+  Phone,
+  MapPin,
+  Loader2
 } from "lucide-react";
-import { motion } from "motion/react";
-
-interface ApiConfig {
-  provider: string;
-  apiKey: string;
-  model: string;
-  enabled: boolean;
-}
-
-const PROVIDERS = {
-  groq: {
-    name: "Groq",
-    icon: "⚡",
-    description: "Inferência ultrarrápida com modelos Llama, Mixtral e Qwen",
-    models: ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile", "mixtral-8x7b-32768", "qwen-2.5-32b"],
-    baseUrl: "https://api.groq.com/openai/v1"
-  },
-  gemini: {
-    name: "Gemini",
-    icon: "🌟",
-    description: "Modelos Multimodais Google com contexto longo",
-    models: ["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-1.5-flash"],
-    baseUrl: "https://generativelanguage.googleapis.com"
-  },
-  openai: {
-    name: "OpenAI",
-    icon: "🔮",
-    description: "GPT-4o, o1, o3-mini - Líder em reasoning",
-    models: ["gpt-4o", "gpt-4o-mini", "o1", "o1-mini", "o3-mini"],
-    baseUrl: "https://api.openai.com/v1"
-  }
-};
+import { motion, AnimatePresence } from "motion/react";
+import { apiFetch } from "../lib/api";
 
 export default function Settings() {
-  const [configs, setConfigs] = useState<ApiConfig[]>([
-    { provider: "groq", apiKey: "", model: "llama-3.3-70b-versatile", enabled: true },
-    { provider: "gemini", apiKey: "", model: "gemini-2.0-flash", enabled: false },
-    { provider: "openai", apiKey: "", model: "gpt-4o", enabled: false }
-  ]);
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
-  const [saved, setSaved] = useState(false);
-  const [activeProvider, setActiveProvider] = useState("groq");
+  const [activeTab, setActiveTab] = useState('agencia');
+  const [loading, setLoading] = useState(false);
+  
+  // States
+  const [agencyData, setAgencyData] = useState({
+    corporateName: '', tradeName: '', cnpj: '', email: '', phone: '', website: '', address: '', city: '', state: ''
+  });
+  const [team, setTeam] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
 
-  useEffect(() => {
-    const savedConfigs = localStorage.getItem("nexus_api_configs");
-    if (savedConfigs) {
-      const parsed = JSON.parse(savedConfigs);
-      setConfigs(parsed);
-      const enabled = parsed.find((c: ApiConfig) => c.enabled);
-      if (enabled) setActiveProvider(enabled.provider);
-    }
-  }, []);
-
-  const toggleShowKey = (provider: string) => {
-    setShowKeys(prev => ({ ...prev, [provider]: !prev[provider] }));
-  };
-
-  const updateConfig = (provider: string, field: keyof ApiConfig, value: string | boolean) => {
-    setConfigs(prev => prev.map(c => 
-      c.provider === provider ? { ...c, [field]: value } : c
-    ));
-  };
-
-  const setEnabled = (provider: string) => {
-    setConfigs(prev => prev.map(c => ({
-      ...c,
-      enabled: c.provider === provider
-    })));
-    setActiveProvider(provider);
-  };
-
-  const handleSave = () => {
-    localStorage.setItem("nexus_api_configs", JSON.stringify(configs));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const testConnection = async (config: ApiConfig) => {
+  const fetchSettings = async () => {
+    setLoading(true);
     try {
-      const provider = PROVIDERS[config.provider as keyof typeof PROVIDERS];
-      let response;
+      console.log("[Settings] Carregando perfil...");
+      const orgRes = await apiFetch('/api/org/profile');
+      const isJson = orgRes.headers.get('content-type')?.includes('application/json');
 
-      if (config.provider === "gemini") {
-        response = await fetch(`${provider.baseUrl}/models?key=${config.apiKey}`);
+      if (orgRes.ok && isJson) {
+        const data = await orgRes.json();
+        setAgencyData(data);
       } else {
-        response = await fetch(`${provider.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${config.apiKey}`
-          },
-          body: JSON.stringify({
-            model: config.model,
-            messages: [{ role: "user", content: "Hi" }],
-            max_tokens: 5
-          })
-        });
+        console.warn("[Settings] Resposta inválida Perfil:", orgRes.status, isJson ? "JSON" : "HTML/Outro");
       }
 
-      return response.ok;
-    } catch {
-      return false;
+      console.log("[Settings] Carregando equipe...");
+      const teamRes = await apiFetch('/api/org/team');
+      const isTeamJson = teamRes.headers.get('content-type')?.includes('application/json');
+      if (teamRes.ok && isTeamJson) {
+        const data = await teamRes.json();
+        setTeam(data);
+      }
+
+      console.log("[Settings] Carregando modelos...");
+      const templatesRes = await apiFetch('/api/org/templates');
+      const isTemplatesJson = templatesRes.headers.get('content-type')?.includes('application/json');
+      if (templatesRes.ok && isTemplatesJson) {
+        const data = await templatesRes.json();
+        setTemplates(data);
+      }
+    } catch (err) {
+      console.error("[Settings] Erro na requisição:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const TABS = [
+    { id: 'agencia', label: 'Dados da Agência', icon: Building2 },
+    { id: 'equipe', label: 'Gestão de Equipe', icon: Users },
+    { id: 'modelos', label: 'Modelos de Contrato', icon: FileText },
+    { id: 'ia', label: 'Agente Jurídico (Groq)', icon: Sparkles },
+  ];
+
+  return (
+    <div className="flex flex-col gap-8 h-full">
+      <div>
+        <h1 className="text-3xl font-black tracking-tight text-gray-900 mb-2">Configurações da Agência</h1>
+        <p className="text-gray-500">Gerencie sua operação, equipe e inteligência contratual.</p>
+      </div>
+
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs transition-all ${
+              activeTab === tab.id ? 'bg-white text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <tab.icon size={16} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm flex-1 overflow-hidden flex flex-col">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="p-8 flex-1 overflow-y-auto custom-scrollbar"
+          >
+            {activeTab === 'agencia' && <AgencyTab data={agencyData} setData={setAgencyData} />}
+            {activeTab === 'equipe' && <TeamTab team={team} onRefresh={fetchSettings} />}
+            {activeTab === 'modelos' && <TemplatesTab templates={templates} onRefresh={fetchSettings} />}
+            {activeTab === 'ia' && <IATab />}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function AgencyTab({ data, setData }: any) {
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiFetch('/api/org/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      });
+      alert("Dados salvos com sucesso!");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-2">Configurações</h1>
-          <p className="text-sm sm:text-base text-gray-500">Gerencie suas integrações com provedores de IA.</p>
+    <div className="max-w-3xl space-y-8">
+      <div className="grid grid-cols-2 gap-6">
+        <div className="col-span-2 space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Razão Social</label>
+          <div className="relative">
+            <Building2 className="absolute left-4 top-3 text-gray-400" size={18} />
+            <input className="modal-input pl-12" value={data.corporateName} onChange={e => setData({...data, corporateName: e.target.value})} placeholder="Nexus Marketing LTDA" />
+          </div>
         </div>
-        <button
-          onClick={handleSave}
-          className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all ${
-            saved 
-              ? 'bg-green-500 text-white' 
-              : 'bg-primary text-white hover:bg-blue-600 shadow-lg shadow-blue-200'
-          }`}
-        >
-          {saved ? <Check size={20} /> : <Save size={20} />}
-          <span>{saved ? 'Salvo!' : 'Salvar'}</span>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">CNPJ</label>
+          <input className="modal-input" value={data.cnpj} onChange={e => setData({...data, cnpj: e.target.value})} placeholder="00.000.000/0000-00" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">E-mail Corporativo</label>
+          <div className="relative">
+            <Mail className="absolute left-4 top-3 text-gray-400" size={18} />
+            <input className="modal-input pl-12" value={data.email} onChange={e => setData({...data, email: e.target.value})} placeholder="contato@agencia.com" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Telefone</label>
+          <div className="relative">
+            <Phone className="absolute left-4 top-3 text-gray-400" size={18} />
+            <input className="modal-input pl-12" value={data.phone} onChange={e => setData({...data, phone: e.target.value})} placeholder="(11) 99999-9999" />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Website</label>
+          <div className="relative">
+            <Globe className="absolute left-4 top-3 text-gray-400" size={18} />
+            <input className="modal-input pl-12" value={data.website} onChange={e => setData({...data, website: e.target.value})} placeholder="www.agencia.com" />
+          </div>
+        </div>
+        <div className="col-span-2 space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Endereço Completo</label>
+          <div className="relative">
+            <MapPin className="absolute left-4 top-3 text-gray-400" size={18} />
+            <input className="modal-input pl-12" value={data.address} onChange={e => setData({...data, address: e.target.value})} placeholder="Rua das Agências, 123" />
+          </div>
+        </div>
+      </div>
+      <button onClick={handleSave} disabled={saving} className="bg-primary text-white px-8 py-3 rounded-2xl font-bold flex items-center gap-2 hover:bg-blue-600 shadow-lg shadow-blue-100 transition-all">
+        {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> Salvar Alterações</>}
+      </button>
+    </div>
+  );
+}
+
+function TeamTab({ team, onRefresh }: any) {
+  const [inviting, setInviting] = useState(false);
+
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">Membros da Equipe</h3>
+          <p className="text-sm text-gray-500">Pessoas com acesso ao painel da sua agência.</p>
+        </div>
+        <button onClick={() => setInviting(true)} className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-black transition-all">
+          <Plus size={16} /> Convidar Membro
         </button>
       </div>
 
-      {/* Provider Status */}
-      <div className="glass-card">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-            <Brain size={20} className="text-primary" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {team.map((user: any) => (
+          <div key={user.id} className="p-6 bg-gray-50 rounded-3xl border border-gray-100 flex flex-col gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-primary font-black shadow-sm">
+                {user.name.charAt(0)}
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-900">{user.name}</h4>
+                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">{user.role}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Mail size={14} />
+              {user.email}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button className="flex-1 py-2 rounded-xl bg-white border border-gray-200 text-[10px] font-black uppercase tracking-widest hover:bg-gray-100 transition-all">Editar</button>
+              <button className="p-2 rounded-xl text-red-500 hover:bg-red-50 transition-all"><Trash2 size={16} /></button>
+            </div>
           </div>
-          <div>
-            <h2 className="font-bold text-gray-900">Provedor Ativo</h2>
-            <p className="text-sm text-gray-500">Selecione qual IA irá gerar conteúdo</p>
-          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TemplatesTab({ templates, onRefresh }: any) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', file.name.split('.')[0]);
+
+    try {
+      // Por enquanto enviamos como JSON o nome, mas o backend lidará com o multipart futuramente
+      const response = await apiFetch('/api/org/templates', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: file.name.split('.')[0],
+          content: `Conteúdo extraído do arquivo ${file.name} (Simulação)`,
+          category: 'Padrão Agência'
+        })
+      });
+
+      if (response.ok) {
+        onRefresh();
+        alert("Modelo enviado com sucesso!");
+      } else {
+        const err = await response.json();
+        alert(err.error || "Erro no upload");
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Deseja realmente excluir este modelo?")) return;
+    try {
+      const response = await apiFetch(`/api/org/templates/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        onRefresh();
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        className="hidden" 
+        accept=".doc,.docx,.pdf"
+        onChange={handleUpload}
+      />
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-xl font-bold text-gray-900">Modelos de Contrato</h3>
+          <p className="text-sm text-gray-500">Suba até 4 modelos (Word/PDF) para treinamento da IA.</p>
         </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {Object.entries(PROVIDERS).map(([key, provider]) => {
-            const config = configs.find(c => c.provider === key);
-            const isActive = activeProvider === key && config?.enabled;
-            
-            return (
-              <button
-                key={key}
-                onClick={() => setEnabled(key)}
-                className={`p-4 rounded-xl border-2 transition-all text-left ${
-                  isActive
-                    ? 'border-primary bg-blue-50 ring-2 ring-blue-100'
-                    : 'border-gray-100 bg-white hover:border-blue-200'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{provider.icon}</span>
-                  {isActive && (
-                    <span className="text-xs font-bold text-primary bg-blue-100 px-2 py-1 rounded-full">
-                      ATIVO
-                    </span>
-                  )}
-                </div>
-                <h3 className={`font-bold ${isActive ? 'text-primary' : 'text-gray-900'}`}>
-                  {provider.name}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  {config?.model || provider.models[0]}
-                </p>
-              </button>
-            );
-          })}
+        <div className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-black uppercase">
+          {templates.length} / 4 Utilizados
         </div>
       </div>
 
-      {/* API Keys */}
-      <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-          <Key size={20} />
-          Chaves de API
-        </h2>
-        
-        {configs.map((config) => {
-          const provider = PROVIDERS[config.provider as keyof typeof PROVIDERS];
-          const isVisible = showKeys[config.provider];
-          
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {[0, 1, 2, 3].map(idx => {
+          const template = templates[idx];
           return (
-            <motion.div
-              key={config.provider}
-              layout
-              className="glass-card"
+            <div key={idx} className={`p-8 rounded-[32px] border-2 border-dashed flex flex-col items-center justify-center gap-4 transition-all ${
+              template ? 'bg-white border-blue-100 shadow-xl shadow-blue-50/50' : 'bg-gray-50 border-gray-200 hover:border-primary/40 cursor-pointer'
+            }`}
+            onClick={() => !template && fileInputRef.current?.click()}
             >
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{provider.icon}</span>
-                  <div>
-                    <h3 className="font-bold text-gray-900">{provider.name}</h3>
-                    <p className="text-xs text-gray-500">{provider.description}</p>
+              {template ? (
+                <>
+                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                    <FileText size={32} />
                   </div>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <div className="relative">
-                    <input
-                      type="checkbox"
-                      checked={config.enabled}
-                      onChange={(e) => {
-                        setEnabled(config.provider);
-                        updateConfig(config.provider, "enabled", e.target.checked);
-                      }}
-                      className="sr-only"
-                    />
-                    <div className={`w-11 h-6 rounded-full transition-colors ${
-                      config.enabled ? 'bg-primary' : 'bg-gray-200'
-                    }`}>
-                      <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform mt-0.5 ${
-                        config.enabled ? 'translate-x-5 ml-0.5' : 'translate-x-0.5'
-                      }`} />
-                    </div>
+                  <div className="text-center">
+                    <h4 className="font-bold text-gray-900">{template.name}</h4>
+                    <p className="text-xs text-gray-500">Modelo pronto para uso com IA</p>
                   </div>
-                  <span className="text-sm text-gray-600">
-                    {config.enabled ? 'Ativo' : 'Inativo'}
-                  </span>
-                </label>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    API Key
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={isVisible ? "text" : "password"}
-                      value={config.apiKey}
-                      onChange={(e) => updateConfig(config.provider, "apiKey", e.target.value)}
-                      placeholder={`Cole sua ${provider.name} API key...`}
-                      className="w-full p-3 pr-10 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:bg-white outline-none transition-all text-sm font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => toggleShowKey(config.provider)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  <div className="flex gap-2 w-full mt-4">
+                    <button className="flex-1 py-3 rounded-2xl bg-gray-50 text-[10px] font-black uppercase hover:bg-gray-100 transition-all">Visualizar</button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleDelete(template.id); }}
+                      className="p-3 rounded-2xl text-red-500 hover:bg-red-50 transition-all"
                     >
-                      {isVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                      <Trash2 size={18} />
                     </button>
                   </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-                    Modelo
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={config.model}
-                      onChange={(e) => updateConfig(config.provider, "model", e.target.value)}
-                      className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:bg-white outline-none transition-all text-sm appearance-none cursor-pointer"
-                    >
-                      {provider.models.map(model => (
-                        <option key={model} value={model}>{model}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-gray-100 text-gray-400 rounded-2xl flex items-center justify-center">
+                    <Upload size={32} />
                   </div>
-                </div>
-              </div>
-
-              {config.apiKey && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <button
-                    onClick={() => testConnection(config)}
-                    className="flex items-center gap-2 text-sm text-gray-500 hover:text-primary transition-colors"
-                  >
-                    <RefreshCw size={14} />
-                    <span>Testar conexão</span>
+                  <div className="text-center">
+                    <h4 className="font-bold text-gray-400">Novo Modelo</h4>
+                    <p className="text-xs text-gray-400">Clique para subir Word ou PDF</p>
+                  </div>
+                  <button className="mt-4 bg-primary text-white px-6 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-blue-100 pointer-events-none">
+                    Upload Arquivo
                   </button>
-                </div>
+                </>
               )}
-
-              {config.enabled && !config.apiKey && (
-                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
-                  <AlertCircle size={18} className="text-amber-600 shrink-0" />
-                  <p className="text-sm text-amber-800">
-                    Configure a API key para usar este provedor
-                  </p>
-                </div>
-              )}
-            </motion.div>
+            </div>
           );
         })}
       </div>
+    </div>
+  );
+}
 
-      {/* Quick Links */}
-      <div className="glass-card">
-        <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <Cloud size={20} />
-          Links Rápidos
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <a
-            href="https://console.groq.com/keys"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 bg-gradient-to-r from-orange-50 to-orange-100/50 rounded-xl hover:from-orange-100 hover:to-orange-100 transition-all group"
-          >
-            <span className="text-2xl">⚡</span>
-            <div className="flex-1">
-              <p className="font-bold text-gray-900 text-sm">Groq</p>
-              <p className="text-xs text-gray-500">Obter API Key</p>
-            </div>
-            <Zap size={16} className="text-orange-400 group-hover:translate-x-1 transition-transform" />
-          </a>
+function IATab() {
+  return (
+    <div className="max-w-2xl space-y-8">
+      <div className="p-10 bg-slate-900 rounded-[40px] text-white relative overflow-hidden">
+        <div className="relative z-10 space-y-4">
+          <div className="flex items-center gap-3 text-blue-400">
+            <Sparkles size={32} />
+            <span className="font-black text-xl tracking-tighter uppercase">Groq AI Engine</span>
+          </div>
+          <h3 className="text-4xl font-black leading-tight">Agente Jurídico Especialista</h3>
+          <p className="text-slate-400 text-lg">Este agente usa seus modelos de contrato como base de conhecimento para gerar documentos personalizados em segundos.</p>
           
-          <a
-            href="https://aistudio.google.com/app/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-xl hover:from-blue-100 hover:to-blue-100 transition-all group"
-          >
-            <span className="text-2xl">🌟</span>
-            <div className="flex-1">
-              <p className="font-bold text-gray-900 text-sm">Gemini</p>
-              <p className="text-xs text-gray-500">Obter API Key</p>
+          <div className="pt-6 flex gap-4">
+            <div className="flex-1 p-4 bg-white/5 rounded-2xl border border-white/10">
+              <Shield className="text-blue-400 mb-2" size={24} />
+              <h4 className="font-bold text-sm">Segurança Jurídica</h4>
+              <p className="text-[10px] text-slate-500">Mantém seu padrão de escrita</p>
             </div>
-            <Zap size={16} className="text-blue-400 group-hover:translate-x-1 transition-transform" />
-          </a>
-          
-          <a
-            href="https://platform.openai.com/settings/organization/api-keys"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 p-4 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-xl hover:from-gray-100 hover:to-gray-100 transition-all group"
-          >
-            <span className="text-2xl">🔮</span>
-            <div className="flex-1">
-              <p className="font-bold text-gray-900 text-sm">OpenAI</p>
-              <p className="text-xs text-gray-500">Obter API Key</p>
+            <div className="flex-1 p-4 bg-white/5 rounded-2xl border border-white/10">
+              <Loader2 className="text-blue-400 mb-2" size={24} />
+              <h4 className="font-bold text-sm">Alta Velocidade</h4>
+              <p className="text-[10px] text-slate-500">Processamento Groq Llama 3</p>
             </div>
-            <Zap size={16} className="text-gray-400 group-hover:translate-x-1 transition-transform" />
-          </a>
+          </div>
         </div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-[120px] rounded-full -mr-20 -mt-20" />
+      </div>
+
+      <div className="space-y-4">
+        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Configuração do Modelo</h4>
+        <select className="modal-input bg-gray-50 border-gray-200">
+          <option>Groq Llama 3 70B (Velocidade Extrema)</option>
+          <option>Groq Mixtral 8x7B (Raciocínio Jurídico)</option>
+        </select>
       </div>
     </div>
   );

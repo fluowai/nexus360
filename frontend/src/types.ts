@@ -5,11 +5,13 @@ export interface MetricCards {
   contentCount: number;
 }
 
+export type LeadStatus = 'novo' | 'contato' | 'qualificado' | 'proposta' | 'fechado';
+
 export interface Lead {
   id: string;
   name: string;
   email: string;
-  status: 'novo' | 'contato' | 'qualificado' | 'proposta' | 'fechado';
+  status: LeadStatus;
   value: number;
   tags: string[];
 }

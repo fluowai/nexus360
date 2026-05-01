@@ -19,7 +19,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Lead } from "../types";
+import { Lead, LeadStatus } from "../types";
 import { useEffect } from "react";
 import { apiFetch } from "../lib/api";
 import { WinLeadModal } from "../components/crm/WinLeadModal";
@@ -57,7 +57,7 @@ export default function CRM() {
     e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
+  const handleDrop = async (e: React.DragEvent, newStatus: LeadStatus) => {
     e.preventDefault();
     const leadId = e.dataTransfer.getData("leadId");
     const lead = leads.find(l => l.id === leadId);
@@ -121,7 +121,7 @@ export default function CRM() {
             key={col.id} 
             className="kanban-column shrink-0 w-[280px] sm:w-[320px]"
             onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, col.id)}
+            onDrop={(e) => handleDrop(e, col.id as LeadStatus)}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -144,7 +144,7 @@ export default function CRM() {
                     layoutId={lead.id}
                     key={lead.id} 
                     draggable
-                    onDragStart={(e) => handleDragStart(e, lead.id)}
+                    onDragStart={(e: any) => handleDragStart(e, lead.id)}
                     className="kanban-card group cursor-grab active:cursor-grabbing"
                     onClick={() => setSelectedLeadId(lead.id)}
                     whileHover={{ scale: 1.02 }}

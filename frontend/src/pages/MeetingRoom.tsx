@@ -12,7 +12,8 @@ import {
   Users, 
   MoreVertical,
   Shield,
-  Maximize
+  Maximize,
+  X
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 

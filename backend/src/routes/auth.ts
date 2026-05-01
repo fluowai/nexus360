@@ -44,8 +44,9 @@ export function authRoutes(prisma: PrismaClient) {
         token,
         user: { id: user.id, name: user.name, email: user.email, role: user.role, orgId, orgName }
       });
-    } catch (error) {
-      res.status(500).json({ error: "Erro interno no servidor." });
+    } catch (error: any) {
+      console.error("[Login Error]", error);
+      res.status(500).json({ error: "Erro interno no servidor.", details: error.message || String(error) });
     }
   });
 

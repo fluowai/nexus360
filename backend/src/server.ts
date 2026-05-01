@@ -23,7 +23,10 @@ const app = express();
 
 // Configuração de CORS para Vercel
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
+  origin: [
+    'https://nexus360-zeta.vercel.app',
+    process.env.FRONTEND_URL as string
+  ].filter(Boolean),
   credentials: true,
 }));
 
@@ -33,31 +36,66 @@ app.use(helmet({
 }));
 
 // Rota de Health Check para Railway
-app.get("/health", (req, res) => {
+app.get("/api/health", (req, res) => {
   res.json({ 
     success: true, 
     message: "Backend Nexus360 online", 
-    timestamp: new Date() 
+    env: {
+      database: Boolean(process.env.DATABASE_URL),
+      jwt: Boolean(process.env.JWT_SECRET),
+      frontend: process.env.FRONTEND_URL
+    }
   });
 });
 
-// Rotas (Sem o prefixo /api, pois o Railway cuidará da raiz ou usaremos rotas diretas)
-app.use("/auth", authRoutes(prisma));
-app.use("/org", authenticateToken, orgSettingsRoutes(prisma));
-app.use("/clients", authenticateToken, clientRoutes(prisma));
-app.use("/admin", authenticateToken, adminRoutes(prisma));
-app.use("/ai", authenticateToken, aiRoutes(prisma));
+app.get('/api/debug/routes', (req, res) => {
+  res.json({
+    success: true,
+    routes: [
+      'GET /api/health',
+      'POST /api/auth/login',
+      'GET /api/clients',
+      'GET /api/admin/dashboard'
+    ]
+  });
+});
+
+// Rotas com prefixo /api
+app.use("/api/auth", authRoutes(prisma));
+app.use("/api/org", authenticateToken, orgSettingsRoutes(prisma));
+app.use("/api/clients", authenticateToken, clientRoutes(prisma));
+app.use("/api/admin", authenticateToken, adminRoutes(prisma));
+app.use("/api/ai", authenticateToken, aiRoutes(prisma));
 
 // CRM e Outros
-app.use("/crm", authenticateToken, crmRoutes(prisma));
-app.use("/marketing", authenticateToken, marketingRoutes(prisma));
-app.use("/finance", authenticateToken, financeRoutes(prisma));
-app.use("/ops", authenticateToken, opsRoutes(prisma));
-app.use("/ads", authenticateToken, adsRoutes(prisma));
+app.use("/api/crm", authenticateToken, crmRoutes(prisma));
+app.use("/api/marketing", authenticateToken, marketingRoutes(prisma));
+app.use("/api/finance", authenticateToken, financeRoutes(prisma));
+app.use("/api/ops", authenticateToken, opsRoutes(prisma));
+app.use("/api/ads", authenticateToken, adsRoutes(prisma));
 
 const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Backend Nexus360 rodando na porta ${PORT}`);
+});
+
+// Fallback para rotas não encontradas
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Rota não encontrada',
+    path: req.originalUrl
+  });
+});
+
+// Global Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('[API_ERROR]', err);
+  res.status(500).json({
+    success: false,
+    error: 'Erro interno no servidor',
+    details: process.env.NODE_ENV !== 'production' ? String(err) : undefined
+  });
 });
 
 export default app;

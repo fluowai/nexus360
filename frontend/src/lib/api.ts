@@ -10,9 +10,10 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     ...options.headers,
   };
 
-  // Garante que o path comece com /
-  const fullPath = path.startsWith('/') ? path : `/${path}`;
-  const url = `${API_URL}${fullPath}`;
+  // Garante a correta concatenação da URL da API
+  const normalizedBase = API_URL?.replace(/\/$/, '') || '';
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = `${normalizedBase}${normalizedPath}`;
 
   const response = await fetch(url, {
     ...options,

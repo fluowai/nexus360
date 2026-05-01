@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch } from "../lib/api";
 import { Shield, Mail, Lock, ArrowRight, Zap } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -25,17 +26,10 @@ export default function Login() {
         ? { name, email, password, organizationName: orgName }
         : { email, password };
 
-      const response = await fetch(endpoint, {
+      const data = await apiFetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Erro na operação");
-      }
 
       localStorage.setItem("nexus_token", data.token);
       localStorage.setItem("nexus_user_role", data.user.role);

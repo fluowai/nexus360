@@ -242,9 +242,9 @@ function FinanceModal({ type, onClose, onSuccess }: { type: "receita" | "despesa
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch('/api/clients')
-      .then(res => res.json())
-      .then(setClients);
+    apiFetch('/api/clients')
+      .then(setClients)
+      .catch(console.error);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

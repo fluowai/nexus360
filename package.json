@@ -4,10 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build",
-    "postinstall": "prisma generate",
-    "start": "tsx server.ts",
+    "dev": "npm --prefix backend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

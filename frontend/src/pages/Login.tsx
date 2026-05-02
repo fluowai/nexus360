@@ -47,11 +47,11 @@ export default function Login() {
       } else {
         localStorage.setItem("nexus_onboarding_done", "true");
         if (data.user.role === 'SUPER_ADMIN') {
-          navigate("/admin");
+          window.location.href = "/admin";
         } else if (data.user.orgSlug) {
-          navigate(`/${data.user.orgSlug}/dashboard`);
+          window.location.href = `/${data.user.orgSlug}/dashboard`;
         } else {
-          navigate("/dashboard");
+          window.location.href = "/dashboard";
         }
       }
 

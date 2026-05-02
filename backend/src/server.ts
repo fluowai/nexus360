@@ -51,12 +51,20 @@ app.use(limiter);
 
 // Configuração de CORS para Vercel
 app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL,
-    'https://nexus360-zeta.vercel.app',
-    'https://nexus.woopanel.com.br', // Seu novo domínio oficial
-    'http://localhost:5173'
-  ].filter(Boolean) as string[],
+  origin: (origin, callback) => {
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      'https://nexus360-zeta.vercel.app',
+      'https://nexus.woopanel.com.br',
+      'http://localhost:5173'
+    ];
+    
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.woopanel.com.br')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 

@@ -120,7 +120,7 @@ export default function AdminTickets() {
               <h3 className="text-lg font-bold mb-2">Tempo de Resposta</h3>
               <p className="text-blue-100 text-xs mb-6">Média de atendimento nas últimas 24h.</p>
               <div className="text-4xl font-black mb-2">42 min</div>
-              <div className="text-[10px] uppercase font-bold tracking-widest text-blue-200">Meta: < 60 min</div>
+              <div className="text-[10px] uppercase font-bold tracking-widest text-blue-200">Meta: &lt; 60 min</div>
             </div>
             <Ticket className="absolute -bottom-4 -right-4 w-32 h-32 text-white/10 rotate-12" />
           </div>

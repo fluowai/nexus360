@@ -146,6 +146,8 @@ export const Sidebar: React.FC<{
     if (slug) return `/${slug}${basePath}`;
     return basePath;
   };
+
+  return (
     <>
       {/* Mobile Overlay */}
       {isMobileOpen && (

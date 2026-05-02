@@ -33,11 +33,18 @@ export default function CRM() {
 
   const fetchLeads = async () => {
     try {
-      const res = await apiFetch(`/api/leads`);
+      const res = await apiFetch(`/api/crm/leads`);
       const data = await res.json();
-      setLeads(data.leads || data);
+      const leadsArray = data.leads || data;
+      if (Array.isArray(leadsArray)) {
+        setLeads(leadsArray);
+      } else {
+        console.warn("CRM API returned non-array data:", data);
+        setLeads([]);
+      }
     } catch (err) {
       console.error("Error fetching leads:", err);
+      setLeads([]);
     } finally {
       setLoading(false);
     }
@@ -75,7 +82,7 @@ export default function CRM() {
 
     try {
       console.log(`[CRM] Atualizando lead ${leadId} para status ${newStatus}`);
-      await apiFetch(`/api/leads/${leadId}`, {
+      await apiFetch(`/api/crm/leads/${leadId}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: newStatus })
       });
@@ -234,7 +241,7 @@ function NewLeadModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: 
     e.preventDefault();
     setSubmitting(true);
     try {
-      const response = await apiFetch('/api/leads', {
+      const response = await apiFetch('/api/crm/leads', {
         method: 'POST',
         body: JSON.stringify(formData)
       });
@@ -315,7 +322,7 @@ function LeadDetailModal({ leadId, onClose, onWin }: { leadId: string, onClose: 
   const fetchDetails = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/leads/${leadId}`);
+      const res = await apiFetch(`/api/crm/leads/${leadId}`);
       const data = await res.json();
       setLead(data);
     } catch (err) {
@@ -333,7 +340,7 @@ function LeadDetailModal({ leadId, onClose, onWin }: { leadId: string, onClose: 
     e.preventDefault();
     setSubmitting(true);
     try {
-      await apiFetch(`/api/leads/${leadId}/followups`, {
+      await apiFetch(`/api/crm/leads/${leadId}/followups`, {
         method: 'POST',
         body: JSON.stringify(newFollowUp)
       });

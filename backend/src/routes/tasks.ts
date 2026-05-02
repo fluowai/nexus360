@@ -10,7 +10,7 @@ export function taskRoutes(prisma: PrismaClient) {
     try {
       const tasks = await prisma.task.findMany({
         where: {
-          organizationId: req.user?.organizationId
+          organizationId: req.user?.orgId
         },
         include: {
           assignedTo: {
@@ -50,7 +50,7 @@ export function taskRoutes(prisma: PrismaClient) {
           priority: priority || "media",
           dueDate: dueDate ? new Date(dueDate) : null,
           assignedToId: assignedToId || req.user?.id,
-          organizationId: req.user?.organizationId as string
+          organizationId: req.user?.orgId as string
         },
         include: {
           assignedTo: {

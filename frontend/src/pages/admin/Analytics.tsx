@@ -68,7 +68,7 @@ export default function AdminAnalytics() {
             </div>
           </div>
           <div className="h-[300px] min-h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%" minHeight={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={growthData}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -94,7 +94,7 @@ export default function AdminAnalytics() {
             Novos Usuários por Mês
           </h3>
           <div className="h-[300px] min-h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%" minHeight={0}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={growthData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 12}} />

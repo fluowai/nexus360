@@ -10,7 +10,7 @@ export function calendarRoutes(prisma: PrismaClient) {
     try {
       const events = await prisma.calendarEvent.findMany({
         where: {
-          organizationId: req.user?.organizationId
+          organizationId: req.user?.orgId
         },
         orderBy: {
           startDate: 'asc'
@@ -42,7 +42,7 @@ export function calendarRoutes(prisma: PrismaClient) {
           type,
           reminder: reminder ? Number(reminder) : null,
           meetingLink,
-          organizationId: req.user?.organizationId as string
+          organizationId: req.user?.orgId as string
         }
       });
       res.json(event);

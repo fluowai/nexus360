@@ -22,9 +22,16 @@ export default function MarketingOps() {
   const fetchCreatives = async () => {
     try {
       const res = await apiFetch(`/api/creatives`);
-      setCreatives(await res.json());
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setCreatives(data);
+      } else {
+        console.warn("Creatives API returned non-array data:", data);
+        setCreatives([]);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching creatives:", err);
+      setCreatives([]);
     } finally {
       setLoading(false);
     }

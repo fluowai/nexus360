@@ -61,12 +61,14 @@ export function authRoutes(prisma: PrismaClient) {
 
       let orgId = user.organizationId;
       let orgName = user.organization?.name || "Sem Organização";
+      let orgSlug = user.organization?.slug || "";
 
       if (user.role === 'SUPER_ADMIN' && !orgId) {
         const firstOrg = await prisma.organization.findFirst();
         if (firstOrg) {
           orgId = firstOrg.id;
           orgName = firstOrg.name;
+          orgSlug = firstOrg.slug || "";
         }
       }
 
@@ -93,7 +95,8 @@ export function authRoutes(prisma: PrismaClient) {
           role: user.role,
           status: user.status,
           orgId,
-          orgName
+          orgName,
+          orgSlug
         }
       });
     } catch (error) {
@@ -121,6 +124,7 @@ export function authRoutes(prisma: PrismaClient) {
         const org = await tx.organization.create({
           data: {
             name: isFirstUser ? "Nexus360 Master" : organizationName,
+            slug: (isFirstUser ? "nexus360-master" : organizationName).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-'),
             domain: email.split('@')[1],
             plan: isFirstUser ? "Enterprise" : "Free"
           }
@@ -139,7 +143,15 @@ export function authRoutes(prisma: PrismaClient) {
 
       res.status(201).json({
         token,
-        user: { id: result.user.id, name: result.user.name, email: result.user.email, role: result.user.role, orgId: result.org.id, orgName: result.org.name }
+        user: { 
+          id: result.user.id, 
+          name: result.user.name, 
+          email: result.user.email, 
+          role: result.user.role, 
+          orgId: result.org.id, 
+          orgName: result.org.name,
+          orgSlug: result.org.slug
+        }
       });
     } catch (error) {
       res.status(500).json({ error: "Falha ao registrar agência." });
@@ -162,16 +174,26 @@ export function authRoutes(prisma: PrismaClient) {
       
       let orgId = user.organizationId;
       let orgName = user.organization?.name || "No Org";
+      let orgSlug = user.organization?.slug || "";
 
       if (user.role === 'SUPER_ADMIN' && !orgId) {
         const firstOrg = await prisma.organization.findFirst();
         if (firstOrg) {
           orgId = firstOrg.id;
           orgName = firstOrg.name;
+          orgSlug = firstOrg.slug || "";
         }
       }
 
-      res.json({ id: user.id, name: user.name, email: user.email, role: user.role, orgId, orgName });
+      res.json({ 
+        id: user.id, 
+        name: user.name, 
+        email: user.email, 
+        role: user.role, 
+        orgId, 
+        orgName,
+        orgSlug 
+      });
     } catch (error) {
       res.status(401).json({ error: "Invalid token" });
     }

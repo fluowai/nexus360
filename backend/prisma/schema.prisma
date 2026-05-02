@@ -15,6 +15,7 @@ datasource db {
 model Organization {
   id          String   @id @default(uuid())
   name        String
+  slug        String?  @unique // Opcional temporariamente para migração
   domain      String?
   plan        String   @default("Free")
   createdAt   DateTime @default(now())

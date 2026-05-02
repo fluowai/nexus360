@@ -40,6 +40,7 @@ export default function Login() {
       localStorage.setItem("nexus_token", data.token);
       localStorage.setItem("nexus_user_role", data.user.role);
       localStorage.setItem("nexus_org_id", data.user.orgId);
+      localStorage.setItem("nexus_org_slug", data.user.orgSlug || "");
       
       if (isRegister) {
         navigate("/onboarding");
@@ -47,8 +48,10 @@ export default function Login() {
         localStorage.setItem("nexus_onboarding_done", "true");
         if (data.user.role === 'SUPER_ADMIN') {
           navigate("/admin");
+        } else if (data.user.orgSlug) {
+          navigate(`/${data.user.orgSlug}/dashboard`);
         } else {
-          navigate("/");
+          navigate("/dashboard");
         }
       }
 

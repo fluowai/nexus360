@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate, useParams } from "react-router-dom";
 import { 
   LogOut, 
   Menu,
@@ -68,6 +68,7 @@ const Layout = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { slug } = useParams();
 
   useEffect(() => {
     if (authLoading) return;
@@ -240,33 +241,14 @@ export default function App() {
         onSelectClient={handleSelectClient}
       >
         <Routes>
+          {/* Public & Auth */}
           <Route path="/" element={<Dashboard />} />
           <Route path="/site" element={<LandingPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/finance" element={<Finance />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/crm" element={<CRM />} />
-          <Route path="/clients" element={<ClientsPage />} />
-          <Route path="/clients/:id" element={<ClientDetailPage />} />
-          <Route path="/sold-services" element={<SoldServicesPage />} />
-          <Route path="/ad-accounts" element={<AdAccounts />} />
-          <Route path="/assets" element={<AssetsLibrary />} />
-          <Route path="/landing-pages" element={<LandingPages />} />
-          <Route path="/quiz" element={<QuizBuilder />} />
-          <Route path="/content" element={<Content />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/team" element={<Team />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/marketing" element={<MarketingOps />} />
-          <Route path="/sales-machine" element={<SalesMachine />} />
-          <Route path="/proposals" element={<Proposals />} />
-          <Route path="/meet/:roomName" element={<MeetingRoom />} />
-          <Route path="/onboarding" element={<Onboarding />} />
-          <Route path="/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
-          <Route path="/ai-settings" element={<AISettings />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/meet/:roomName" element={<MeetingRoom />} />
+
+          {/* Super Admin */}
           <Route path="/admin" element={<SuperAdmin />} />
           <Route path="/admin/agencies" element={<AdminAgencies />} />
           <Route path="/admin/team" element={<SystemTeam />} />
@@ -275,6 +257,34 @@ export default function App() {
           <Route path="/admin/audit" element={<AdminAudit />} />
           <Route path="/admin/plans" element={<AdminPlans />} />
           <Route path="/admin/whitelabel" element={<WhiteLabel />} />
+
+          {/* Agências com Slug: nexus.woopanel.com.br/slug/dashboard */}
+          <Route path="/:slug/dashboard" element={<Dashboard />} />
+          <Route path="/:slug/finance" element={<Finance />} />
+          <Route path="/:slug/tasks" element={<Tasks />} />
+          <Route path="/:slug/calendar" element={<Calendar />} />
+          <Route path="/:slug/crm" element={<CRM />} />
+          <Route path="/:slug/clients" element={<ClientsPage />} />
+          <Route path="/:slug/clients/:id" element={<ClientDetailPage />} />
+          <Route path="/:slug/sold-services" element={<SoldServicesPage />} />
+          <Route path="/:slug/ad-accounts" element={<AdAccounts />} />
+          <Route path="/:slug/assets" element={<AssetsLibrary />} />
+          <Route path="/:slug/landing-pages" element={<LandingPages />} />
+          <Route path="/:slug/quiz" element={<QuizBuilder />} />
+          <Route path="/:slug/content" element={<Content />} />
+          <Route path="/:slug/projects" element={<Projects />} />
+          <Route path="/:slug/team" element={<Team />} />
+          <Route path="/:slug/settings" element={<Settings />} />
+          <Route path="/:slug/reports" element={<Reports />} />
+          <Route path="/:slug/marketing" element={<MarketingOps />} />
+          <Route path="/:slug/sales-machine" element={<SalesMachine />} />
+          <Route path="/:slug/proposals" element={<Proposals />} />
+          <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
+          <Route path="/:slug/ai-settings" element={<AISettings />} />
+
+          {/* Fallback Legacy Routes */}
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/crm" element={<CRM />} />
         </Routes>
       </Layout>
     </BrowserRouter>

@@ -79,17 +79,25 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, domain, plan, adminEmail, adminPassword, adminName } = req.body;
+    const { name, domain, plan, adminEmail, adminPassword, adminName, slug } = req.body;
     
     if (!adminEmail || !adminPassword) {
       return res.status(400).json({ error: "E-mail e Senha do administrador são obrigatórios" });
     }
 
+    // Gerar um slug padrão se não for enviado
+    const finalSlug = slug || name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-');
+
     try {
       const result = await prisma.$transaction(async (tx) => {
         // 1. Criar Organização
         const org = await tx.organization.create({
-          data: { name, domain, plan: plan || "Free" }
+          data: { 
+            name, 
+            domain, 
+            plan: plan || "Free",
+            slug: finalSlug
+          }
         });
 
         // 2. Criar Usuário Admin para esta organização

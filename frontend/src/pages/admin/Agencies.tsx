@@ -24,6 +24,7 @@ export default function AdminAgencies() {
   const [newOrg, setNewOrg] = useState({ 
     name: '', 
     domain: '', 
+    slug: '',
     plan: 'Pro', 
     adminEmail: '', 
     adminPassword: '', 
@@ -91,7 +92,7 @@ export default function AdminAgencies() {
       });
       if (res.ok) {
         setShowModal(false);
-        setNewOrg({ name: '', domain: '', plan: 'Pro', adminEmail: '', adminPassword: '', adminName: '' });
+        setNewOrg({ name: '', domain: '', slug: '', plan: 'Pro', adminEmail: '', adminPassword: '', adminName: '' });
         fetchAgencies();
       } else {
         const data = await res.json();
@@ -168,7 +169,7 @@ export default function AdminAgencies() {
                       </div>
                       <div>
                         <p className="font-bold text-gray-900">{org.name}</p>
-                        <p className="text-xs text-gray-400">{org.domain || 'nexus/custom'}</p>
+                        <p className="text-[10px] text-blue-500 font-mono">nexus.woopanel.com.br/{org.slug}</p>
                       </div>
                     </div>
                   </td>
@@ -235,20 +236,28 @@ export default function AdminAgencies() {
                     required
                     className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
                     value={newOrg.name}
-                    onChange={e => setNewOrg({...newOrg, name: e.target.value})}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setNewOrg({
+                        ...newOrg, 
+                        name: val, 
+                        slug: val.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-')
+                      });
+                    }}
                     placeholder="Ex: Imobiliária Alpha"
                   />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Domínio Base</label>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Link da Agência (Slug)</label>
                 <div className="relative">
                   <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input 
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                    value={newOrg.domain}
-                    onChange={e => setNewOrg({...newOrg, domain: e.target.value})}
-                    placeholder="ex: alpha.com.br"
+                    required
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono text-[10px]"
+                    value={newOrg.slug}
+                    onChange={e => setNewOrg({...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
+                    placeholder="ex: imobiliaria-alpha"
                   />
                 </div>
               </div>

@@ -54,6 +54,7 @@ app.use(cors({
   origin: [
     process.env.FRONTEND_URL,
     'https://nexus360-zeta.vercel.app',
+    'https://nexus.woopanel.com.br', // Seu novo domínio oficial
     'http://localhost:5173'
   ].filter(Boolean) as string[],
   credentials: true

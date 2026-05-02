@@ -53,7 +53,7 @@ export default function SuperAdmin() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {[
             { 
-              label: "Total de Imobiliárias", 
+              label: "Total de Clientes", 
               value: "3", 
               icon: Building2, 
               iconColor: "text-white", 

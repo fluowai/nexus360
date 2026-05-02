@@ -173,6 +173,7 @@ export const Sidebar: React.FC<{
 
         <div className="sidebar-scroll custom-scrollbar">
           <ClientSelector 
+            user={user}
             selectedClientId={selectedClientId} 
             onSelectClient={onSelectClient} 
             collapsed={collapsed}
@@ -204,7 +205,7 @@ export const Sidebar: React.FC<{
                 />
                 <SidebarItem 
                   icon={Building2} 
-                  label="Imobiliárias" 
+                  label="Clientes" 
                   path="/admin/agencies" 
                   isActive={location.pathname === '/admin/agencies'}
                   collapsed={collapsed}

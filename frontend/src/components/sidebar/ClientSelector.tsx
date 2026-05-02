@@ -9,12 +9,14 @@ interface Client {
 }
 
 interface ClientSelectorProps {
+  user: any;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
   collapsed?: boolean;
 }
 
 export const ClientSelector: React.FC<ClientSelectorProps> = ({ 
+  user,
   selectedClientId, 
   onSelectClient,
   collapsed 
@@ -26,11 +28,20 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const response = await apiFetch('/api/clients');
+        const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+        const endpoint = isSuperAdmin ? '/api/admin/orgs' : '/api/clients';
+        const response = await apiFetch(endpoint);
+        
         if (response.ok) {
           const data = await response.json();
           if (Array.isArray(data)) {
-            setClients(data);
+            // Normalize data
+            const normalized = data.map((item: any) => ({
+              id: item.id,
+              corporateName: isSuperAdmin ? item.name : item.corporateName,
+              tradeName: isSuperAdmin ? null : item.tradeName
+            }));
+            setClients(normalized);
           } else {
             setClients([]);
           }
@@ -43,7 +54,7 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
       }
     };
     fetchClients();
-  }, []);
+  }, [user]);
 
   const selectedClient = clients.find(c => c.id === selectedClientId);
 
@@ -58,7 +69,9 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
   return (
     <div className="relative px-2 mb-6">
       <div className="flex items-center gap-2 mb-2 px-1">
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Contexto de Operação</span>
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+          {user?.role === 'SUPER_ADMIN' ? 'Selecionar Imobiliária' : 'Contexto de Operação'}
+        </span>
       </div>
       
       <button 
@@ -77,9 +90,9 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
           </div>
           <div className="text-left overflow-hidden">
             <p className="text-xs font-bold truncate">
-              {selectedClient ? (selectedClient.tradeName || selectedClient.corporateName) : 'Selecionar Cliente'}
+              {selectedClient ? (selectedClient.corporateName) : 'Escolher Cliente'}
             </p>
-            {selectedClient && <p className="text-[10px] opacity-70 truncate">Atendimento Ativo</p>}
+            {selectedClient && <p className="text-[10px] opacity-70 truncate">Acesso Administrativo</p>}
           </div>
         </div>
         <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -114,16 +127,20 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
                 }}
                 className={`flex items-center justify-between px-4 py-2.5 text-xs font-medium cursor-pointer hover:bg-gray-50 ${selectedClientId === client.id ? 'text-blue-600 bg-blue-50/30' : 'text-gray-700'}`}
               >
-                <span className="truncate">{client.tradeName || client.corporateName}</span>
+                <span className="truncate">{client.corporateName}</span>
                 {selectedClientId === client.id && <Check size={14} />}
               </div>
             ))}
 
-            <div className="h-[1px] bg-gray-50 my-1" />
-            <button className="w-full flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors">
-              <Plus size={14} />
-              Novo Cliente
-            </button>
+            {user?.role === 'SUPER_ADMIN' && (
+              <>
+                <div className="h-[1px] bg-gray-50 my-1" />
+                <button className="w-full flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors">
+                  <Plus size={14} />
+                  Cadastrar Cliente
+                </button>
+              </>
+            )}
           </div>
         </>
       )}

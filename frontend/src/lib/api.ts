@@ -3,10 +3,13 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 
 export async function apiFetch(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('nexus_token');
+  const userRole = localStorage.getItem('nexus_user_role');
+  const impersonatedOrgId = localStorage.getItem('nexus_selected_client');
   
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(userRole === 'SUPER_ADMIN' && impersonatedOrgId ? { 'X-Org-Id': impersonatedOrgId } : {}),
     ...options.headers,
   };
 

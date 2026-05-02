@@ -79,7 +79,7 @@ export default function AdminAgencies() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja remover esta agência? Todos os dados dela serão excluídos.")) return;
+    if (!confirm("Tem certeza que deseja remover este cliente? Todos os dados dele serão excluídos.")) return;
     try {
       const res = await apiFetch(`/api/admin/orgs/${id}`, { method: 'DELETE' });
       if (res.ok) fetchAgencies();
@@ -96,7 +96,7 @@ export default function AdminAgencies() {
     <div className="flex flex-col gap-8">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Agências Clientes</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Gestão de Clientes</h1>
           <p className="text-sm text-gray-500">Gerencie todas as instâncias e sub-contas da plataforma.</p>
         </div>
         <button 
@@ -104,7 +104,7 @@ export default function AdminAgencies() {
           className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-xl hover:bg-black transition-all shadow-lg shadow-gray-200"
         >
           <Plus size={20} />
-          <span>Nova Agência</span>
+          <span>Novo Cliente</span>
         </button>
       </div>
 
@@ -123,7 +123,7 @@ export default function AdminAgencies() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 text-[10px] uppercase font-bold text-gray-400 tracking-wider">
-                <th className="px-8 py-4">Agência</th>
+                <th className="px-8 py-4">Cliente</th>
                 <th className="px-4 py-4">Plano</th>
                 <th className="px-4 py-4">Usuários</th>
                 <th className="px-4 py-4">Status</th>
@@ -198,10 +198,10 @@ export default function AdminAgencies() {
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl"
           >
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Provisionar Nova Agência</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Provisionar Novo Cliente</h2>
             <form onSubmit={handleCreate} className="flex flex-col gap-4">
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome da Agência</label>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome do Cliente</label>
                 <input 
                   required
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
@@ -242,7 +242,7 @@ export default function AdminAgencies() {
                   type="submit"
                   className="flex-1 px-4 py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-200"
                 >
-                  Criar Agência
+                  Criar Cliente
                 </button>
               </div>
             </form>

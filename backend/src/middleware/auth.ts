@@ -28,6 +28,13 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     if (err) {
       return res.status(403).json({ error: "Token inválido ou expirado." });
     }
+    
+    // Se for Super Admin, permitir trocar o contexto da organização via header
+    const impersonatedOrgId = req.headers['x-org-id'];
+    if (user.role === 'SUPER_ADMIN' && impersonatedOrgId) {
+      user.orgId = impersonatedOrgId as string;
+    }
+
     req.user = user;
     next();
   });

@@ -179,7 +179,19 @@ export const Sidebar: React.FC<{
             collapsed={collapsed}
           />
 
-          {user?.role === 'SUPER_ADMIN' ? (
+          {user?.role === 'SUPER_ADMIN' && selectedClientId && (
+            <div className="px-4 mb-4">
+              <button 
+                onClick={() => onSelectClient(null)}
+                className="w-full flex items-center justify-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-2xl text-xs font-bold border border-amber-100 hover:bg-amber-100 transition-all shadow-sm"
+              >
+                <Shield size={16} />
+                {!collapsed && "Voltar ao Modo Admin"}
+              </button>
+            </div>
+          )}
+
+          {user?.role === 'SUPER_ADMIN' && !selectedClientId ? (
             <>
               <SidebarGroup label="Menu Super Admin" collapsed={collapsed}>
                 <SidebarItem 
@@ -284,6 +296,7 @@ export const Sidebar: React.FC<{
             </>
           ) : (
             <>
+              {/* Menu da Agência (Mostrado para ORG_ADMIN ou para SUPER_ADMIN em modo impersonificação) */}
               <SidebarGroup label="Visão Geral" collapsed={collapsed}>
                 <SidebarItem 
                   icon={LayoutDashboard} 

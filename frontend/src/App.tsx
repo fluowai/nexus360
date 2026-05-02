@@ -94,7 +94,7 @@ const Layout = ({
 
     // Se estiver logado e for a Landing Page (/site) ou Login, redireciona para o Dashboard/Admin
     if (token && (isLandingPage || isLoginPath || location.pathname === '/')) {
-      if (isSuperAdmin) {
+      if (isSuperAdmin && !selectedClientId) {
         navigate('/admin');
       } else {
         navigate('/dashboard');
@@ -106,10 +106,10 @@ const Layout = ({
       navigate('/onboarding');
     }
 
-    if (token && isSuperAdmin && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
+    if (token && isSuperAdmin && !selectedClientId && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
       navigate('/admin');
     }
-  }, [location.pathname, user, navigate, authLoading]);
+  }, [location.pathname, user, navigate, authLoading, selectedClientId]);
 
   if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site') {
     return <>{children}</>;
@@ -177,8 +177,16 @@ export default function App() {
     setSelectedClientId(clientId);
     if (clientId) {
       localStorage.setItem('nexus_selected_client', clientId);
+      // Se for Super Admin, redireciona para o Dashboard da agência selecionada
+      if (user?.role === 'SUPER_ADMIN') {
+        window.location.href = '/dashboard';
+      }
     } else {
       localStorage.removeItem('nexus_selected_client');
+      // Se for Super Admin e voltar para Global, redireciona para o Painel Admin
+      if (user?.role === 'SUPER_ADMIN') {
+        window.location.href = '/admin';
+      }
     }
   };
 

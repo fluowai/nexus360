@@ -262,6 +262,7 @@ export default function App() {
           <Route path="/admin/whitelabel" element={<WhiteLabel />} />
 
           {/* Agências com Slug: nexus.woopanel.com.br/slug/dashboard */}
+          <Route path="/:slug" element={<Dashboard />} /> 
           <Route path="/:slug/dashboard" element={<Dashboard />} />
           <Route path="/:slug/admin" element={<Dashboard />} />
           <Route path="/:slug/finance" element={<Finance />} />

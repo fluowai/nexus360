@@ -12,7 +12,9 @@ import {
   Database,
   ShieldCheck,
   Server,
-  UserPlus
+  UserPlus,
+  Wallet,
+  LayoutDashboard
 } from "lucide-react";
 import { motion } from "motion/react";
 import { apiFetch } from "../lib/api";

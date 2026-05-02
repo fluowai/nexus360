@@ -24,7 +24,8 @@ import {
   LogOut,
   ChevronRight,
   Monitor,
-  Ticket
+  Ticket,
+  Building2
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import './Sidebar.css';

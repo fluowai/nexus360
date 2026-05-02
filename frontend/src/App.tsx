@@ -45,6 +45,8 @@ import AdminAudit from "./pages/admin/AuditLog";
 import AdminPlans from "./pages/admin/Plans";
 import WhiteLabel from "./pages/admin/WhiteLabel";
 
+import LandingPage from "./pages/LandingPage";
+
 const Login = lazy(() => import("./pages/Login"));
 
 const Layout = ({ 
@@ -76,9 +78,21 @@ const Layout = ({
     const isLoginPath = location.pathname === '/login';
     const isOnboardingPath = location.pathname === '/onboarding';
     const isMeetPath = location.pathname.startsWith('/meet');
+    const isLandingPage = location.pathname === '/';
 
-    if (!token && !isLoginPath && !isMeetPath) {
+    // Se não estiver logado e não for página pública, vai para login
+    if (!token && !isLoginPath && !isMeetPath && !isLandingPage) {
       navigate('/login');
+      return;
+    }
+
+    // Se estiver logado e for a Landing Page ou Login, redireciona para o Dashboard/Admin
+    if (token && (isLandingPage || isLoginPath)) {
+      if (isSuperAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
       return;
     }
 
@@ -86,12 +100,12 @@ const Layout = ({
       navigate('/onboarding');
     }
 
-    if (token && isSuperAdmin && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath) {
+    if (token && isSuperAdmin && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
       navigate('/admin');
     }
   }, [location.pathname, user, navigate, authLoading]);
 
-  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet')) {
+  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/') {
     return <>{children}</>;
   }
 
@@ -212,7 +226,7 @@ export default function App() {
         onSelectClient={handleSelectClient}
       >
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/finance" element={<Finance />} />
           <Route path="/tasks" element={<Tasks />} />

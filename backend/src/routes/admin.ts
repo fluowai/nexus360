@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { addDomainToVercel, addDomainToDirectAdmin } from "../utils/domainManager.js";
+import bcrypt from "bcryptjs";
 
 export function adminRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -78,14 +79,42 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, domain, plan } = req.body;
+    const { name, domain, plan, adminEmail, adminPassword, adminName } = req.body;
+    
+    if (!adminEmail || !adminPassword) {
+      return res.status(400).json({ error: "E-mail e Senha do administrador são obrigatórios" });
+    }
+
     try {
-      const org = await prisma.organization.create({
-        data: { name, domain, plan: plan || "Free" }
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Criar Organização
+        const org = await tx.organization.create({
+          data: { name, domain, plan: plan || "Free" }
+        });
+
+        // 2. Criar Usuário Admin para esta organização
+        const hashedPassword = await bcrypt.hash(adminPassword, 10);
+        await tx.user.create({
+          data: {
+            email: adminEmail,
+            password: hashedPassword,
+            name: adminName || name,
+            role: 'ORG_ADMIN',
+            organizationId: org.id,
+            status: 'ACTIVE'
+          }
+        });
+
+        return org;
       });
-      res.json(org);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create organization" });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[ADMIN_ORGS_POST]", error);
+      res.status(500).json({ 
+        error: "Falha ao criar cliente e usuário administrador",
+        details: error.message 
+      });
     }
   });
 

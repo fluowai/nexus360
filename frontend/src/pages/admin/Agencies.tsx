@@ -8,7 +8,11 @@ import {
   MoreVertical,
   ArrowRight,
   Globe,
-  Loader2
+  Loader2,
+  RefreshCw,
+  User,
+  Mail,
+  Lock
 } from "lucide-react";
 import { motion } from "motion/react";
 import { apiFetch } from "../../lib/api";
@@ -17,11 +21,27 @@ export default function AdminAgencies() {
   const [agencies, setAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [newOrg, setNewOrg] = useState({ name: '', domain: '', plan: 'Pro' });
+  const [newOrg, setNewOrg] = useState({ 
+    name: '', 
+    domain: '', 
+    plan: 'Pro', 
+    adminEmail: '', 
+    adminPassword: '', 
+    adminName: '' 
+  });
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showDomainModal, setShowDomainModal] = useState(false);
   const [customDomain, setCustomDomain] = useState('');
   const [registeringDomain, setRegisteringDomain] = useState(false);
+
+  const generatePassword = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
+    let pass = "";
+    for (let i = 0; i < 12; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewOrg({ ...newOrg, adminPassword: pass });
+  };
 
   const handleDomainRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +91,11 @@ export default function AdminAgencies() {
       });
       if (res.ok) {
         setShowModal(false);
+        setNewOrg({ name: '', domain: '', plan: 'Pro', adminEmail: '', adminPassword: '', adminName: '' });
         fetchAgencies();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Erro ao criar cliente");
       }
     } catch (err) {
       console.error(err);
@@ -196,30 +220,96 @@ export default function AdminAgencies() {
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl"
+            className="bg-white rounded-[32px] p-8 w-full max-w-2xl shadow-2xl overflow-y-auto max-h-[90vh]"
           >
             <h2 className="text-xl font-bold text-gray-900 mb-6">Provisionar Novo Cliente</h2>
-            <form onSubmit={handleCreate} className="flex flex-col gap-4">
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome do Cliente</label>
-                <input 
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                  value={newOrg.name}
-                  onChange={e => setNewOrg({...newOrg, name: e.target.value})}
-                />
+            <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                 <h3 className="text-[10px] font-bold text-blue-600 uppercase tracking-[2px] mb-4">Dados da Agência</h3>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Domínio Personalizado</label>
-                <input 
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                  value={newOrg.domain}
-                  onChange={e => setNewOrg({...newOrg, domain: e.target.value})}
-                  placeholder="ex: agencialife.com"
-                />
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Nome do Cliente</label>
+                <div className="relative">
+                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    required
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                    value={newOrg.name}
+                    onChange={e => setNewOrg({...newOrg, name: e.target.value})}
+                    placeholder="Ex: Imobiliária Alpha"
+                  />
+                </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Plano Inicial</label>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Domínio Base</label>
+                <div className="relative">
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                    value={newOrg.domain}
+                    onChange={e => setNewOrg({...newOrg, domain: e.target.value})}
+                    placeholder="ex: alpha.com.br"
+                  />
+                </div>
+              </div>
+
+              <div className="md:col-span-2 mt-4">
+                 <h3 className="text-[10px] font-bold text-blue-600 uppercase tracking-[2px] mb-4">Acesso do Administrador</h3>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Nome do Admin</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    required
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                    value={newOrg.adminName}
+                    onChange={e => setNewOrg({...newOrg, adminName: e.target.value})}
+                    placeholder="Nome completo"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">E-mail do Admin</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    type="email"
+                    required
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                    value={newOrg.adminEmail}
+                    onChange={e => setNewOrg({...newOrg, adminEmail: e.target.value})}
+                    placeholder="contato@cliente.com.br"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Senha de Acesso</label>
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input 
+                    required
+                    className="w-full pl-12 pr-12 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono"
+                    value={newOrg.adminPassword}
+                    onChange={e => setNewOrg({...newOrg, adminPassword: e.target.value})}
+                    placeholder="Senha forte"
+                  />
+                  <button 
+                    type="button"
+                    onClick={generatePassword}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white rounded-lg text-blue-500 transition-colors"
+                    title="Gerar senha forte"
+                  >
+                    <RefreshCw size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Plano SaaS</label>
                 <select 
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
                   value={newOrg.plan}
@@ -230,7 +320,8 @@ export default function AdminAgencies() {
                   <option value="Enterprise">Enterprise</option>
                 </select>
               </div>
-              <div className="flex gap-4 mt-4">
+
+              <div className="md:col-span-2 flex gap-4 mt-8">
                 <button 
                   type="button" 
                   onClick={() => setShowModal(false)}
@@ -240,9 +331,9 @@ export default function AdminAgencies() {
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 px-4 py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-200"
+                  className="flex-1 px-4 py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-600 transition-all shadow-xl shadow-primary/20"
                 >
-                  Criar Cliente
+                  Provisionar Cliente
                 </button>
               </div>
             </form>

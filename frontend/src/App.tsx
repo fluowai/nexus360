@@ -107,12 +107,12 @@ const Layout = ({
       navigate('/onboarding');
     }
 
-    if (token && isSuperAdmin && !selectedClientId && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
+    // Se for Super Admin e estiver em uma rota que NÃO tem slug e NÃO começa com /admin, aí sim manda para /admin
+    const hasSlug = slug && slug !== 'admin' && slug !== 'site' && slug !== 'login';
+    
+    if (token && isSuperAdmin && !selectedClientId && !hasSlug && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
       navigate('/admin');
     }
-
-    // Se estiver em /dashboard mas tiver um slug, o App.tsx já cuida da rota :slug/dashboard
-    // mas se for usuário comum e cair no /dashboard sem slug, podemos deixar ou redirecionar.
   }, [location.pathname, user, navigate, authLoading, selectedClientId, slug]);
 
   if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site') {
@@ -263,6 +263,7 @@ export default function App() {
 
           {/* Agências com Slug: nexus.woopanel.com.br/slug/dashboard */}
           <Route path="/:slug/dashboard" element={<Dashboard />} />
+          <Route path="/:slug/admin" element={<Dashboard />} />
           <Route path="/:slug/finance" element={<Finance />} />
           <Route path="/:slug/tasks" element={<Tasks />} />
           <Route path="/:slug/calendar" element={<Calendar />} />

@@ -109,13 +109,14 @@ const Layout = ({
       navigate('/onboarding');
     }
 
-    // CORREÇÃO: Pegar o slug manualmente da URL porque o useParams() não funciona fora do <Routes>
+    // CORREÇÃO: Pegar o slug manualmente da URL
     const pathParts = location.pathname.split('/').filter(Boolean);
     const firstPart = pathParts[0];
-    const reservedWords = ['admin', 'site', 'login', 'onboarding', 'meet'];
-    const hasSlug = firstPart && !reservedWords.includes(firstPart);
+    const reservedWords = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance'];
+    const urlHasSlug = firstPart && !reservedWords.includes(firstPart);
     
-    if (token && isSuperAdmin && !selectedClientId && !hasSlug && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
+    // Se for Super Admin e estiver no "/" ou rota global sem slug, aí sim manda para /admin
+    if (token && isSuperAdmin && !selectedClientId && !urlHasSlug && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
       navigate('/admin');
     }
   }, [location.pathname, user, navigate, authLoading, selectedClientId]);

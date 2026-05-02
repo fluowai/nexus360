@@ -26,10 +26,16 @@ export default function Login() {
         ? { name, email, password, organizationName: orgName }
         : { email, password };
 
-      const data = await apiFetch(endpoint, {
+      const res = await apiFetch(endpoint, {
         method: "POST",
         body: JSON.stringify(body),
       });
+
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || data.details || "Erro no login");
+      }
 
       localStorage.setItem("nexus_token", data.token);
       localStorage.setItem("nexus_user_role", data.user.role);

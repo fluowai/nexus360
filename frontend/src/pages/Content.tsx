@@ -116,7 +116,7 @@ export default function Content() {
       const titulo = lines[0].replace(/[#*]/g, '').trim();
       const conteudos = lines.slice(1, 6).map(l => l.replace(/^[-*]\s*/, '').replace(/[#*]/g, '').trim());
 
-      const data = await apiFetch("/api/content/generate-art", {
+      const res = await apiFetch("/api/content/generate-art", {
         method: "POST",
         body: JSON.stringify({
           tipo: conteudos.length > 0 ? "carrossel" : "post",
@@ -129,6 +129,7 @@ export default function Content() {
           }
         })
       });
+      const data = await res.json();
       setGeneratedArts(data.paths);
     } catch (error) {
       console.error("Art Generation Error:", error);

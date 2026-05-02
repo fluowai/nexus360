@@ -27,19 +27,5 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     }
   }
 
-  const text = await response.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(text || 'Resposta inválida do servidor');
-  }
-
-  if (!response.ok) {
-    const mainError = data.error || data.message || `Erro na API. Status: ${response.status}`;
-    const detailedError = data.details ? ` (${data.details})` : '';
-    throw new Error(`${mainError}${detailedError}`);
-  }
-
-  return data;
+  return response;
 }

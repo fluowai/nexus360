@@ -243,6 +243,7 @@ function FinanceModal({ type, onClose, onSuccess }: { type: "receita" | "despesa
 
   useEffect(() => {
     apiFetch('/api/clients')
+      .then(res => res.json())
       .then(setClients)
       .catch(console.error);
   }, []);

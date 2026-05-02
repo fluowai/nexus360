@@ -46,9 +46,15 @@ export default function Tasks() {
     try {
       const res = await apiFetch(`/api/tasks`);
       const data = await res.json();
-      setTasks(data);
+      if (Array.isArray(data)) {
+        setTasks(data);
+      } else {
+        console.warn("Tasks API returned non-array data:", data);
+        setTasks([]);
+      }
     } catch (err) {
       console.error("Error fetching tasks:", err);
+      setTasks([]);
     } finally {
       setLoading(false);
     }

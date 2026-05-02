@@ -17,6 +17,8 @@ import { adminRoutes } from "./routes/admin.js";
 import { adsRoutes } from "./routes/ads.js";
 import { clientRoutes } from "./routes/clients.js";
 import { aiRoutes } from "./routes/ai.js";
+import { calendarRoutes } from "./routes/calendar.js";
+import { taskRoutes } from "./routes/tasks.js";
 import { authenticateToken } from "./middleware/auth.js";
 
 const app = express();
@@ -97,6 +99,8 @@ app.use("/api/marketing", authenticateToken, marketingRoutes(prisma));
 app.use("/api/finance", authenticateToken, financeRoutes(prisma));
 app.use("/api/ops", authenticateToken, opsRoutes(prisma));
 app.use("/api/ads", authenticateToken, adsRoutes(prisma));
+app.use("/api/calendar", authenticateToken, calendarRoutes(prisma));
+app.use("/api/tasks", authenticateToken, taskRoutes(prisma));
 
 const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, "0.0.0.0", () => {

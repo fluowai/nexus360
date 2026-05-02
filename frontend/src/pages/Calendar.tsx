@@ -47,9 +47,15 @@ export default function Calendar() {
     try {
       const res = await apiFetch(`/api/calendar`);
       const data = await res.json();
-      setEvents(data);
+      if (Array.isArray(data)) {
+        setEvents(data);
+      } else {
+        console.warn("Calendar API returned non-array data:", data);
+        setEvents([]);
+      }
     } catch (err) {
       console.error("Error fetching events:", err);
+      setEvents([]);
     } finally {
       setLoading(false);
     }

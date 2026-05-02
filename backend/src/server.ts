@@ -24,10 +24,11 @@ const app = express();
 // Configuração de CORS para Vercel
 app.use(cors({
   origin: [
+    process.env.FRONTEND_URL,
     'https://nexus360-zeta.vercel.app',
-    process.env.FRONTEND_URL as string
-  ].filter(Boolean),
-  credentials: true,
+    'http://localhost:5173'
+  ].filter(Boolean) as string[],
+  credentials: true
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -45,16 +46,30 @@ app.get("/", (req, res) => {
 });
 
 // Rota de Health Check para Railway
-app.get("/api/health", (req, res) => {
-  res.json({ 
-    success: true, 
-    message: "Backend Nexus360 online", 
-    env: {
-      database: Boolean(process.env.DATABASE_URL),
-      jwt: Boolean(process.env.JWT_SECRET),
-      frontend: process.env.FRONTEND_URL
-    }
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+
+    return res.json({
+      success: true,
+      message: 'Backend Nexus360 online',
+      database: 'connected',
+      env: {
+        DATABASE_URL: Boolean(process.env.DATABASE_URL),
+        JWT_SECRET: Boolean(process.env.JWT_SECRET),
+        FRONTEND_URL: process.env.FRONTEND_URL || null,
+        NODE_ENV: process.env.NODE_ENV || null
+      }
+    });
+  } catch (error) {
+    console.error('[HEALTH_ERROR]', error);
+
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao conectar no banco',
+      details: String(error)
+    });
+  }
 });
 
 app.get('/api/debug/routes', (req, res) => {

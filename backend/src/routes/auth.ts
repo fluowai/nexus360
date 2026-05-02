@@ -9,19 +9,56 @@ export function authRoutes(prisma: PrismaClient) {
   const router = Router();
 
   router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
     try {
+      console.log('[LOGIN] Iniciando login');
+
+      const { email, password } = req.body;
+
+      console.log('[LOGIN] Email recebido:', email);
+      console.log('[LOGIN] DATABASE_URL existe:', Boolean(process.env.DATABASE_URL));
+      console.log('[LOGIN] JWT_SECRET existe:', Boolean(process.env.JWT_SECRET));
+
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: 'E-mail e senha são obrigatórios'
+        });
+      }
+
       const user = await prisma.user.findUnique({
         where: { email },
         include: { organization: true }
       });
 
-      if (!user || user.status !== "ACTIVE") {
-        return res.status(401).json({ error: "Credenciais inválidas ou conta inativa." });
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          error: 'Usuário ou senha inválidos'
+        });
       }
 
-      const isValid = await bcrypt.compare(password, user.password);
-      if (!isValid) return res.status(401).json({ error: "Credenciais inválidas." });
+      if (!user.password) {
+        return res.status(500).json({
+          success: false,
+          error: 'Usuário sem senha cadastrada'
+        });
+      }
+
+      const isValidPassword = await bcrypt.compare(password, user.password);
+
+      if (!isValidPassword) {
+        return res.status(401).json({
+          success: false,
+          error: 'Usuário ou senha inválidos'
+        });
+      }
+
+      if (!process.env.JWT_SECRET) {
+        return res.status(500).json({
+          success: false,
+          error: 'JWT_SECRET não configurado'
+        });
+      }
 
       let orgId = user.organizationId;
       let orgName = user.organization?.name || "Sem Organização";
@@ -35,18 +72,39 @@ export function authRoutes(prisma: PrismaClient) {
       }
 
       const token = jwt.sign(
-        { id: user.id, orgId: orgId, role: user.role },
-        getJwtSecret(),
-        { expiresIn: '8h' }
+        {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          orgId: orgId
+        },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: '7d'
+        }
       );
- 
-      res.json({
+
+      return res.json({
+        success: true,
         token,
-        user: { id: user.id, name: user.name, email: user.email, role: user.role, orgId, orgName }
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          orgId,
+          orgName
+        }
       });
-    } catch (error: any) {
-      console.error("[Login Error]", error);
-      res.status(500).json({ error: "Erro interno no servidor.", details: error.message || String(error) });
+    } catch (error) {
+      console.error('[LOGIN_ERROR]', error);
+
+      return res.status(500).json({
+        success: false,
+        error: 'Erro interno no servidor',
+        details: String(error)
+      });
     }
   });
 

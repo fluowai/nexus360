@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
+import { addDomainToVercel, addDomainToDirectAdmin } from "../utils/domainManager.js";
 
 export function adminRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -95,6 +96,51 @@ export function adminRoutes(prisma: PrismaClient) {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete organization" });
+    }
+  });
+
+  router.get("/users", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    try {
+      const users = await prisma.user.findMany({
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  router.post("/domains", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { domain, orgId } = req.body;
+
+    if (!domain || !orgId) {
+      return res.status(400).json({ error: "Domain and OrgId are required" });
+    }
+
+    try {
+      // 1. Add to Vercel
+      console.log(`[Domain] Adding ${domain} to Vercel...`);
+      await addDomainToVercel(domain);
+
+      // 2. Add to DirectAdmin
+      console.log(`[Domain] Adding ${domain} to DirectAdmin...`);
+      await addDomainToDirectAdmin(domain);
+
+      // 3. Update Database
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: { domain }
+      });
+
+      res.json({ success: true, message: "Domain registered successfully in Vercel and DirectAdmin" });
+    } catch (error: any) {
+      console.error("[Domain Error]", error);
+      res.status(500).json({ 
+        error: "Failed to register domain", 
+        details: error.message 
+      });
     }
   });
 

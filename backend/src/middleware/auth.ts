@@ -9,7 +9,12 @@ export interface AuthRequest extends Request {
   };
 }
 
-const getJwtSecret = () => process.env.JWT_SECRET || "dev-secret-only";
+const getJwtSecret = () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not defined in environment variables");
+  }
+  return process.env.JWT_SECRET;
+};
 
 export const authenticateToken = (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers['authorization'];

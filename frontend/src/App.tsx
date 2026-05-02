@@ -37,6 +37,13 @@ import AdAccounts from "./pages/AdsAccounts";
 import AssetsLibrary from "./pages/AssetsLibrary";
 import LandingPages from "./pages/LandingPages";
 import QuizBuilder from "./pages/QuizBuilder";
+import AdminAgencies from "./pages/admin/Agencies";
+import SystemTeam from "./pages/admin/SystemTeam";
+import AdminDomains from "./pages/admin/Domains";
+import AdminMonitor from "./pages/admin/Monitor";
+import AdminAudit from "./pages/admin/AuditLog";
+import AdminPlans from "./pages/admin/Plans";
+import WhiteLabel from "./pages/admin/WhiteLabel";
 
 const Login = lazy(() => import("./pages/Login"));
 
@@ -77,6 +84,10 @@ const Layout = ({
 
     if (token && !onboardingDone && !isSuperAdmin && !isOnboardingPath && !isLoginPath && !isMeetPath) {
       navigate('/onboarding');
+    }
+
+    if (token && isSuperAdmin && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath) {
+      navigate('/admin');
     }
   }, [location.pathname, user, navigate, authLoading]);
 
@@ -228,6 +239,13 @@ export default function App() {
           <Route path="/ai-settings" element={<AISettings />} />
           <Route path="/login" element={<Login />} />
           <Route path="/admin" element={<SuperAdmin />} />
+          <Route path="/admin/agencies" element={<AdminAgencies />} />
+          <Route path="/admin/team" element={<SystemTeam />} />
+          <Route path="/admin/domains" element={<AdminDomains />} />
+          <Route path="/admin/monitor" element={<AdminMonitor />} />
+          <Route path="/admin/audit" element={<AdminAudit />} />
+          <Route path="/admin/plans" element={<AdminPlans />} />
+          <Route path="/admin/whitelabel" element={<WhiteLabel />} />
         </Routes>
       </Layout>
     </BrowserRouter>

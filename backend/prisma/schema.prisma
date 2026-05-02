@@ -843,3 +843,46 @@ model Automation {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 }
+
+model GlobalPlan {
+  id             String       @id @default(uuid())
+  name           String
+  price          Float
+  interval       String       @default("monthly") // monthly, yearly
+  features       Json         // Array of string features
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model GlobalAuditLog {
+  id             String       @id @default(uuid())
+  userId         String
+  userEmail      String
+  action         String
+  target         String?
+  details        Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+}
+
+model FeatureFlag {
+  id             String       @id @default(uuid())
+  key            String       @unique
+  description    String?
+  isEnabled      Boolean      @default(false)
+  percentage     Int?         @default(100)
+  rules          Json?        
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model SystemAlert {
+  id             String       @id @default(uuid())
+  level          String       @default("info") // info, warning, critical
+  message        String
+  isResolved     Boolean      @default(false)
+  resolvedAt     DateTime?
+  createdAt      DateTime     @default(now())
+}

@@ -9,62 +9,78 @@ import {
   ArrowUpRight,
   Zap,
   Globe,
-  Database
+  Database,
+  ShieldCheck,
+  Server,
+  UserPlus
 } from "lucide-react";
 import { motion } from "motion/react";
 import { apiFetch } from "../lib/api";
+import { Link } from "react-router-dom";
 
 export default function SuperAdmin() {
-  const [metrics, setMetrics] = useState({ agencies: 3, totalUsers: 12, totalLeads: 1540, revenue: 291 });
-  const [loading, setLoading] = useState(false);
+  const [metrics, setMetrics] = useState({ agencies: 0, totalUsers: 0, totalLeads: 0, revenue: 0 });
+  const [loading, setLoading] = useState(true);
 
-  // Simulating data loading
   useEffect(() => {
-    // fetch data from /api/admin/metrics in the future
+    const fetchMetrics = async () => {
+      try {
+        const res = await apiFetch('/api/admin/metrics');
+        if (res.ok) {
+          const data = await res.json();
+          setMetrics(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch admin metrics", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMetrics();
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] p-8 -m-8">
+    <div className="min-h-screen bg-[#F8F9FA] p-8 -m-8 font-sans">
       <div className="max-w-[1600px] mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-[#1E293B]">Visão Geral</h1>
+        <div className="mb-10">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Visão Geral</h1>
         </div>
 
         {/* Top Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {[
             { 
-              label: "Total de Agências", 
-              value: metrics.agencies, 
+              label: "Total de Imobiliárias", 
+              value: "3", 
               icon: Building2, 
               iconColor: "text-white", 
               iconBg: "bg-blue-500",
-              shadow: "shadow-blue-100" 
+              shadow: "shadow-blue-200"
             },
             { 
               label: "Assinaturas Ativas", 
-              value: metrics.agencies, 
+              value: "3", 
               icon: Users, 
               iconColor: "text-white", 
               iconBg: "bg-emerald-500",
-              shadow: "shadow-emerald-100" 
+              shadow: "shadow-emerald-200"
             },
             { 
               label: "Receita Mensal (Est.)", 
-              value: `R$ ${metrics.revenue}`, 
-              icon: CreditCard, 
+              value: "R$ 291", 
+              icon: Wallet, 
               iconColor: "text-white", 
               iconBg: "bg-indigo-500",
-              shadow: "shadow-indigo-100" 
+              shadow: "shadow-indigo-200"
             },
             { 
               label: "Status do Servidor", 
               value: "Online", 
-              icon: Globe, 
+              icon: LayoutDashboard, 
               iconColor: "text-white", 
               iconBg: "bg-purple-500",
-              shadow: "shadow-purple-100" 
+              shadow: "shadow-purple-200"
             },
           ].map((card, i) => (
             <motion.div
@@ -72,82 +88,43 @@ export default function SuperAdmin() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.1 }}
-              className="bg-white p-6 rounded-[24px] border border-gray-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all"
+              className="bg-white p-8 rounded-[24px] border border-gray-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all"
             >
               <div>
-                <p className="text-sm font-medium text-gray-500 mb-1">{card.label}</p>
-                <h3 className="text-3xl font-bold text-gray-900">{card.value}</h3>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">{card.label}</p>
+                <h3 className="text-3xl font-black text-gray-900">{card.value}</h3>
               </div>
-              <div className={`w-12 h-12 ${card.iconBg} rounded-2xl flex items-center justify-center ${card.shadow} shadow-lg transition-transform group-hover:scale-110`}>
-                <card.icon className={card.iconColor} size={24} />
+              <div className={`w-14 h-14 ${card.iconBg} rounded-[20px] flex items-center justify-center ${card.shadow} shadow-lg transition-transform group-hover:scale-110`}>
+                <card.icon className={card.iconColor} size={28} />
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Main Sections */}
+        {/* Main Content Areas */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Recent Activity */}
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[400px]"
-          >
+          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[350px] relative overflow-hidden">
             <div className="flex items-center gap-3 mb-8">
-              <Activity className="text-gray-400" size={20} />
+              <Activity className="text-gray-300" size={20} />
               <h3 className="text-lg font-bold text-gray-900">Atividade Recente</h3>
             </div>
             
-            <div className="flex flex-col items-center justify-center h-full text-center py-20">
-               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                 <Database className="text-gray-300" size={32} />
-               </div>
-               <p className="text-gray-400 text-sm">Nenhuma atividade recente registrada.</p>
+            <div className="flex flex-col items-center justify-center h-[200px] text-center">
+               <p className="text-gray-400 text-sm font-medium">Nenhuma atividade recente registrada.</p>
             </div>
-          </motion.div>
+          </div>
 
           {/* System Alerts */}
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[400px]"
-          >
+          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[350px] relative overflow-hidden">
             <div className="flex items-center gap-3 mb-8">
-              <AlertCircle className="text-gray-400" size={20} />
+              <CheckCircle2 className="text-emerald-500" size={20} />
               <h3 className="text-lg font-bold text-gray-900">Alertas do Sistema</h3>
             </div>
 
-            <div className="flex flex-col items-center justify-center h-full text-center py-20">
-               <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mb-4">
-                 <CheckCircle2 className="text-emerald-500" size={32} />
-               </div>
-               <p className="text-gray-500 font-medium mb-1">Tudo operando normalmente</p>
-               <p className="text-gray-400 text-sm">Nenhum incidente detectado nas últimas 24h.</p>
+            <div className="flex flex-col items-center justify-center h-[200px] text-center">
+               <p className="text-gray-400 text-sm font-medium">Sistema operando normalmente.</p>
             </div>
-          </motion.div>
-        </div>
-
-        {/* Quick Actions / Agencias (Extra) */}
-        <div className="mt-8 bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
-          <div className="flex justify-between items-center mb-8">
-            <h3 className="text-lg font-bold text-gray-900">Agências Recentes</h3>
-            <button className="text-primary font-bold text-sm flex items-center gap-2 hover:underline">
-              Ver todas as agências <ArrowUpRight size={16} />
-            </button>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {['Agência Alpha', 'Consultio Digital', 'Nexus Master'].map((name, i) => (
-              <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                <div className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-primary font-bold">
-                  {name[0]}
-                </div>
-                <div>
-                  <p className="font-bold text-sm text-gray-900">{name}</p>
-                  <p className="text-xs text-gray-500">Assinatura Pro</p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>

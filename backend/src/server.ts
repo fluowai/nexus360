@@ -4,6 +4,7 @@ dotenv.config();
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { prisma } from "./lib/prisma.js";
 
 // Import Rotas
@@ -22,7 +23,31 @@ import { taskRoutes } from "./routes/tasks.js";
 import { creativeRoutes } from "./routes/creatives.js";
 import { authenticateToken } from "./middleware/auth.js";
 
+// Validação de variáveis de ambiente críticas
+const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'];
+const missingEnv = REQUIRED_ENV.filter(env => !process.env[env]);
+
+if (missingEnv.length > 0) {
+  console.error(`❌ ERRO CRÍTICO: Variáveis de ambiente faltando: ${missingEnv.join(', ')}`);
+  process.exit(1);
+}
+
 const app = express();
+
+// Rate Limiting para evitar ataques de força bruta e DoS
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // Limite de 100 requisições por IP
+  message: {
+    success: false,
+    error: "Muitas requisições vindas deste IP, tente novamente em 15 minutos."
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Aplicar limiter em todas as rotas
+app.use(limiter);
 
 // Configuração de CORS para Vercel
 app.use(cors({

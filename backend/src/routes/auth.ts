@@ -3,20 +3,19 @@ import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 
-const getJwtSecret = () => process.env.JWT_SECRET || "dev-secret-only";
+const getJwtSecret = () => {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not defined in environment variables");
+  }
+  return process.env.JWT_SECRET;
+};
 
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
 
   router.post("/login", async (req, res) => {
     try {
-      console.log('[LOGIN] Iniciando login');
-
       const { email, password } = req.body;
-
-      console.log('[LOGIN] Email recebido:', email);
-      console.log('[LOGIN] DATABASE_URL existe:', Boolean(process.env.DATABASE_URL));
-      console.log('[LOGIN] JWT_SECRET existe:', Boolean(process.env.JWT_SECRET));
 
       if (!email || !password) {
         return res.status(400).json({

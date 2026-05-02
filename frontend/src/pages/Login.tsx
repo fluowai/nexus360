@@ -45,7 +45,11 @@ export default function Login() {
         navigate("/onboarding");
       } else {
         localStorage.setItem("nexus_onboarding_done", "true");
-        navigate("/");
+        if (data.user.role === 'SUPER_ADMIN') {
+          navigate("/admin");
+        } else {
+          navigate("/");
+        }
       }
 
     } catch (err: any) {

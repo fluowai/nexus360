@@ -260,8 +260,8 @@ export const Sidebar: React.FC<{
                 <SidebarItem 
                   icon={LayoutDashboard} 
                   label="Dashboard" 
-                  path={getPath("/dashboard")} 
-                  isActive={location.pathname === getPath('/dashboard') || location.pathname === '/'}
+                  path={user?.role === 'SUPER_ADMIN' && !selectedClientId ? "/admin" : getPath("/dashboard")} 
+                  isActive={location.pathname === '/admin' || location.pathname === getPath('/dashboard') || location.pathname === '/'}
                   collapsed={collapsed}
                 />
                 <SidebarItem 

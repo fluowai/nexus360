@@ -110,7 +110,10 @@ const Layout = ({
     if (token && isSuperAdmin && !selectedClientId && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
       navigate('/admin');
     }
-  }, [location.pathname, user, navigate, authLoading, selectedClientId]);
+
+    // Se estiver em /dashboard mas tiver um slug, o App.tsx já cuida da rota :slug/dashboard
+    // mas se for usuário comum e cair no /dashboard sem slug, podemos deixar ou redirecionar.
+  }, [location.pathname, user, navigate, authLoading, selectedClientId, slug]);
 
   if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site') {
     return <>{children}</>;

@@ -36,7 +36,9 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'Erro na requisição');
+    const mainError = data.error || data.message || `Erro na API. Status: ${response.status}`;
+    const detailedError = data.details ? ` (${data.details})` : '';
+    throw new Error(`${mainError}${detailedError}`);
   }
 
   return data;

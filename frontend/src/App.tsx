@@ -160,8 +160,8 @@ export default function App() {
       }
 
       try {
-        // ATENÇÃO: Mudamos de /api/auth/me para /auth/me para alinhar com o Railway
-        const data = await apiFetch('/auth/me');
+        const res = await apiFetch('/api/auth/me');
+        const data = await res.json();
         setUser(data);
       } catch (error) {
         console.error("[Auth] Session validation error:", error);

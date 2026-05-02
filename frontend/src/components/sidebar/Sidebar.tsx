@@ -25,6 +25,7 @@ import {
   ChevronRight,
   Monitor,
   Ticket,
+  CreditCard,
   Building2
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
@@ -242,6 +243,20 @@ export const Sidebar: React.FC<{
                   label="Log de Auditoria" 
                   path="/admin/audit" 
                   isActive={location.pathname === '/admin/audit'}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={CreditCard} 
+                  label="Faturas SaaS" 
+                  path="/admin/billing" 
+                  isActive={location.pathname === '/admin/billing'}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Ticket} 
+                  label="Chamados Globais" 
+                  path="/admin/tickets" 
+                  isActive={location.pathname === '/admin/tickets'}
                   collapsed={collapsed}
                 />
                 <SidebarItem 

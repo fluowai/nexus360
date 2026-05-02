@@ -43,6 +43,8 @@ import AdminDomains from "./pages/admin/Domains";
 import AdminMonitor from "./pages/admin/Monitor";
 import AdminAudit from "./pages/admin/AuditLog";
 import AdminPlans from "./pages/admin/Plans";
+import AdminBilling from "./pages/admin/Billing";
+import AdminTickets from "./pages/admin/Tickets";
 import WhiteLabel from "./pages/admin/WhiteLabel";
 
 import LandingPage from "./pages/LandingPage";
@@ -107,13 +109,16 @@ const Layout = ({
       navigate('/onboarding');
     }
 
-    // Se for Super Admin e estiver em uma rota que NÃO tem slug e NÃO começa com /admin, aí sim manda para /admin
-    const hasSlug = slug && slug !== 'admin' && slug !== 'site' && slug !== 'login';
+    // CORREÇÃO: Pegar o slug manualmente da URL porque o useParams() não funciona fora do <Routes>
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    const firstPart = pathParts[0];
+    const reservedWords = ['admin', 'site', 'login', 'onboarding', 'meet'];
+    const hasSlug = firstPart && !reservedWords.includes(firstPart);
     
     if (token && isSuperAdmin && !selectedClientId && !hasSlug && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
       navigate('/admin');
     }
-  }, [location.pathname, user, navigate, authLoading, selectedClientId, slug]);
+  }, [location.pathname, user, navigate, authLoading, selectedClientId]);
 
   if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site') {
     return <>{children}</>;
@@ -259,6 +264,8 @@ export default function App() {
           <Route path="/admin/monitor" element={<AdminMonitor />} />
           <Route path="/admin/audit" element={<AdminAudit />} />
           <Route path="/admin/plans" element={<AdminPlans />} />
+          <Route path="/admin/billing" element={<AdminBilling />} />
+          <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/whitelabel" element={<WhiteLabel />} />
 
           {/* Agências com Slug: nexus.woopanel.com.br/slug/dashboard */}

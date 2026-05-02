@@ -48,6 +48,48 @@ model Organization {
   landingPages LandingPage[]
   quizzes     Quiz[]
   automations Automation[]
+
+  // SaaS Control (Super Admin -> Agency)
+  saasSubscriptions SaaSSubscription[]
+  saasInvoices      SaaSInvoice[]
+  supportTickets    SupportTicket[]
+}
+
+model SaaSSubscription {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  plan           String   @default("Free") // Free, Pro, Enterprise
+  status         String   @default("ACTIVE") // ACTIVE, TRIAL, PAST_DUE, CANCELED
+  startDate      DateTime @default(now())
+  endDate        DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model SaaSInvoice {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  amount         Float
+  dueDate        DateTime
+  paidAt         DateTime?
+  status         String   @default("PENDING") // PENDING, PAID, CANCELLED
+  invoiceUrl     String?
+  createdAt      DateTime @default(now())
+}
+
+model SupportTicket {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  subject        String
+  description    String   @db.Text
+  status         String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  priority       String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  category       String   // BILLING, TECHNICAL, BUG, FEATURE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model User {

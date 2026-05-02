@@ -23,7 +23,8 @@ import {
   Minus,
   LayoutDashboard,
   ClipboardList,
-  KanbanSquare
+  KanbanSquare,
+  RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

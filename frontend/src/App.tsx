@@ -78,16 +78,22 @@ const Layout = ({
     const isLoginPath = location.pathname === '/login';
     const isOnboardingPath = location.pathname === '/onboarding';
     const isMeetPath = location.pathname.startsWith('/meet');
-    const isLandingPage = location.pathname === '/';
+    const isLandingPage = location.pathname === '/site';
 
     // Se não estiver logado e não for página pública, vai para login
-    if (!token && !isLoginPath && !isMeetPath && !isLandingPage) {
+    if (!token && !isLoginPath && !isMeetPath && !isLandingPage && location.pathname !== '/') {
       navigate('/login');
       return;
     }
 
-    // Se estiver logado e for a Landing Page ou Login, redireciona para o Dashboard/Admin
-    if (token && (isLandingPage || isLoginPath)) {
+    // Se estiver na raiz (/) e não estiver logado, vai para /site
+    if (!token && location.pathname === '/') {
+      navigate('/site');
+      return;
+    }
+
+    // Se estiver logado e for a Landing Page (/site) ou Login, redireciona para o Dashboard/Admin
+    if (token && (isLandingPage || isLoginPath || location.pathname === '/')) {
       if (isSuperAdmin) {
         navigate('/admin');
       } else {
@@ -105,7 +111,7 @@ const Layout = ({
     }
   }, [location.pathname, user, navigate, authLoading]);
 
-  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/') {
+  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site') {
     return <>{children}</>;
   }
 
@@ -226,7 +232,8 @@ export default function App() {
         onSelectClient={handleSelectClient}
       >
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/site" element={<LandingPage />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/finance" element={<Finance />} />
           <Route path="/tasks" element={<Tasks />} />

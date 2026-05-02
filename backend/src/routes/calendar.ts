@@ -59,7 +59,7 @@ export function calendarRoutes(prisma: PrismaClient) {
         where: { id: req.params.id }
       });
 
-      if (!event || event.organizationId !== req.user?.organizationId) {
+      if (!event || event.organizationId !== req.user?.orgId) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
 

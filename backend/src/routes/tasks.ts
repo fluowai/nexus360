@@ -77,7 +77,7 @@ export function taskRoutes(prisma: PrismaClient) {
         where: { id: req.params.id }
       });
 
-      if (!existingTask || existingTask.organizationId !== req.user?.organizationId) {
+      if (!existingTask || existingTask.organizationId !== req.user?.orgId) {
         return res.status(404).json({ error: "Tarefa não encontrada" });
       }
 
@@ -108,7 +108,7 @@ export function taskRoutes(prisma: PrismaClient) {
         where: { id: req.params.id }
       });
 
-      if (!task || task.organizationId !== req.user?.organizationId) {
+      if (!task || task.organizationId !== req.user?.orgId) {
         return res.status(404).json({ error: "Tarefa não encontrada" });
       }
 

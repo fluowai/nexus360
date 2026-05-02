@@ -58,7 +58,7 @@ export function creativeRoutes(prisma: PrismaClient) {
         where: { id: req.params.id }
       });
 
-      if (!existingCreative || existingCreative.organizationId !== req.user?.organizationId) {
+      if (!existingCreative || existingCreative.organizationId !== req.user?.orgId) {
         return res.status(404).json({ error: "Criativo não encontrado" });
       }
 
@@ -84,7 +84,7 @@ export function creativeRoutes(prisma: PrismaClient) {
         where: { id: req.params.id }
       });
 
-      if (!creative || creative.organizationId !== req.user?.organizationId) {
+      if (!creative || creative.organizationId !== req.user?.orgId) {
         return res.status(404).json({ error: "Criativo não encontrado" });
       }
 

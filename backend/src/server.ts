@@ -128,6 +128,40 @@ app.use("/api/clients", authenticateToken, clientRoutes(prisma));
 app.use("/api/admin", authenticateToken, adminRoutes(prisma));
 app.use("/api/ai", authenticateToken, aiRoutes(prisma));
 
+// Dashboard acessível para TODOS os usuários autenticados (não apenas Super Admin)
+app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
+  try {
+    const orgId = req.user.orgId;
+    const whereClause = orgId ? { organizationId: orgId } : {};
+
+    const leadsCount = await prisma.lead.count({ where: whereClause });
+    const clientsCount = await prisma.client.count({ where: whereClause });
+    const proposalsCount = await prisma.proposal.count({ where: whereClause });
+
+    res.json({
+      metrics: {
+        leads: leadsCount,
+        clients: clientsCount,
+        proposals: proposalsCount,
+        revenue: 45200.00,
+        conversions: leadsCount > 0 ? ((clientsCount / leadsCount) * 100).toFixed(1) : 0,
+        contentCount: 42
+      },
+      chartData: [
+        { name: "Seg", leads: 40, conv: 24 },
+        { name: "Ter", leads: 30, conv: 13 },
+        { name: "Qua", leads: 20, conv: 98 },
+        { name: "Qui", leads: 27, conv: 39 },
+        { name: "Sex", leads: 18, conv: 48 },
+        { name: "Sab", leads: 23, conv: 38 },
+        { name: "Dom", leads: 34, conv: 43 },
+      ]
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch dashboard" });
+  }
+});
+
 // CRM e Outros
 app.use("/api/crm", authenticateToken, crmRoutes(prisma));
 app.use("/api/marketing", authenticateToken, marketingRoutes(prisma));

@@ -26,10 +26,17 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const userRole = localStorage.getItem('nexus_user_role');
     const orgId = localStorage.getItem('nexus_org_id') || '';
-    apiFetch(`/api/admin/dashboard${orgId ? `?orgId=${orgId}` : ''}`)
+    
+    // Super Admin usa /api/admin/dashboard, todos os outros usam /api/dashboard
+    const endpoint = userRole === 'SUPER_ADMIN' 
+      ? `/api/admin/dashboard${orgId ? `?orgId=${orgId}` : ''}`
+      : '/api/dashboard';
+    
+    apiFetch(endpoint)
       .then(res => {
-        if (!res.ok) throw new Error("Não autorizado ou erro no servidor");
+        if (!res.ok) throw new Error("Erro ao carregar painel");
         return res.json();
       })
       .then(setData)
@@ -40,10 +47,10 @@ export default function Dashboard() {
     <div className="flex flex-col items-center justify-center h-64 gap-4">
       <p className="text-red-500 font-medium">{error}</p>
       <button 
-        onClick={() => window.location.href = '/login'}
+        onClick={() => window.location.reload()}
         className="px-4 py-2 bg-primary text-white rounded-lg"
       >
-        Ir para Login
+        Tentar Novamente
       </button>
     </div>
   );

@@ -82,42 +82,50 @@ const Layout = ({
     const isOnboardingPath = location.pathname === '/onboarding';
     const isMeetPath = location.pathname.startsWith('/meet');
     const isLandingPage = location.pathname === '/site';
+    const isAdminPath = location.pathname.startsWith('/admin');
 
-    // Se não estiver logado e não for página pública, vai para login
-    if (!token && !isLoginPath && !isMeetPath && !isLandingPage && location.pathname !== '/') {
+    // Detectar se a URL contém um slug de agência
+    const pathParts = location.pathname.split('/').filter(Boolean);
+    const firstPart = pathParts[0] || '';
+    const reservedWords = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports', 'api'];
+    const urlHasSlug = firstPart && !reservedWords.includes(firstPart);
+
+    // Páginas públicas: nunca redirecionar
+    if (isLoginPath || isMeetPath || isLandingPage || isOnboardingPath) return;
+
+    // Se não tem token e NÃO está em página pública, manda para login
+    if (!token) {
       navigate('/login');
       return;
     }
 
-    // Se estiver na raiz (/) e não estiver logado, vai para /site
-    if (!token && location.pathname === '/') {
-      navigate('/site');
-      return;
-    }
-
-    // Se estiver logado e for a Landing Page (/site) ou Login, redireciona para o Dashboard/Admin
-    if (token && (isLandingPage || isLoginPath || location.pathname === '/')) {
+    // Se tem token mas está na raiz "/", redireciona baseado no papel
+    if (location.pathname === '/') {
       if (isSuperAdmin && !selectedClientId) {
         navigate('/admin');
       } else {
-        navigate('/dashboard');
+        const savedSlug = localStorage.getItem('nexus_org_slug');
+        if (savedSlug) {
+          navigate(`/${savedSlug}/dashboard`);
+        } else {
+          navigate('/dashboard');
+        }
       }
       return;
     }
 
-    if (token && !onboardingDone && !isSuperAdmin && !isOnboardingPath && !isLoginPath && !isMeetPath) {
-      navigate('/onboarding');
+    // Se está em uma rota com slug de agência, DEIXA EM PAZ (nunca redireciona)
+    if (urlHasSlug) return;
+
+    // Se é Super Admin sem cliente selecionado e não está em /admin, manda para /admin
+    if (isSuperAdmin && !selectedClientId && !isAdminPath) {
+      navigate('/admin');
+      return;
     }
 
-    // CORREÇÃO: Pegar o slug manualmente da URL
-    const pathParts = location.pathname.split('/').filter(Boolean);
-    const firstPart = pathParts[0];
-    const reservedWords = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance'];
-    const urlHasSlug = firstPart && !reservedWords.includes(firstPart);
-    
-    // Se for Super Admin e estiver no "/" ou rota global sem slug, aí sim manda para /admin
-    if (token && isSuperAdmin && !selectedClientId && !urlHasSlug && !location.pathname.startsWith('/admin') && !isLoginPath && !isMeetPath && !isLandingPage) {
-      navigate('/admin');
+    // Se não fez onboarding
+    if (!onboardingDone && !isSuperAdmin && !isOnboardingPath) {
+      navigate('/onboarding');
     }
   }, [location.pathname, user, navigate, authLoading, selectedClientId]);
 

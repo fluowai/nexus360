@@ -23,10 +23,15 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     headers,
   });
 
+  // Só redireciona para login se for um 401 real (não durante validação inicial)
   if (response.status === 401 || response.status === 403) {
-    localStorage.removeItem('nexus_token');
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
+    // Não redireciona se for a chamada de validação do /me (primeira carga)
+    const isAuthCheck = path.includes('/api/auth/me');
+    if (!isAuthCheck) {
+      localStorage.removeItem('nexus_token');
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
   }
 

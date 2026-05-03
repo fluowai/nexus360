@@ -5,6 +5,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "prebuild": "npm install @livekit/components-react @livekit/components-styles livekit-client --no-save",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview"

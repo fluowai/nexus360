@@ -139,12 +139,23 @@ export const Sidebar: React.FC<{
   onSelectClient
 }) => {
   const location = useLocation();
-  const { slug } = useParams();
+
+  // Pegar o slug da URL manualmente (useParams não funciona aqui pois Sidebar está fora do Routes)
+  const getSlugFromPath = () => {
+    const parts = location.pathname.split('/').filter(Boolean);
+    const firstPart = parts[0] || '';
+    const reserved = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports'];
+    if (firstPart && !reserved.includes(firstPart)) return firstPart;
+    // Fallback: pegar do localStorage (salvo durante o login)
+    return localStorage.getItem('nexus_org_slug') || '';
+  };
+
+  const currentSlug = getSlugFromPath();
 
   // Função auxiliar para construir caminhos com slug
   const getPath = (basePath: string) => {
     if (basePath.startsWith('/admin')) return basePath;
-    if (slug) return `/${slug}${basePath}`;
+    if (currentSlug) return `/${currentSlug}${basePath}`;
     return basePath;
   };
 

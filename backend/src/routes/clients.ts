@@ -23,8 +23,13 @@ export function clientRoutes(prisma: PrismaClient) {
 
   router.get("/:id/context", async (req: AuthRequest, res) => {
     try {
-      const context = await prisma.clientAIContext.findUnique({
-        where: { clientId: req.params.id }
+      const context = await prisma.clientAIContext.findFirst({
+        where: { 
+          clientId: req.params.id,
+          client: {
+            organizationId: req.user.orgId
+          }
+        }
       });
       res.json(context);
     } catch (error) {

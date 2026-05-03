@@ -10,7 +10,12 @@ import {
   X,
   Video,
   Phone,
-  Mail
+  Mail,
+  Pencil,
+  Trash2,
+  Copy,
+  Check,
+  Link2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../lib/api";
@@ -18,7 +23,7 @@ import { apiFetch } from "../lib/api";
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-const TYPE_COLORS = {
+const TYPE_COLORS: Record<string, string> = {
   reunion: "bg-blue-100 text-blue-700 border-blue-300",
   task: "bg-purple-100 text-purple-700 border-purple-300",
   deadline: "bg-red-100 text-red-700 border-red-300",
@@ -26,7 +31,15 @@ const TYPE_COLORS = {
   holiday: "bg-green-100 text-green-700 border-green-300"
 };
 
-const TYPE_ICONS = {
+const TYPE_LABELS: Record<string, string> = {
+  reunion: "Reunião",
+  task: "Tarefa",
+  deadline: "Deadline",
+  birthday: "Aniversário",
+  holiday: "Feriado"
+};
+
+const TYPE_ICONS: Record<string, any> = {
   reunion: Video,
   task: CalendarIcon,
   deadline: CalendarIcon,
@@ -40,7 +53,8 @@ export default function Calendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [modalOpen, setModalOpen] = useState(false);
-  const [view, setView] = useState<"month" | "day">("month");
+  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -50,7 +64,6 @@ export default function Calendar() {
       if (Array.isArray(data)) {
         setEvents(data);
       } else {
-        console.warn("Calendar API returned non-array data:", data);
         setEvents([]);
       }
     } catch (err) {
@@ -88,6 +101,28 @@ export default function Calendar() {
     });
   };
 
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!confirm("Tem certeza que deseja excluir este evento?")) return;
+    try {
+      await apiFetch(`/api/calendar/${eventId}`, { method: 'DELETE' });
+      fetchEvents();
+    } catch (err) {
+      console.error("Error deleting event:", err);
+    }
+  };
+
+  const handleEditEvent = (event: any) => {
+    setEditingEvent(event);
+    setModalOpen(true);
+  };
+
+  const handleCopyLink = (link: string) => {
+    const fullLink = `${window.location.origin}${link}`;
+    navigator.clipboard.writeText(fullLink);
+    setCopiedLink(link);
+    setTimeout(() => setCopiedLink(null), 2000);
+  };
+
   const goToPrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   };
@@ -104,10 +139,10 @@ export default function Calendar() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Calendário</h1>
-          <p className="text-gray-500">Agende reuniões,deadlines e eventos.</p>
+          <p className="text-gray-500">Agende reuniões, deadlines e eventos.</p>
         </div>
         <button 
-          onClick={() => setModalOpen(true)}
+          onClick={() => { setEditingEvent(null); setModalOpen(true); }}
           className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition-all font-medium shadow-lg shadow-blue-200"
         >
           <Plus size={18} />
@@ -163,7 +198,7 @@ export default function Calendar() {
                       </span>
                       <div className="flex flex-col gap-1 mt-1">
                         {dayEvents.slice(0, 2).map((e, i) => (
-                          <div key={i} className={`text-[10px] px-1 py-0.5 rounded truncate ${TYPE_COLORS[e.type as keyof typeof TYPE_COLORS] || 'bg-gray-100'}`}>
+                          <div key={i} className={`text-[10px] px-1 py-0.5 rounded truncate ${TYPE_COLORS[e.type] || 'bg-gray-100'}`}>
                             {e.title}
                           </div>
                         ))}
@@ -186,34 +221,78 @@ export default function Calendar() {
           </h3>
           <div className="flex flex-col gap-3">
             {selectedEvents.length === 0 ? (
-              <p className="text-gray-400 text-sm">Nenhum evento neste dia</p>
+              <div className="flex flex-col items-center gap-3 py-12 text-gray-400">
+                <CalendarIcon size={32} className="opacity-30" />
+                <p className="text-sm">Nenhum evento neste dia</p>
+                <button 
+                  onClick={() => { setEditingEvent(null); setModalOpen(true); }}
+                  className="text-xs text-primary font-bold hover:underline"
+                >
+                  + Adicionar evento
+                </button>
+              </div>
             ) : (
               selectedEvents.map(event => {
-                const Icon = TYPE_ICONS[event.type as keyof typeof TYPE_ICONS] || CalendarIcon;
+                const Icon = TYPE_ICONS[event.type] || CalendarIcon;
                 return (
-                  <div key={event.id} className={`p-3 rounded-xl border ${TYPE_COLORS[event.type as keyof typeof TYPE_COLORS]}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Icon size={14} />
-                      <span className="text-xs font-bold uppercase">{event.type}</span>
+                  <div key={event.id} className={`p-4 rounded-xl border ${TYPE_COLORS[event.type] || 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Icon size={14} />
+                        <span className="text-[10px] font-bold uppercase tracking-wider">
+                          {TYPE_LABELS[event.type] || event.type}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => handleEditEvent(event)}
+                          className="p-1.5 hover:bg-white/50 rounded-lg transition-colors"
+                          title="Editar"
+                        >
+                          <Pencil size={12} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteEvent(event.id)}
+                          className="p-1.5 hover:bg-red-100 rounded-lg transition-colors text-red-500"
+                          title="Excluir"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                     <h4 className="font-bold text-gray-900 text-sm">{event.title}</h4>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                    {event.description && (
+                      <p className="text-xs text-gray-500 mt-1">{event.description}</p>
+                    )}
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
                       <Clock size={12} />
                       <span>{new Date(event.startDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
+                    
+                    {/* Link de reunião Nexus Meet */}
                     {event.meetingLink && (
-                      <a 
-                        href={event.meetingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-3 flex items-center justify-center gap-2 w-full py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all shadow-md"
-                      >
-                        <Video size={14} />
-                        Entrar na Reunião
-                      </a>
+                      <div className="mt-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-[10px] text-gray-400 font-medium">
+                          <Link2 size={10} />
+                          <span className="truncate">{window.location.origin}{event.meetingLink}</span>
+                          <button
+                            onClick={() => handleCopyLink(event.meetingLink)}
+                            className="ml-auto p-1 hover:bg-white/50 rounded transition-colors"
+                            title="Copiar link"
+                          >
+                            {copiedLink === event.meetingLink ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                          </button>
+                        </div>
+                        <a 
+                          href={event.meetingLink}
+                          className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all shadow-md"
+                        >
+                          <Video size={14} />
+                          Entrar na Reunião
+                        </a>
+                      </div>
                     )}
                   </div>
-
                 );
               })
             )}
@@ -224,9 +303,10 @@ export default function Calendar() {
       <AnimatePresence>
         {modalOpen && (
           <EventModal 
-            onClose={() => setModalOpen(false)} 
-            onSuccess={() => { setModalOpen(false); fetchEvents(); }}
+            onClose={() => { setModalOpen(false); setEditingEvent(null); }} 
+            onSuccess={() => { setModalOpen(false); setEditingEvent(null); fetchEvents(); }}
             initialDate={selectedDate}
+            editingEvent={editingEvent}
           />
         )}
       </AnimatePresence>
@@ -234,17 +314,34 @@ export default function Calendar() {
   );
 }
 
-function EventModal({ onClose, onSuccess, initialDate }: { onClose: () => void, onSuccess: () => void, initialDate: Date }) {
+function EventModal({ onClose, onSuccess, initialDate, editingEvent }: { 
+  onClose: () => void, 
+  onSuccess: () => void, 
+  initialDate: Date,
+  editingEvent?: any
+}) {
+  const isEditing = !!editingEvent;
+  
+  const getDateStr = (d: Date | string) => {
+    const date = new Date(d);
+    return date.toISOString().split('T')[0];
+  };
+
+  const getTimeStr = (d: Date | string) => {
+    const date = new Date(d);
+    return date.toTimeString().slice(0, 5);
+  };
+
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    startDate: initialDate.toISOString().split('T')[0],
-    startTime: '09:00',
-    endDate: initialDate.toISOString().split('T')[0],
-    endTime: '10:00',
-    type: 'reunion',
-    allDay: false,
-    reminder: 15
+    title: editingEvent?.title || '',
+    description: editingEvent?.description || '',
+    startDate: editingEvent ? getDateStr(editingEvent.startDate) : initialDate.toISOString().split('T')[0],
+    startTime: editingEvent ? getTimeStr(editingEvent.startDate) : '09:00',
+    endDate: editingEvent?.endDate ? getDateStr(editingEvent.endDate) : initialDate.toISOString().split('T')[0],
+    endTime: editingEvent?.endDate ? getTimeStr(editingEvent.endDate) : '10:00',
+    type: editingEvent?.type || 'reunion',
+    allDay: editingEvent?.allDay || false,
+    reminder: editingEvent?.reminder || 15
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -255,8 +352,11 @@ function EventModal({ onClose, onSuccess, initialDate }: { onClose: () => void, 
       const startDateTime = `${formData.startDate}T${formData.startTime}:00`;
       const endDateTime = `${formData.endDate}T${formData.endTime}:00`;
       
-      await apiFetch('/api/calendar', {
-        method: 'POST',
+      const method = isEditing ? 'PUT' : 'POST';
+      const url = isEditing ? `/api/calendar/${editingEvent.id}` : '/api/calendar';
+
+      await apiFetch(url, {
+        method,
         body: JSON.stringify({
           ...formData,
           startDate: startDateTime,
@@ -285,8 +385,10 @@ function EventModal({ onClose, onSuccess, initialDate }: { onClose: () => void, 
       >
         <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-blue-50/50">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Novo Evento</h2>
-            <p className="text-xs text-gray-500 mt-1">Agende uma reunião ou atividade</p>
+            <h2 className="text-xl font-bold text-gray-900">{isEditing ? 'Editar Evento' : 'Novo Evento'}</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              {isEditing ? 'Atualize os detalhes do evento' : 'Agende uma reunião ou atividade'}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
             <X size={20} className="text-gray-400" />
@@ -312,12 +414,17 @@ function EventModal({ onClose, onSuccess, initialDate }: { onClose: () => void, 
               value={formData.type}
               onChange={e => setFormData({...formData, type: e.target.value})}
             >
-              <option value="reunion">Reunião</option>
-              <option value="task">Tarefa</option>
-              <option value="deadline">Deadline</option>
-              <option value="birthday">Aniversário</option>
-              <option value="holiday">Feriado</option>
+              <option value="reunion">🎥 Reunião (gera link Nexus Meet)</option>
+              <option value="task">📋 Tarefa</option>
+              <option value="deadline">🔴 Deadline</option>
+              <option value="birthday">🎂 Aniversário</option>
+              <option value="holiday">🌴 Feriado</option>
             </select>
+            {formData.type === 'reunion' && !isEditing && (
+              <p className="text-[10px] text-blue-500 font-medium pl-1">
+                ✨ Um link exclusivo do Nexus Meet será gerado automaticamente
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -341,6 +448,29 @@ function EventModal({ onClose, onSuccess, initialDate }: { onClose: () => void, 
               />
             </div>
           </div>
+
+          {!formData.allDay && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Data Fim</label>
+                <input 
+                  type="date"
+                  className="modal-input"
+                  value={formData.endDate}
+                  onChange={e => setFormData({...formData, endDate: e.target.value})}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Hora Fim</label>
+                <input 
+                  type="time"
+                  className="modal-input"
+                  value={formData.endTime}
+                  onChange={e => setFormData({...formData, endTime: e.target.value})}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <input 
@@ -376,7 +506,7 @@ function EventModal({ onClose, onSuccess, initialDate }: { onClose: () => void, 
               type="submit"
               className="flex-1 py-3 px-4 rounded-xl bg-primary text-white font-bold hover:bg-blue-600 transition-all shadow-lg shadow-blue-200 flex items-center justify-center gap-2"
             >
-              {submitting ? 'Salvando...' : 'Criar Evento'}
+              {submitting ? 'Salvando...' : isEditing ? 'Salvar Alterações' : 'Criar Evento'}
             </button>
           </div>
         </form>

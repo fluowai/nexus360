@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Shield, LogOut, Video, Copy, Check, BrainCircuit, CheckCircle, AlertTriangle, ListTodo } from "lucide-react";
+import { Shield, LogOut, Video, Copy, Check, BrainCircuit, CheckCircle, AlertTriangle, ListTodo, FileText } from "lucide-react";
 import {
   LiveKitRoom,
   VideoConference,
@@ -16,33 +16,12 @@ function MeetingContent({
 }: { 
   onNewTranscript: (text: string, sender: string) => void 
 }) {
-  const [subtitle, setSubtitle] = useState<{text: string, sender: string} | null>(null);
-
-  const handleTranscript = (text: string, sender: string) => {
-    setSubtitle({ text, sender });
-    onNewTranscript(text, sender);
-  };
-
-  useEffect(() => {
-    if (!subtitle) return;
-    const timer = setTimeout(() => setSubtitle(null), 5000);
-    return () => clearTimeout(timer);
-  }, [subtitle]);
-
   return (
-    <>
+    <div className="w-full h-full relative">
       <VideoConference />
       <RoomAudioRenderer />
-      <TranscriptionEngine onNewTranscript={handleTranscript} />
-      
-      {/* Overlay de Legendas VibeCoding */}
-      {subtitle && (
-        <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 bg-black/80 backdrop-blur-xl text-white px-8 py-4 rounded-3xl max-w-3xl text-center shadow-[0_0_40px_rgba(0,0,0,0.5)] z-50 border border-gray-700/50 animate-in slide-in-from-bottom-8 fade-in duration-300">
-          <span className="text-primary font-bold mr-3 text-sm uppercase tracking-wider">{subtitle.sender}</span>
-          <span className="text-xl font-medium tracking-tight leading-relaxed">{subtitle.text}</span>
-        </div>
-      )}
-    </>
+      <TranscriptionEngine onNewTranscript={onNewTranscript} />
+    </div>
   );
 }
 
@@ -54,10 +33,12 @@ export default function MeetingRoom() {
   const [error, setError] = useState("");
   
   // Estados para o Supervisor IA
-  const [fullTranscript, setFullTranscript] = useState<string>("");
+  const [transcriptLines, setTranscriptLines] = useState<{time: string, sender: string, text: string}[]>([]);
   const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackData, setFeedbackData] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  
+  const notepadRef = useRef<HTMLDivElement>(null);
 
   const userName = localStorage.getItem('nexus_user_name') || 'Participante';
   const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
@@ -91,12 +72,22 @@ export default function MeetingRoom() {
   };
 
   const appendTranscript = (text: string, sender: string) => {
-    setFullTranscript(prev => prev + `\n[${new Date().toLocaleTimeString()}] ${sender}: ${text}`);
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setTranscriptLines(prev => [...prev, { time, sender, text }]);
   };
 
+  // Auto-scroll no bloco de notas
+  useEffect(() => {
+    if (notepadRef.current) {
+      notepadRef.current.scrollTop = notepadRef.current.scrollHeight;
+    }
+  }, [transcriptLines]);
+
   const handleEndMeeting = async () => {
+    const fullTranscriptStr = transcriptLines.map(t => `[${t.time}] ${t.sender}: ${t.text}`).join('\n');
+
     // Se não teve conversa suficiente, sai direto
-    if (fullTranscript.length < 50) {
+    if (fullTranscriptStr.length < 50) {
       navigate(-1);
       return;
     }
@@ -107,7 +98,7 @@ export default function MeetingRoom() {
     try {
       const response = await apiFetch('/api/ai/meeting-feedback', {
         method: 'POST',
-        body: JSON.stringify({ transcript: fullTranscript })
+        body: JSON.stringify({ transcript: fullTranscriptStr })
       });
       
       if (response.ok) {
@@ -226,19 +217,56 @@ export default function MeetingRoom() {
         </div>
       </div>
 
-      {/* LiveKit Room */}
-      <div className="flex-1 relative bg-black">
-        <LiveKitRoom
-          video={false} 
-          audio={false}
-          token={token}
-          serverUrl={livekitUrl}
-          data-lk-theme="default"
-          style={{ height: '100vh', width: '100vw' }}
-          onDisconnected={handleEndMeeting}
-        >
-          <MeetingContent onNewTranscript={appendTranscript} />
-        </LiveKitRoom>
+      {/* Workspace Principal (Vídeo + Bloco de Notas) */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* Lado Esquerdo: Sala de Vídeo LiveKit */}
+        <div className="flex-1 relative bg-black">
+          <LiveKitRoom
+            video={false} 
+            audio={false}
+            token={token}
+            serverUrl={livekitUrl}
+            data-lk-theme="default"
+            style={{ height: '100%', width: '100%' }}
+            onDisconnected={handleEndMeeting}
+          >
+            <MeetingContent onNewTranscript={appendTranscript} />
+          </LiveKitRoom>
+        </div>
+
+        {/* Lado Direito: Bloco de Notas */}
+        <div className="w-80 md:w-96 bg-[#13151A] border-l border-gray-800 flex flex-col shadow-[-10px_0_30px_rgba(0,0,0,0.5)] z-40">
+          <div className="h-14 px-4 flex items-center gap-2 border-b border-gray-800 bg-[#1A1D23]">
+            <FileText size={16} className="text-primary" />
+            <span className="font-bold text-sm">Bloco de Notas (Ao Vivo)</span>
+          </div>
+
+          <div 
+            ref={notepadRef}
+            className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth"
+          >
+            {transcriptLines.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-gray-500 text-sm text-center">
+                <BrainCircuit size={32} className="mb-3 opacity-50" />
+                <p>A transcrição da reunião aparecerá aqui em tempo real.</p>
+              </div>
+            ) : (
+              transcriptLines.map((line, i) => (
+                <div key={i} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-primary text-xs font-bold">{line.sender}</span>
+                    <span className="text-gray-500 text-[10px]">{line.time}</span>
+                  </div>
+                  <div className="text-gray-300 text-sm leading-relaxed bg-gray-800/30 p-3 rounded-tr-xl rounded-b-xl border border-gray-700/30">
+                    {line.text}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );

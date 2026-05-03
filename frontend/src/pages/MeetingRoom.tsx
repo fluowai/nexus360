@@ -1,86 +1,44 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Shield, LogOut, Video, Copy, Check } from "lucide-react";
+import {
+  LiveKitRoom,
+  VideoConference,
+  RoomAudioRenderer,
+} from "@livekit/components-react";
+import "@livekit/components-styles";
+import api from "../lib/api";
 
-declare global {
-  interface Window {
-    JitsiMeetExternalAPI: any;
-  }
-}
-
-// VERSÃO 3.0 - SERVIDOR ABERTO & SENHA AUTOMÁTICA
 export default function MeetingRoom() {
   const { roomName } = useParams();
   const navigate = useNavigate();
-  const jitsiContainerRef = useRef<HTMLDivElement>(null);
-  const apiRef = useRef<any>(null);
-  const [isReady, setIsReady] = useState(false);
+  const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
 
-  // Usamos o domínio meet.ffmuc.net (Um servidor robusto na Alemanha que usa Jitsi mas NÃO EXIGE LOGIN do Google/Github)
-  const JITSI_DOMAIN = 'meet.ffmuc.net';
+  const userName = localStorage.getItem('nexus_user_name') || 'Participante';
+  const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
 
   useEffect(() => {
-    const oldScript = document.getElementById('jitsi-script');
-    if (oldScript) oldScript.remove();
-
-    const script = document.createElement('script');
-    script.id = 'jitsi-script';
-    script.src = `https://${JITSI_DOMAIN}/external_api.js`;
-    script.async = true;
-    script.onload = () => {
-      setIsReady(true);
-      initJitsi();
-    };
-    document.body.appendChild(script);
-
-    return () => {
-      if (apiRef.current) {
-        apiRef.current.dispose();
-        apiRef.current = null;
+    // Buscar o token do backend (Segurança 100% no nosso lado)
+    const fetchToken = async () => {
+      try {
+        const response = await api.post('/livekit/token', {
+          roomName: `nexus-360-${roomName}`,
+          participantName: userName,
+        });
+        
+        setToken(response.data.token);
+      } catch (err) {
+        console.error("Erro ao buscar token:", err);
+        setError("Não foi possível gerar a credencial da sala segura.");
       }
     };
-  }, [roomName]);
 
-  const initJitsi = () => {
-    if (!jitsiContainerRef.current || !window.JitsiMeetExternalAPI || apiRef.current) return;
-
-    const api = new window.JitsiMeetExternalAPI(JITSI_DOMAIN, {
-      roomName: `nexus-360-pro-${roomName}`,
-      parentNode: jitsiContainerRef.current,
-      width: '100%',
-      height: '100%',
-      configOverwrite: {
-        startWithAudioMuted: false,
-        startWithVideoMuted: false,
-        prejoinPageEnabled: true, // Habilitamos a página de entrada para o usuário testar a câmera antes de entrar
-        disableDeepLinking: true,
-        defaultLanguage: 'pt',
-      },
-      interfaceConfigOverwrite: {
-        SHOW_JITSI_WATERMARK: false,
-        SHOW_POWERED_BY: false,
-        DEFAULT_BACKGROUND: '#0F1115',
-        TOOLBAR_BUTTONS: [
-          'microphone', 'camera', 'desktop', 'chat', 'raisehand',
-          'tileview', 'fullscreen', 'hangup', 'settings'
-        ],
-      }
-    });
-
-    api.addEventListener('readyToClose', () => {
-      navigate(-1);
-    });
-
-    // Quando a sala é criada, podemos definir uma senha se precisarmos no futuro
-    // api.addEventListener('participantRoleChanged', (event: any) => {
-    //   if (event.role === 'moderator') {
-    //      api.executeCommand('password', 'SENHA_AQUI');
-    //   }
-    // });
-
-    apiRef.current = api;
-  };
+    if (roomName) {
+      fetchToken();
+    }
+  }, [roomName, userName]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -88,15 +46,47 @@ export default function MeetingRoom() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  if (!livekitUrl) {
+    return (
+      <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col items-center justify-center p-6 text-center">
+        <Shield size={48} className="text-red-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">Configuração Ausente</h2>
+        <p className="text-gray-400 max-w-md">
+          A URL do LiveKit (VITE_LIVEKIT_URL) não foi configurada nas variáveis de ambiente.
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col items-center justify-center p-6 text-center">
+        <Shield size={48} className="text-red-500 mb-4" />
+        <h2 className="text-xl font-bold mb-2">Erro de Conexão</h2>
+        <p className="text-gray-400 mb-6 max-w-md">{error}</p>
+        <button onClick={() => navigate(-1)} className="px-6 py-2 bg-primary rounded-lg font-bold">Voltar</button>
+      </div>
+    );
+  }
+
+  if (!token) {
+    return (
+      <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col items-center justify-center z-40">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary mb-4"></div>
+        <p className="text-gray-400 text-sm">Gerando credenciais seguras de ponta-a-ponta...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col overflow-hidden">
-      {/* Header Minimalista */}
+    <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col overflow-hidden custom-livekit-theme">
+      {/* Header Nexus */}
       <div className="h-14 px-6 flex items-center justify-between bg-[#1A1D23] border-b border-gray-800/50 z-50">
         <div className="flex items-center gap-3">
           <div className="bg-primary p-2 rounded-lg">
             <Video size={18} className="text-white" />
           </div>
-          <span className="font-bold text-sm tracking-tight">Nexus Meet</span>
+          <span className="font-bold text-sm tracking-tight">Nexus Meet Pro (LiveKit)</span>
         </div>
         
         <div className="flex gap-4 items-center">
@@ -115,22 +105,25 @@ export default function MeetingRoom() {
             className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all text-xs font-bold shadow-lg shadow-red-500/20"
           >
             <LogOut size={14} />
-            <span>Encerrar</span>
+            <span>Encerrar Reunião</span>
           </button>
         </div>
       </div>
 
+      {/* LiveKit Room */}
       <div className="flex-1 relative bg-black">
-        {!isReady && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0F1115] z-40">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary mb-4"></div>
-            <p className="text-gray-400 text-sm">Iniciando servidor seguro...</p>
-          </div>
-        )}
-        <div 
-          ref={jitsiContainerRef} 
-          className="w-full h-full"
-        />
+        <LiveKitRoom
+          video={false} // Inicialmente desligado para testar permissão suavemente (ou true)
+          audio={false}
+          token={token}
+          serverUrl={livekitUrl}
+          data-lk-theme="default"
+          style={{ height: '100vh', width: '100vw' }}
+          onDisconnected={() => navigate(-1)}
+        >
+          <VideoConference />
+          <RoomAudioRenderer />
+        </LiveKitRoom>
       </div>
     </div>
   );

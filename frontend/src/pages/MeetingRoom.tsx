@@ -7,7 +7,7 @@ import {
   RoomAudioRenderer,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import api from "../lib/api";
+import { apiFetch } from "../lib/api";
 
 export default function MeetingRoom() {
   const { roomName } = useParams();
@@ -23,12 +23,20 @@ export default function MeetingRoom() {
     // Buscar o token do backend (Segurança 100% no nosso lado)
     const fetchToken = async () => {
       try {
-        const response = await api.post('/livekit/token', {
-          roomName: `nexus-360-${roomName}`,
-          participantName: userName,
+        const response = await apiFetch('/api/livekit/token', {
+          method: 'POST',
+          body: JSON.stringify({
+            roomName: `nexus-360-${roomName}`,
+            participantName: userName,
+          })
         });
         
-        setToken(response.data.token);
+        if (!response.ok) {
+          throw new Error('Falha na autenticação da sala');
+        }
+
+        const data = await response.json();
+        setToken(data.token);
       } catch (err) {
         console.error("Erro ao buscar token:", err);
         setError("Não foi possível gerar a credencial da sala segura.");

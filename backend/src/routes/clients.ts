@@ -23,6 +23,8 @@ export function clientRoutes(prisma: PrismaClient) {
 
   router.get("/:id/context", async (req: AuthRequest, res) => {
     try {
+      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+      
       const context = await prisma.clientAIContext.findFirst({
         where: { 
           clientId: req.params.id,

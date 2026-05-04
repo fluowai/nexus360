@@ -6,7 +6,7 @@ export function promptRoutes(prisma: PrismaClient) {
   const router = Router();
 
   // Rota para Gerar o Prompt Master usando IA
-  router.post("/generate", async (req: AuthRequest, res) => {
+  router.post("/generate", async (req: any, res: any) => {
     const { 
       projectName, 
       promptType, 
@@ -43,9 +43,9 @@ export function promptRoutes(prisma: PrismaClient) {
       Objetivo: ${objective}
       Público: ${targetAudience}
       Tom de Voz: ${tone}
-      Estrutura Necessária: ${structure.join(', ')}
+      Estrutura Necessária: ${Array.isArray(structure) ? structure.join(', ') : structure}
       Estilo Visual: ${designStyle} (Cores: ${colors})
-      Recursos Técnicos: ${advancedFeatures.join(', ')}
+      Recursos Técnicos: ${Array.isArray(advancedFeatures) ? advancedFeatures.join(', ') : advancedFeatures}
 
       O resultado deve ser um documento Markdown estruturado com: Contexto, Objetivo, UX/UI, Stack Técnica, Funcionalidades Detalhadas, Banco de Dados, Segurança e Critérios de Aceite.
       `;
@@ -67,7 +67,12 @@ export function promptRoutes(prisma: PrismaClient) {
         })
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
+      
+      if (!data.choices || !data.choices[0]) {
+        throw new Error("Resposta inválida da IA");
+      }
+
       const generatedPrompt = data.choices[0].message.content;
 
       // 4. Salvar no Histórico
@@ -75,9 +80,9 @@ export function promptRoutes(prisma: PrismaClient) {
         data: {
           organizationId: orgId,
           userId: req.user!.id,
-          projectName,
-          promptType,
-          inputData: req.body,
+          projectName: projectName || "Projeto Sem Nome",
+          promptType: promptType || "Personalizado",
+          inputData: req.body || {},
           generatedContent: generatedPrompt,
           modelProvider: 'Groq',
           modelName: 'llama-3.3-70b-versatile'
@@ -87,12 +92,12 @@ export function promptRoutes(prisma: PrismaClient) {
       res.json({ success: true, prompt: generatedPrompt, id: savedPrompt.id });
     } catch (error) {
       console.error("[PROMPT_GEN_ERROR]", error);
-      res.status(500).json({ error: "Falha ao gerar prompt mestre" });
+      res.status(500).json({ error: "Falha ao gerar prompt mestre", details: String(error) });
     }
   });
 
   // Listar Histórico
-  router.get("/history", async (req: AuthRequest, res) => {
+  router.get("/history", async (req: any, res: any) => {
     try {
       const history = await prisma.generatedPrompt.findMany({
         where: { organizationId: req.user?.orgId },

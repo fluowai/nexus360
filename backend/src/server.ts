@@ -118,7 +118,8 @@ app.get('/api/debug/routes', (req, res) => {
       'GET /api/health',
       'POST /api/auth/login',
       'GET /api/clients',
-      'GET /api/admin/dashboard'
+      'GET /api/admin/dashboard',
+      'POST /api/prompts/generate'
     ]
   });
 });
@@ -178,7 +179,8 @@ app.use("/api/livekit", livekitRoutes);
 
 const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Backend Nexus360 rodando na porta ${PORT}`);
+  console.log(`🚀 Backend Nexus360 v1.1 rodando na porta ${PORT}`);
+  console.log(`📡 Endpoints de IA e Prompts registrados.`);
 });
 
 // Fallback para rotas não encontradas

@@ -70,8 +70,8 @@ export default function LandingPages() {
     console.log("Fetching LP data.");
     try {
       const [pagesRes, formsRes] = await Promise.all([
-        apiFetch(`/api/landing-pages`),
-        apiFetch(`/api/lp-forms`)
+        apiFetch(`/api/marketing/landing-pages`),
+        apiFetch(`/api/marketing/lp-forms`)
       ]);
       if (!pagesRes.ok) {
         throw new Error(`HTTP ${pagesRes.status}`);
@@ -103,7 +103,7 @@ export default function LandingPages() {
     console.log("Creating LP with payload:", payload);
     
     try {
-      const res = await apiFetch('/api/landing-pages', {
+      const res = await apiFetch('/api/marketing/landing-pages', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
@@ -125,7 +125,7 @@ export default function LandingPages() {
   const toggleStatus = async (page: LandingPage) => {
     const newStatus = page.status === 'published' ? 'draft' : 'published';
     try {
-      await apiFetch(`/api/landing-pages/${page.id}`, {
+      await apiFetch(`/api/marketing/landing-pages/${page.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: newStatus })
       });
@@ -138,7 +138,7 @@ export default function LandingPages() {
   const deletePage = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir esta landing page?')) return;
     try {
-      await apiFetch(`/api/landing-pages/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/marketing/landing-pages/${id}`, { method: 'DELETE' });
       fetchData();
     } catch (error) {
       console.error("Error deleting page:", error);

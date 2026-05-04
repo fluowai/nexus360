@@ -24,7 +24,7 @@ export default function SoldServices() {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const res = await apiFetch(`/api/sold-services`);
+        const res = await apiFetch(`/api/sales/sold-services`);
         const data = await res.json();
         setServices(data);
       } catch (err) {

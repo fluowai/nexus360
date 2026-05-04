@@ -40,8 +40,8 @@ export default function Finance() {
     setLoading(true);
     try {
       const [invoicesRes, expensesRes] = await Promise.all([
-        apiFetch(`/api/invoices`),
-        apiFetch(`/api/expenses`)
+        apiFetch(`/api/finance/invoices`),
+        apiFetch(`/api/finance/expenses`)
       ]);
       const [invoicesData, expensesData] = await Promise.all([
         invoicesRes.json(),
@@ -191,7 +191,7 @@ export default function Finance() {
                   {item.status !== 'paga' && item.status !== 'cancelada' && (
                     <button 
                       onClick={async () => {
-                        const endpoint = tab === "receitas" ? "/api/invoices" : "/api/expenses";
+                        const endpoint = tab === "receitas" ? "/api/finance/invoices" : "/api/finance/expenses";
                          await apiFetch(`${endpoint}/${item.id}`, {
                            method: 'PATCH',
                            body: JSON.stringify({ status: 'paga', paidAt: new Date().toISOString() })
@@ -252,7 +252,7 @@ function FinanceModal({ type, onClose, onSuccess }: { type: "receita" | "despesa
     e.preventDefault();
     setSubmitting(true);
     try {
-      const endpoint = type === 'receita' ? '/api/invoices' : '/api/expenses';
+      const endpoint = type === 'receita' ? '/api/finance/invoices' : '/api/finance/expenses';
       const payload = {
         ...formData,
         amount: parseFloat(formData.amount) || 0,

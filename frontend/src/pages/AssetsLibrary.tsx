@@ -80,8 +80,8 @@ export default function AssetsLibrary() {
     setLoading(true);
     try {
       const [assetsRes, foldersRes] = await Promise.all([
-        apiFetch(`/api/assets?folderId=${selectedFolder || ''}&type=${filterType}`),
-        apiFetch(`/api/asset-folders`)
+        apiFetch(`/api/extras/assets?folderId=${selectedFolder || ''}&type=${filterType}`),
+        apiFetch(`/api/extras/asset-folders`)
       ]);
       const assetsData = await assetsRes.json();
       const foldersData = await foldersRes.json();
@@ -98,7 +98,7 @@ export default function AssetsLibrary() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      await apiFetch('/api/assets', {
+      await apiFetch('/api/extras/assets', {
         method: 'POST',
         body: JSON.stringify({
           name: formData.get('name'),
@@ -125,7 +125,7 @@ export default function AssetsLibrary() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      await apiFetch('/api/asset-folders', {
+      await apiFetch('/api/extras/asset-folders', {
         method: 'POST',
         body: JSON.stringify({
           name: formData.get('name'),
@@ -142,7 +142,7 @@ export default function AssetsLibrary() {
   const deleteAsset = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este arquivo?')) return;
     try {
-      await apiFetch(`/api/assets/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/extras/assets/${id}`, { method: 'DELETE' });
       fetchData();
       setSelectedAsset(null);
     } catch (error) {

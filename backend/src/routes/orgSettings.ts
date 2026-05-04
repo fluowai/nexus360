@@ -38,7 +38,6 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
       res.status(500).json({ error: "Failed to update organization profile" });
     }
   });
-
   // Get Team Members
   router.get("/team", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
@@ -47,11 +46,46 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     try {
       const users = await prisma.user.findMany({
         where: { organizationId: orgId },
-        select: { id: true, name: true, email: true, role: true, createdAt: true }
+        select: { id: true, name: true, email: true, role: true, createdAt: true, status: true }
       });
       res.json(users);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch team members" });
+    }
+  });
+
+  // Create Team Member
+  router.post("/team", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const user = await prisma.user.create({
+        data: {
+          ...req.body,
+          organizationId: orgId,
+          password: 'default_password' // Idealmente enviaria e-mail de convite
+        }
+      });
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create team member" });
+    }
+  });
+
+  // Update Team Member
+  router.patch("/team/:id", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const user = await prisma.user.update({
+        where: { id: req.params.id, organizationId: orgId },
+        data: req.body
+      });
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update team member" });
     }
   });
 

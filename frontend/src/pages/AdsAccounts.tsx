@@ -73,8 +73,8 @@ export default function AdAccounts() {
     setLoading(true);
     try {
       const [accountsRes, campaignsRes] = await Promise.all([
-        apiFetch(`/api/ad-accounts`),
-        apiFetch(`/api/campaigns-ads`)
+        apiFetch(`/api/ads/ad-accounts`),
+        apiFetch(`/api/ads/campaigns-ads`)
       ]);
       const accountsData = await accountsRes.json();
       const campaignsData = await campaignsRes.json();
@@ -91,7 +91,7 @@ export default function AdAccounts() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      await apiFetch('/api/ad-accounts', {
+      await apiFetch('/api/ads/ad-accounts', {
         method: 'POST',
         body: JSON.stringify({
           accountId: formData.get('accountId'),
@@ -110,7 +110,7 @@ export default function AdAccounts() {
   const toggleAccountStatus = async (account: AdAccount) => {
     const newStatus = account.accountStatus === 'active' ? 'paused' : 'active';
     try {
-      await apiFetch(`/api/ad-accounts/${account.id}`, {
+      await apiFetch(`/api/ads/ad-accounts/${account.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ accountStatus: newStatus })
       });
@@ -123,7 +123,7 @@ export default function AdAccounts() {
   const deleteAccount = async (id: string) => {
     if (!confirm('Tem certeza que deseja desconectar esta conta?')) return;
     try {
-      await apiFetch(`/api/ad-accounts/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/ads/ad-accounts/${id}`, { method: 'DELETE' });
       fetchData();
     } catch (error) {
       console.error("Error deleting account:", error);
@@ -142,7 +142,7 @@ export default function AdAccounts() {
   const toggleCampaignStatus = async (campaign: Campaign) => {
     const newStatus = campaign.status === 'active' ? 'paused' : 'active';
     try {
-      await apiFetch(`/api/campaigns-ads/${campaign.id}`, {
+      await apiFetch(`/api/ads/campaigns-ads/${campaign.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ status: newStatus })
       });

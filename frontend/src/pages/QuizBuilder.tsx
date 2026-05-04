@@ -80,7 +80,7 @@ export default function QuizBuilder() {
     setLoading(true);
     try {
       const [quizzesRes] = await Promise.all([
-        apiFetch(`/api/quizzes`)
+        apiFetch(`/api/extras/quizzes`)
       ]);
       
       if (!quizzesRes.ok) {
@@ -98,7 +98,7 @@ export default function QuizBuilder() {
 
   const fetchSubmissions = async (quizId: string) => {
     try {
-      const res = await apiFetch(`/api/quizzes/${quizId}/submissions`);
+      const res = await apiFetch(`/api/extras/quizzes/${quizId}/submissions`);
       const data = await res.json();
       setSubmissions(data);
     } catch (error) {
@@ -111,7 +111,7 @@ export default function QuizBuilder() {
     const formData = new FormData(e.currentTarget);
     
     try {
-      await apiFetch('/api/quizzes', {
+      await apiFetch('/api/extras/quizzes', {
         method: 'POST',
         body: JSON.stringify({
           name: formData.get('name'),
@@ -130,7 +130,7 @@ export default function QuizBuilder() {
 
   const toggleQuizStatus = async (quiz: Quiz) => {
     try {
-      await apiFetch(`/api/quizzes/${quiz.id}`, {
+      await apiFetch(`/api/extras/quizzes/${quiz.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ isActive: !quiz.isActive })
       });
@@ -143,7 +143,7 @@ export default function QuizBuilder() {
   const deleteQuiz = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este quiz?')) return;
     try {
-      await apiFetch(`/api/quizzes/${id}`, { method: 'DELETE' });
+      await apiFetch(`/api/extras/quizzes/${id}`, { method: 'DELETE' });
       fetchData();
     } catch (error) {
       console.error("Error deleting quiz:", error);
@@ -155,7 +155,7 @@ export default function QuizBuilder() {
     const nextOrder = currentQuiz ? currentQuiz.questions.length : 0;
     
     try {
-      await apiFetch(`/api/quizzes/${quizId}/questions`, {
+      await apiFetch(`/api/extras/quizzes/${quizId}/questions`, {
         method: 'POST',
         body: JSON.stringify({
           questionText: 'Nova Pergunta',

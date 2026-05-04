@@ -10,7 +10,7 @@ export default function Proposals() {
 
   const fetchProposals = async () => {
     try {
-      const res = await apiFetch(`/api/proposals`);
+      const res = await apiFetch(`/api/sales/proposals`);
       setProposals(await res.json());
     } catch (err) {
       console.error(err);
@@ -134,7 +134,7 @@ function NewProposalModal({ onClose, onSuccess }: { onClose: () => void, onSucce
 
     if (!finalClientId) return alert("Selecione ou crie um cliente.");
 
-    await apiFetch('/api/proposals', {
+    await apiFetch('/api/sales/proposals', {
       method: 'POST',
       body: JSON.stringify({ title: formData.title, clientId: finalClientId, items, status: 'enviada' })
     });

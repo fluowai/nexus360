@@ -21,6 +21,7 @@ import { aiRoutes } from "./routes/ai.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { creativeRoutes } from "./routes/creatives.js";
+import { domainRoutes } from "./routes/domains.js";
 import { orgSettingsRoutes } from "./routes/orgSettings.js";
 import { projectRoutes } from "./routes/projects.js";
 import { promptRoutes } from "./routes/prompts.js";
@@ -169,6 +170,7 @@ app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
 });
 
 app.use("/api/org", authenticateToken, orgSettingsRoutes(prisma));
+app.use("/api/domains", authenticateToken, domainRoutes(prisma));
 app.use("/api/projects", authenticateToken, projectRoutes(prisma));
 app.use("/api/sales", authenticateToken, salesRoutes(prisma));
 app.use("/api/extras", authenticateToken, extraRoutes(prisma));

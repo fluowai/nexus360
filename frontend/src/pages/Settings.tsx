@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../lib/api";
+import DomainSettings from "./DomainSettings";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState('agencia');
@@ -73,6 +74,7 @@ export default function Settings() {
     { id: 'agencia', label: 'Dados da Agência', icon: Building2 },
     { id: 'equipe', label: 'Gestão de Equipe', icon: Users },
     { id: 'modelos', label: 'Modelos de Contrato', icon: FileText },
+    { id: 'dominios', label: 'Domínios', icon: Globe },
     { id: 'ia', label: 'Agente Jurídico (Groq)', icon: Sparkles },
   ];
 
@@ -110,6 +112,7 @@ export default function Settings() {
             {activeTab === 'agencia' && <AgencyTab data={agencyData} setData={setAgencyData} />}
             {activeTab === 'equipe' && <TeamTab team={team} onRefresh={fetchSettings} />}
             {activeTab === 'modelos' && <TemplatesTab templates={templates} onRefresh={fetchSettings} />}
+            {activeTab === 'dominios' && <DomainSettings />}
             {activeTab === 'ia' && <IATab />}
           </motion.div>
         </AnimatePresence>

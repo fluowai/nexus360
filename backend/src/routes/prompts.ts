@@ -110,5 +110,49 @@ export function promptRoutes(prisma: PrismaClient) {
     }
   });
 
+  // Rota para Sugerir ICP e Serviços baseados no Nicho
+  router.post("/suggest-context", async (req: any, res: any) => {
+    const { niche } = req.body;
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { groqKey: true }
+      });
+      const apiKey = org?.groqKey || process.env.GROQ_API_KEY;
+
+      const prompt = `Você é um estrategista de negócios experiente. O usuário informou o nicho: "${niche}".
+      Com base nisso, devolva um JSON estritamente no seguinte formato:
+      {
+        "icp": "uma descrição detalhada do cliente ideal (ICP) e suas dores",
+        "services": ["Serviço 1", "Serviço 2", "Serviço 3", "Serviço 4", "Serviço 5"]
+      }
+      Sugira pelo menos 6 serviços comuns e relevantes para este nicho específico.`;
+
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          response_format: { type: "json_object" },
+          temperature: 0.7
+        })
+      });
+
+      const data: any = await response.json();
+      const suggestion = JSON.parse(data.choices[0].message.content);
+      res.json(suggestion);
+    } catch (error) {
+      console.error("[SUGGEST_ERROR]", error);
+      res.status(500).json({ error: "Falha ao sugerir contexto" });
+    }
+  });
+
   return router;
 }

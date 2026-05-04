@@ -420,6 +420,14 @@ export const Sidebar: React.FC<{
                   badge="AI"
                   collapsed={collapsed}
                 />
+                <SidebarItem 
+                  icon={Zap} 
+                  label="Arquiteto de Prompts" 
+                  path={getPath("/prompt-architect")} 
+                  isActive={location.pathname === getPath('/prompt-architect')}
+                  isAi
+                  collapsed={collapsed}
+                />
               </SidebarGroup>
 
               <SidebarGroup label="Administrativo" collapsed={collapsed}>

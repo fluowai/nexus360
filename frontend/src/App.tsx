@@ -48,6 +48,7 @@ import AdminTickets from "./pages/admin/Tickets";
 import WhiteLabel from "./pages/admin/WhiteLabel";
 
 import LandingPage from "./pages/LandingPage";
+import PromptArchitect from "./pages/PromptArchitect";
 
 const Login = lazy(() => import("./pages/Login"));
 
@@ -302,6 +303,7 @@ export default function App() {
           <Route path="/:slug/proposals" element={<Proposals />} />
           <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
           <Route path="/:slug/ai-settings" element={<AISettings />} />
+          <Route path="/:slug/prompt-architect" element={<PromptArchitect />} />
 
           {/* Fallback Legacy Routes */}
           <Route path="/dashboard" element={<Dashboard />} />

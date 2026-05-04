@@ -47,6 +47,8 @@ model Organization {
   landingPages      LandingPage[]
   quizzes           Quiz[]
   automations       Automation[]
+  promptTemplates   PromptTemplate[]
+  generatedPrompts  GeneratedPrompt[]
 
   // SaaS Control (Super Admin -> Agency)
   saasSubscriptions SaaSSubscription[]
@@ -244,8 +246,9 @@ model Client {
   tags  String?
 
   // AI Context & History
-  aiContext     ClientAIContext?
-  aiGenerations AIGeneration[]
+  aiContext        ClientAIContext?
+  aiGenerations    AIGeneration[]
+  generatedPrompts GeneratedPrompt[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -988,3 +991,41 @@ model SystemAlert {
   resolvedAt DateTime?
   createdAt  DateTime  @default(now())
 }
+
+model PromptTemplate {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  name            String
+  category        String // Landing Page, SaaS, Agente, etc.
+  description     String?      @db.Text
+  promptStructure String?      @db.Text
+  isActive        Boolean      @default(true)
+  createdBy       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model GeneratedPrompt {
+  id               String       @id @default(uuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id])
+  userId           String
+  clientId         String?
+  client           Client?      @relation(fields: [clientId], references: [id])
+  projectName      String
+  promptType       String
+  inputData        Json // Salva todas as respostas do wizard
+  generatedContent String       @db.Text
+  modelProvider    String?
+  modelName        String?
+  status           String       @default("completed")
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+}
+

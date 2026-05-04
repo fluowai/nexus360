@@ -46,6 +46,8 @@ export default function PromptArchitect() {
   const [step, setStep] = useState(0); // 0 = Home, 1-6 = Wizard
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestedServices, setSuggestedServices] = useState<string[]>([]);
   const [resultPrompt, setResultPrompt] = useState<string | null>(null);
 
   // Estados do Formulário
@@ -62,7 +64,32 @@ export default function PromptArchitect() {
     designStyle: 'Moderno e clean',
     colors: '',
     advancedFeatures: [] as string[],
+    pageSections: 8, // Número de dobras padrão
+    selectedServices: [] as string[]
   });
+
+  const handleNicheBlur = async () => {
+    if (!formData.niche || formData.niche.length < 3) return;
+    
+    setIsSuggesting(true);
+    try {
+      const res = await apiFetch('/api/prompts/suggest-context', {
+        method: 'POST',
+        body: JSON.stringify({ niche: formData.niche })
+      });
+      const data = await res.json();
+      
+      setFormData(prev => ({
+        ...prev,
+        targetAudience: data.icp || prev.targetAudience
+      }));
+      setSuggestedServices(data.services || []);
+    } catch (error) {
+      console.error("Erro ao sugerir contexto:", error);
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
 
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
@@ -134,7 +161,9 @@ export default function PromptArchitect() {
         method: 'POST',
         body: JSON.stringify({
           ...formData,
-          promptType: PROMPT_TYPES.find(t => t.id === selectedType)?.title
+          promptType: PROMPT_TYPES.find(t => t.id === selectedType)?.title,
+          selectedServices: formData.selectedServices,
+          pageSections: formData.pageSections
         })
       });
 
@@ -285,7 +314,7 @@ export default function PromptArchitect() {
                   <div className="space-y-8">
                     <div>
                       <h2 className="text-3xl font-black text-gray-900 leading-tight">Cliente e Contexto</h2>
-                      <p className="text-gray-500 mt-2">Dê um nome ao projeto e defina o nicho.</p>
+                      <p className="text-gray-500 mt-2">Dê um nome ao projeto e defina o nicho para que a IA ajude na estratégia.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -299,27 +328,88 @@ export default function PromptArchitect() {
                           onChange={(e) => setFormData({...formData, projectName: e.target.value})}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-bold text-gray-700 ml-1">Nicho / Setor *</label>
-                        <input 
-                          type="text" 
-                          placeholder="Ex: Jurídico, Imobiliário, SaaS"
-                          className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
-                          value={formData.niche}
-                          onChange={(e) => setFormData({...formData, niche: e.target.value})}
-                        />
+                      <div className="space-y-2 relative">
+                        <label className="text-sm font-bold text-gray-700 ml-1">
+                          Nicho / Setor *
+                        </label>
+                        <div className="relative group">
+                          <input 
+                            type="text" 
+                            placeholder="Ex: Direito Previdenciário"
+                            className={`w-full p-4 pr-32 bg-gray-50 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium ${isSuggesting ? 'border-blue-200' : 'border-gray-100'}`}
+                            value={formData.niche}
+                            onChange={(e) => setFormData({...formData, niche: e.target.value})}
+                          />
+                          <button
+                            type="button"
+                            disabled={isSuggesting || !formData.niche}
+                            onClick={handleNicheBlur}
+                            className="absolute right-2 top-2 bottom-2 px-4 bg-blue-600 text-white text-[10px] font-black rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                          >
+                            {isSuggesting ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12}/>}
+                            SUGERIR
+                          </button>
+                        </div>
                       </div>
+
+                      {/* Sugestão de Serviços Dinâmica */}
+                      {(suggestedServices.length > 0 || isSuggesting) && (
+                        <div className="md:col-span-2 space-y-4 animate-in fade-in slide-in-from-top-2 duration-500">
+                           <label className="text-sm font-bold text-gray-700 ml-1">Serviços que o {formData.niche} realiza (Selecione):</label>
+                           <div className="flex flex-wrap gap-2">
+                              {isSuggesting ? (
+                                [1,2,3,4,5].map(i => <div key={i} className="h-8 w-24 bg-gray-100 animate-pulse rounded-full"></div>)
+                              ) : (
+                                suggestedServices.map(service => (
+                                  <button
+                                    key={service}
+                                    onClick={() => {
+                                      const selected = formData.selectedServices.includes(service)
+                                        ? formData.selectedServices.filter(s => s !== service)
+                                        : [...formData.selectedServices, service];
+                                      setFormData({...formData, selectedServices: selected});
+                                    }}
+                                    className={`px-4 py-2 rounded-full text-xs font-bold border-2 transition-all flex items-center gap-2 ${formData.selectedServices.includes(service) ? 'border-blue-600 bg-blue-600 text-white shadow-md' : 'border-gray-100 text-gray-500 hover:border-gray-200 bg-white'}`}
+                                  >
+                                    {formData.selectedServices.includes(service) && <CheckCircle2 size={12}/>}
+                                    {service}
+                                  </button>
+                                ))
+                              )}
+                           </div>
+                        </div>
+                      )}
+
                       <div className="md:col-span-2 space-y-2">
-                        <label className="text-sm font-bold text-gray-700 ml-1">Público-Alvo e ICP</label>
+                        <label className="text-sm font-bold text-gray-700 ml-1 flex justify-between">
+                          Público-Alvo e ICP
+                          {isSuggesting && <span className="text-[10px] text-blue-600">Ajustando ICP...</span>}
+                        </label>
                         <textarea 
                           rows={3}
                           placeholder="Descreva quem é o público principal..."
-                          className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none font-medium"
+                          className={`w-full p-4 bg-gray-50 border rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none font-medium ${isSuggesting ? 'border-blue-200' : 'border-gray-100'}`}
                           value={formData.targetAudience}
                           onChange={(e) => setFormData({...formData, targetAudience: e.target.value})}
                         />
                       </div>
-                      <div className="md:col-span-2 space-y-2">
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700 ml-1">Número de Dobras (Seções)</label>
+                        <div className="flex items-center gap-3">
+                           <input 
+                             type="range" min="3" max="20"
+                             className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                             value={formData.pageSections}
+                             onChange={(e) => setFormData({...formData, pageSections: parseInt(e.target.value)})}
+                           />
+                           <span className="w-12 h-12 flex items-center justify-center bg-blue-600 text-white font-bold rounded-xl shadow-lg">
+                              {formData.pageSections}
+                           </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
                         <label className="text-sm font-bold text-gray-700 ml-1">Objetivo Principal do Prompt</label>
                         <textarea 
                           rows={2}

@@ -22,6 +22,7 @@ import { calendarRoutes } from "./routes/calendar.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { creativeRoutes } from "./routes/creatives.js";
 import livekitRoutes from "./routes/livekit.js";
+import { promptRoutes } from "./routes/prompts.js";
 import { authenticateToken } from "./middleware/auth.js";
 
 // Validação de variáveis de ambiente críticas
@@ -172,6 +173,7 @@ app.use("/api/ads", authenticateToken, adsRoutes(prisma));
 app.use("/api/calendar", authenticateToken, calendarRoutes(prisma));
 app.use("/api/tasks", authenticateToken, taskRoutes(prisma));
 app.use("/api/creatives", authenticateToken, creativeRoutes(prisma));
+app.use("/api/prompts", authenticateToken, promptRoutes(prisma));
 app.use("/api/livekit", livekitRoutes);
 
 const PORT = Number(process.env.PORT) || 3001;

@@ -185,6 +185,12 @@ app.use("/api/creatives", authenticateToken, creativeRoutes(prisma));
 app.use("/api/prompts", authenticateToken, promptRoutes(prisma));
 app.use("/api/livekit", livekitRoutes);
 
+// Fallback para rotas não encontradas (404)
+app.use((req, res) => {
+  console.warn(`[404] Rota não encontrada: ${req.method} ${req.url}`);
+  res.status(404).json({ error: "Route not found" });
+});
+
 const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Backend Nexus360 v1.1 rodando na porta ${PORT}`);

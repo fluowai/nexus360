@@ -8,6 +8,7 @@ export function marketingRoutes(prisma: PrismaClient) {
 
   // Rota para Landing Pages
   router.get("/landing-pages", (req, res) => {
+    console.log("[Marketing] Listando landing pages...");
     res.json([]);
   });
 

@@ -147,7 +147,7 @@ export default function LandingPages() {
 
   const duplicatePage = async (page: LandingPage) => {
     try {
-      await apiFetch('/api/landing-pages', {
+      await apiFetch('/api/marketing/landing-pages', {
         method: 'POST',
         body: JSON.stringify({
           name: page.name + ' (Cópia)',

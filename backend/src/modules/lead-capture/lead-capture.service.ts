@@ -9,10 +9,16 @@ export class LeadCaptureService {
     const { tenantId, userId, provider: providerName } = params;
 
     // 1. Fetch organization keys
+    console.log(`[LEAD_CAPTURE] Iniciando busca para orgId: ${tenantId}, Provedor: ${providerName}`);
     const organization = await this.prisma.organization.findUnique({
       where: { id: tenantId },
       select: { serpApiKey: true, outscraperKey: true }
     });
+
+    if (!organization) {
+      console.error(`[LEAD_CAPTURE] Organização ${tenantId} não encontrada no banco.`);
+      throw new Error(`Organização não encontrada: ${tenantId}`);
+    }
 
     // 1b. Create source record
     const source = await this.prisma.leadCaptureSource.create({
@@ -33,6 +39,8 @@ export class LeadCaptureService {
     try {
       const apiKey = (providerName === 'serpapi' ? organization?.serpApiKey : organization?.outscraperKey) || undefined;
       
+      console.log(`[LEAD_CAPTURE] Chave recuperada: ${apiKey ? (apiKey.substring(0, 5) + '...') : 'NÃO ENCONTRADA'}`);
+
       if (!apiKey) {
         throw new Error(`Chave de API do provedor ${providerName} não configurada para esta organização.`);
       }

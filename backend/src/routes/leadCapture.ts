@@ -22,8 +22,11 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       });
       res.json(result);
     } catch (error: any) {
-      console.error("Lead search error:", error);
-      res.status(500).json({ error: error.message });
+      console.error("[LEAD_CAPTURE_ERROR] Falha na busca de leads:", error);
+      res.status(500).json({ 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   });
 

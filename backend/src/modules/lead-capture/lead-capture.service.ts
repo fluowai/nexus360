@@ -12,7 +12,7 @@ export class LeadCaptureService {
     console.log(`[LEAD_CAPTURE] Iniciando busca para orgId: ${tenantId}, Provedor: ${providerName}`);
     const organization = await this.prisma.organization.findUnique({
       where: { id: tenantId },
-      select: { serpApiKey: true, outscraperKey: true }
+      select: { serpApiKey: true, serperApiKey: true, outscraperKey: true }
     });
 
     if (!organization) {
@@ -37,25 +37,46 @@ export class LeadCaptureService {
     });
 
     try {
-      const apiKey = (providerName === 'serpapi' ? organization?.serpApiKey : organization?.outscraperKey) || undefined;
+      let apiKey: string | undefined;
       
-      console.log(`[LEAD_CAPTURE] Chave recuperada: ${apiKey ? (apiKey.substring(0, 5) + '...') : 'NÃO ENCONTRADA'}`);
+      if (providerName === 'serper') {
+        apiKey = organization.serperApiKey || undefined;
+      } else if (providerName === 'serpapi') {
+        apiKey = organization.serpApiKey || undefined;
+      } else {
+        apiKey = organization.outscraperKey || undefined;
+      }
+      
+      console.log(`[LEAD_CAPTURE] Provedor: ${providerName}, Chave (mascarada): ${apiKey ? (apiKey.substring(0, 5) + '...' + apiKey.slice(-4)) : 'NÃO ENCONTRADA'}`);
 
       if (!apiKey) {
         throw new Error(`Chave de API do provedor ${providerName} não configurada para esta organização.`);
       }
 
       const provider = getLeadProvider(providerName);
-      const rawResults = await provider.search({ ...params, apiKey });
+      
+      let rawResults;
+      try {
+        console.log(`[LEAD_CAPTURE] Chamando API do provedor: ${providerName}`);
+        rawResults = await provider.search({ ...params, apiKey });
+      } catch (apiErr: any) {
+        console.error(`[LEAD_CAPTURE] Erro na resposta da API externa (${providerName}):`, apiErr.response?.data || apiErr.message);
+        throw new Error(`Erro no provedor ${providerName}: ${apiErr.response?.data?.error || apiErr.message}`);
+      }
 
       // 2. Normalize and filter
-      let normalizedLeads = rawResults.map(raw => {
-        const lead = provider.normalize(raw);
-        lead.phone_normalized = this.normalizeBrazilianPhone(lead.phone);
-        return lead;
-      });
-
-      normalizedLeads = this.applyFilters(normalizedLeads, params.filters);
+      let normalizedLeads;
+      try {
+        normalizedLeads = rawResults.map(raw => {
+          const lead = provider.normalize(raw);
+          lead.phone_normalized = this.normalizeBrazilianPhone(lead.phone);
+          return lead;
+        });
+        normalizedLeads = this.applyFilters(normalizedLeads, params.filters);
+      } catch (normErr: any) {
+        console.error(`[LEAD_CAPTURE] Erro na normalização dos dados:`, normErr);
+        throw new Error(`Erro ao processar dados recebidos: ${normErr.message}`);
+      }
 
       // 3. Save leads with deduplication
       let importedCount = 0;
@@ -65,12 +86,17 @@ export class LeadCaptureService {
         try {
           const score = this.calculateScore(leadData);
           
+          if (!leadData.external_id) {
+            console.warn(`[LEAD_CAPTURE] Lead sem ID externo ignorado: ${leadData.business_name}`);
+            continue;
+          }
+
           const saved = await this.prisma.capturedLead.upsert({
             where: {
               organizationId_provider_externalId: {
                 organizationId: tenantId,
                 provider: providerName,
-                externalId: leadData.external_id!
+                externalId: leadData.external_id
               }
             },
             update: {
@@ -91,8 +117,8 @@ export class LeadCaptureService {
 
           savedLeads.push(saved);
           importedCount++;
-        } catch (err) {
-          console.error(`Error saving lead ${leadData.business_name}:`, err);
+        } catch (dbErr: any) {
+          console.error(`[LEAD_CAPTURE] Erro ao salvar lead ${leadData.business_name}:`, dbErr.message);
         }
       }
 
@@ -106,20 +132,6 @@ export class LeadCaptureService {
         }
       });
 
-      await this.prisma.leadCaptureUsageLog.create({
-        data: {
-          organizationId: tenantId,
-          userId,
-          sourceId: source.id,
-          provider: providerName,
-          query: source.query,
-          requestedLimit: source.requestedLimit,
-          returnedCount: rawResults.length,
-          importedCount: importedCount,
-          status: 'success'
-        }
-      });
-
       return {
         sourceId: source.id,
         totalFound: rawResults.length,
@@ -128,6 +140,7 @@ export class LeadCaptureService {
       };
 
     } catch (error: any) {
+      console.error(`[LEAD_CAPTURE_CRITICAL]`, error.message);
       await this.prisma.leadCaptureSource.update({
         where: { id: source.id },
         data: {

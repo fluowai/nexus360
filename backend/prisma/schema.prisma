@@ -23,6 +23,7 @@ model Organization {
   geminiKey  String?
   groqKey    String?
   serpApiKey String?
+  serperApiKey String?
   outscraperKey String?
   aiProvider String  @default("gemini")
 

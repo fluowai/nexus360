@@ -1,7 +1,7 @@
 export interface LeadSearchParams {
   tenantId: string;
   userId?: string;
-  provider: 'serpapi' | 'outscraper';
+  provider: 'serpapi' | 'serper' | 'outscraper';
   niche?: string;
   keyword: string;
   city?: string;

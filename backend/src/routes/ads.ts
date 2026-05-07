@@ -11,7 +11,7 @@ export function adsRoutes(prisma: PrismaClient) {
     try {
       const accounts = await prisma.adAccount.findMany({
         where: { organizationId: orgId },
-        orderBy: { name: 'asc' }
+        orderBy: { accountName: 'asc' }
       });
       res.json(accounts);
     } catch (error) {

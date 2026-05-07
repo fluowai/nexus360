@@ -42,7 +42,7 @@ export default function Team() {
         body: JSON.stringify(newMember)
       });
       setIsModalOpen(false);
-      setNewMember({ name: '', email: '', role: 'USER' });
+      setNewMember({ name: '', email: '', role: 'USER', department: 'GERAL' });
       fetchMembers();
     } catch (error) {
       console.error("Error adding member:", error);

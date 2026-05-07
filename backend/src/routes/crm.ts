@@ -212,7 +212,7 @@ export function crmRoutes(prisma: PrismaClient) {
         data: {
           corporateName,
           tradeName,
-          taxId: cnpj, // Mapeia CNPJ para taxId
+          cnpj: cnpj, // Corrigido
           email,
           phone,
           website,

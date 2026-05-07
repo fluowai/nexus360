@@ -18,7 +18,8 @@ import {
   Target,
   Image as ImageIcon,
   Type,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 

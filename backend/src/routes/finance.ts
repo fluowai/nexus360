@@ -63,7 +63,7 @@ export function financeRoutes(prisma: PrismaClient) {
     try {
       const expense = await prisma.expense.create({
         data: {
-          title,
+          description: title || description, // Corrigido para usar description
           amount: parseFloat(amount),
           category,
           date: new Date(date),

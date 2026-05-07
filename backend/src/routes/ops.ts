@@ -16,16 +16,17 @@ export function opsRoutes(prisma: PrismaClient) {
 
     try {
       // Busca as configurações de IA da organização
-      const settings = await prisma.organizationAIConfig.findUnique({
-        where: { organizationId: orgId }
+      const config = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { groqKey: true }
       });
-
-      if (!settings?.groqKey) {
-        return res.status(400).json({ error: "Chave do Groq não configurada. Vá em Configurações > IA." });
+  
+      if (!config?.groqKey) {
+        return res.status(400).json({ error: "Configure sua chave do Groq para usar a IA." });
       }
 
       // 1. Gera o roteiro com a IA Mano usando a chave da organização
-      const script = await creativeAI.generateScript(theme, type, settings.groqKey);
+      const script = await creativeAI.generateScript(theme, type, config.groqKey);
       
       // 2. Tenta gerar uma imagem (opcional, se falhar não trava o texto)
       let imageUrl = "";

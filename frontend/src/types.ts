@@ -11,9 +11,12 @@ export interface Lead {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   status: LeadStatus;
   value: number;
-  tags: string[];
+  tags: string | string[];
+  source?: string;
+  notes?: string;
 }
 
 export interface Project {

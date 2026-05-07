@@ -140,7 +140,7 @@ app.post("/api/public/proposals/:slug/accept", async (req, res) => {
         await tx.client.create({
           data: {
             corporateName: corporateName || "Cliente via Proposta",
-            taxId: cnpj,
+            cnpj: cnpj, // Corrigido
             email: email || "",
             phone: phone || "",
             organizationId: proposal.organizationId,

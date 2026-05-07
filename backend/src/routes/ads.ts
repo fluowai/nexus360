@@ -26,10 +26,10 @@ export function adsRoutes(prisma: PrismaClient) {
     try {
       const account = await prisma.adAccount.create({
         data: {
-          name,
-          platform, // facebook, google, tiktok
-          externalId: accountId,
-          status: status || 'ativa',
+          accountName: name, // Corrigido
+          platform,
+          accountId: accountId, // Corrigido
+          accountStatus: status || 'active',
           organizationId: orgId as string
         }
       });

@@ -8,7 +8,7 @@ const LandingEditor = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const id = searchParams.get('id');
-  const initialTheme = (searchParams.get('theme') as LandingTheme) || 'lawyer';
+  const initialTheme = (searchParams.get('theme') as LandingTheme) || 'ancora';
 
   const [view, setView] = useState<'edit' | 'preview'>('edit');
   const [loading, setLoading] = useState(false);

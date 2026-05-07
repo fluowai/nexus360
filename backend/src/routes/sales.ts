@@ -28,10 +28,11 @@ export function salesRoutes(prisma: PrismaClient) {
     const { niche, clientName, services } = req.body;
 
     try {
-      const config = await prisma.organizationAIConfig.findUnique({
-        where: { organizationId: orgId }
+      const config = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { groqKey: true }
       });
-
+  
       if (!config?.groqKey) {
         return res.status(400).json({ error: "Configure sua chave do Groq para usar a IA." });
       }

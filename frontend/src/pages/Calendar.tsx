@@ -508,7 +508,6 @@ function EventModal({ onClose, onSuccess, initialDate, editingEvent, members }: 
                 </p>
               </div>
             )}
-          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">

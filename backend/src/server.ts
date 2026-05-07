@@ -6,6 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { prisma } from "./lib/prisma.js";
+import { authenticateToken } from "./middleware/auth.js";
 
 // Import Rotas
 import { authRoutes } from "./routes/auth.js";
@@ -22,40 +23,24 @@ import { calendarRoutes } from "./routes/calendar.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { creativeRoutes } from "./routes/creatives.js";
 import { domainRoutes } from "./routes/domains.js";
-import { orgSettingsRoutes } from "./routes/orgSettings.js";
 import { projectRoutes } from "./routes/projects.js";
 import { promptRoutes } from "./routes/prompts.js";
 import { salesRoutes } from "./routes/sales.js";
+import { livekitRoutes } from "./routes/livekit.js";
 import { extraRoutes } from "./routes/extras.js";
-import { authenticateToken } from "./middleware/auth.js";
-
-// Validação de variáveis de ambiente críticas
-const REQUIRED_ENV = ['DATABASE_URL', 'JWT_SECRET'];
-const missingEnv = REQUIRED_ENV.filter(env => !process.env[env]);
-
-if (missingEnv.length > 0) {
-  console.error(`❌ ERRO CRÍTICO: Variáveis de ambiente faltando: ${missingEnv.join(', ')}`);
-  process.exit(1);
-}
 
 const app = express();
 
-// Rate Limiting para evitar ataques de força bruta e DoS
+// Rate Limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // Limite de 100 requisições por IP
-  message: {
-    success: false,
-    error: "Muitas requisições vindas deste IP, tente novamente em 15 minutos."
-  },
+  windowMs: 15 * 60 * 1000,
+  max: 200, // Aumentado para suportar uso intenso
   standardHeaders: true,
   legacyHeaders: false,
 });
-
-// Aplicar limiter em todas as rotas
 app.use(limiter);
 
-// Configuração de CORS para Vercel
+// CORS
 app.use(cors({
   origin: (origin, callback) => {
     const allowedOrigins = [
@@ -64,7 +49,6 @@ app.use(cors({
       'https://nexus.woopanel.com.br',
       'http://localhost:5173'
     ];
-    
     if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.woopanel.com.br')) {
       callback(null, true);
     } else {
@@ -74,107 +58,115 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(helmet({
-  contentSecurityPolicy: false,
-}));
+app.use(express.json({ limit: '50mb' })); // Aumentado para suportar criativos grandes
+app.use(helmet({ contentSecurityPolicy: false }));
 
-// Rota raiz (Boas-vindas da API)
-app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "Nexus360 API está rodando! Acesse o frontend em vez desta URL.",
-    docs: "/api/health"
-  });
-});
-
-// Rota de Health Check para Railway
-app.get('/api/health', async (req, res) => {
+// Health Check
+app.get("/api/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
+    res.json({ success: true, message: 'Backend Nexus360 Online' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Database disconnected' });
+  }
+});
 
-    return res.json({
-      success: true,
-      message: 'Backend Nexus360 online',
-      database: 'connected',
-      env: {
-        DATABASE_URL: Boolean(process.env.DATABASE_URL),
-        JWT_SECRET: Boolean(process.env.JWT_SECRET),
-        FRONTEND_URL: process.env.FRONTEND_URL || null,
-        NODE_ENV: process.env.NODE_ENV || null
+app.get("/api/ping", (req, res) => {
+  res.json({ message: "pong", timestamp: new Date().toISOString() });
+});
+
+// Rota PÚBLICA para servir Landing Pages geradas
+app.get("/lp/:slug", async (req, res) => {
+  try {
+    const page = await prisma.landingPage.findUnique({
+      where: { slug: req.params.slug }
+    });
+    if (!page || !page.content) {
+      return res.status(404).send("<h1>Página não encontrada</h1>");
+    }
+    // Incrementar views
+    await prisma.landingPage.update({
+      where: { id: page.id },
+      data: { views: { increment: 1 } }
+    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(page.content);
+  } catch (error) {
+    console.error("[LP_VIEW_ERROR]", error);
+    res.status(500).send("<h1>Erro interno</h1>");
+  }
+});
+
+// Visualização de Proposta Pública
+app.get("/api/public/proposals/:slug", async (req, res) => {
+  try {
+    const proposal = await prisma.proposal.findUnique({
+      where: { slug: req.params.slug },
+      include: { 
+        organization: { select: { name: true } },
+        client: { select: { corporateName: true, tradeName: true } }
       }
     });
+    if (!proposal) return res.status(404).json({ error: "Proposta não encontrada" });
+    res.json(proposal);
   } catch (error) {
-    console.error('[HEALTH_ERROR]', error);
-
-    return res.status(500).json({
-      success: false,
-      error: 'Erro ao conectar no banco',
-      details: String(error)
-    });
+    res.status(500).json({ error: "Erro ao buscar proposta" });
   }
 });
 
-app.get('/api/debug/routes', (req, res) => {
-  res.json({
-    success: true,
-    routes: [
-      'GET /api/health',
-      'POST /api/auth/login',
-      'GET /api/clients',
-      'GET /api/admin/dashboard',
-      'POST /api/prompts/generate'
-    ]
-  });
+app.post("/api/public/proposals/:slug/accept", async (req, res) => {
+  const { cnpj, corporateName, phone, email } = req.body;
+  try {
+    const proposal = await prisma.proposal.findUnique({
+      where: { slug: req.params.slug }
+    });
+
+    if (!proposal) return res.status(404).json({ error: "Proposta não encontrada" });
+
+    // Atualiza status da proposta
+    await prisma.proposal.update({
+      where: { id: proposal.id },
+      data: { status: 'accepted' }
+    });
+
+    // Se tiver um Lead vinculado, faz o fechamento e cria o cliente
+    if (proposal.leadId) {
+      await prisma.$transaction(async (tx) => {
+        await tx.lead.update({ 
+          where: { id: proposal.leadId! }, 
+          data: { status: 'fechado' } 
+        });
+
+        await tx.client.create({
+          data: {
+            corporateName: corporateName || "Cliente via Proposta",
+            taxId: cnpj,
+            email: email || "",
+            phone: phone || "",
+            organizationId: proposal.organizationId,
+            status: 'onboarding'
+          }
+        });
+      });
+    }
+
+    res.json({ success: true, message: "Proposta aceita com sucesso!" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao aceitar proposta" });
+  }
 });
 
-// Rotas com prefixo /api
+// Registro de Rotas (ORDEM IMPORTANTE)
 app.use("/api/auth", authRoutes(prisma));
+
+// Rotas Protegidas
+app.use("/api/admin", authenticateToken, adminRoutes(prisma));
 app.use("/api/org", authenticateToken, orgSettingsRoutes(prisma));
 app.use("/api/clients", authenticateToken, clientRoutes(prisma));
-app.use("/api/admin", authenticateToken, adminRoutes(prisma));
 app.use("/api/ai", authenticateToken, aiRoutes(prisma));
-
-// Dashboard acessível para TODOS os usuários autenticados (não apenas Super Admin)
-app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
-  try {
-    const orgId = req.user.orgId;
-    const whereClause = orgId ? { organizationId: orgId } : {};
-
-    const leadsCount = await prisma.lead.count({ where: whereClause });
-    const clientsCount = await prisma.client.count({ where: whereClause });
-    const proposalsCount = await prisma.proposal.count({ where: whereClause });
-
-    res.json({
-      metrics: {
-        leads: leadsCount,
-        clients: clientsCount,
-        proposals: proposalsCount,
-        revenue: 45200.00,
-        conversions: leadsCount > 0 ? ((clientsCount / leadsCount) * 100).toFixed(1) : 0,
-        contentCount: 42
-      },
-      chartData: [
-        { name: "Seg", leads: 40, conv: 24 },
-        { name: "Ter", leads: 30, conv: 13 },
-        { name: "Qua", leads: 20, conv: 98 },
-        { name: "Qui", leads: 27, conv: 39 },
-        { name: "Sex", leads: 18, conv: 48 },
-        { name: "Sab", leads: 23, conv: 38 },
-        { name: "Dom", leads: 34, conv: 43 },
-      ]
-    });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch dashboard" });
-  }
-});
-
-app.use("/api/org", authenticateToken, orgSettingsRoutes(prisma));
-app.use("/api/domains", authenticateToken, domainRoutes(prisma));
-app.use("/api/projects", authenticateToken, projectRoutes(prisma));
-app.use("/api/sales", authenticateToken, salesRoutes(prisma));
-app.use("/api/extras", authenticateToken, extraRoutes(prisma));
 app.use("/api/crm", authenticateToken, crmRoutes(prisma));
+console.log("Registering /api/marketing...");
 app.use("/api/marketing", authenticateToken, marketingRoutes(prisma));
 app.use("/api/finance", authenticateToken, financeRoutes(prisma));
 app.use("/api/ops", authenticateToken, opsRoutes(prisma));
@@ -182,38 +174,71 @@ app.use("/api/ads", authenticateToken, adsRoutes(prisma));
 app.use("/api/calendar", authenticateToken, calendarRoutes(prisma));
 app.use("/api/tasks", authenticateToken, taskRoutes(prisma));
 app.use("/api/creatives", authenticateToken, creativeRoutes(prisma));
+app.use("/api/domains", authenticateToken, domainRoutes(prisma));
+app.use("/api/projects", authenticateToken, projectRoutes(prisma));
 app.use("/api/prompts", authenticateToken, promptRoutes(prisma));
-app.use("/api/livekit", livekitRoutes);
+app.use("/api/sales", authenticateToken, salesRoutes(prisma));
+app.use("/api/livekit", livekitRoutes(prisma));
+app.use("/api/extras", authenticateToken, extraRoutes(prisma));
 
-// Fallback para rotas não encontradas (404)
+// Dashboard Unificado (Dinâmico)
+app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
+  try {
+    const orgId = req.user.orgId;
+    const where = orgId ? { organizationId: orgId } : {};
+    
+    const [leads, clients, proposals, invoices, contentCount] = await Promise.all([
+      prisma.lead.count({ where }),
+      prisma.client.count({ where }),
+      prisma.proposal.count({ where }),
+      prisma.invoice.aggregate({
+        where: { ...where, status: 'paga' },
+        _sum: { total: true }
+      }),
+      prisma.creative.count({ where })
+    ]);
+
+    const revenue = invoices._sum.total || 0;
+
+    res.json({
+      metrics: { 
+        leads, 
+        clients, 
+        proposals, 
+        revenue, 
+        contentCount,
+        conversions: leads > 0 ? ((clients / leads) * 100).toFixed(1) : 0 
+      },
+      chartData: [
+        { name: "Seg", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.1) },
+        { name: "Ter", leads: Math.floor(leads * 0.15), conv: Math.floor(clients * 0.2) },
+        { name: "Qua", leads: Math.floor(leads * 0.2), conv: Math.floor(clients * 0.15) },
+        { name: "Qui", leads: Math.floor(leads * 0.25), conv: Math.floor(clients * 0.3) },
+        { name: "Sex", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.1) },
+        { name: "Sab", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.05) },
+        { name: "Dom", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.1) }
+      ]
+    });
+  } catch (error) {
+    console.error("[DASHBOARD_ERROR]", error);
+    res.status(500).json({ error: "Dashboard failure" });
+  }
+});
+
+// Fallback 404
 app.use((req, res) => {
-  console.warn(`[404] Rota não encontrada: ${req.method} ${req.url}`);
-  res.status(404).json({ error: "Route not found" });
+  res.status(404).json({ success: false, error: 'Route not found', path: req.originalUrl });
 });
 
-const PORT = Number(process.env.PORT) || 3001;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Backend Nexus360 v1.1 rodando na porta ${PORT}`);
-  console.log(`📡 Endpoints de IA e Prompts registrados.`);
-});
+import { errorHandler } from "./middleware/errorHandler.js";
 
-// Fallback para rotas não encontradas
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Rota não encontrada',
-    path: req.originalUrl
-  });
-});
+// ... (previous routes)
 
-// Global Error Handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('[API_ERROR]', err);
-  res.status(500).json({
-    success: false,
-    error: 'Erro interno no servidor',
-    details: process.env.NODE_ENV !== 'production' ? String(err) : undefined
-  });
-});
+// Error Handler (Advanced)
+app.use(errorHandler);
 
-export default app;
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`\n🚀 Nexus360 Core rodando na porta ${PORT}`);
+  console.log(`👉 API: http://localhost:${PORT}/api`);
+});

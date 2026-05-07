@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../lib/api";
+import { NexusMeetScheduler } from "../components/crm/NexusMeetScheduler";
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -55,6 +56,7 @@ export default function Calendar() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [showMeetScheduler, setShowMeetScheduler] = useState(false);
 
   const fetchEvents = async () => {
     setLoading(true);
@@ -309,6 +311,11 @@ export default function Calendar() {
             editingEvent={editingEvent}
           />
         )}
+        {showMeetScheduler && (
+          <NexusMeetScheduler 
+            onClose={() => setShowMeetScheduler(false)} 
+          />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -421,9 +428,30 @@ function EventModal({ onClose, onSuccess, initialDate, editingEvent }: {
               <option value="holiday">🌴 Feriado</option>
             </select>
             {formData.type === 'reunion' && !isEditing && (
-              <p className="text-[10px] text-blue-500 font-medium pl-1">
-                ✨ Um link exclusivo do Nexus Meet será gerado automaticamente
-              </p>
+              <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex flex-col gap-3">
+                <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Configuração Elite</p>
+                <div className="flex flex-col gap-2">
+                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">E-mail do Convidado</label>
+                   <input 
+                     className="modal-input" 
+                     placeholder="seu@email.com" 
+                     value={(formData as any).guestEmail || ''} 
+                     onChange={e => setFormData({...formData, guestEmail: e.target.value} as any)} 
+                   />
+                </div>
+                <div className="flex flex-col gap-2">
+                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">WhatsApp do Convidado</label>
+                   <input 
+                     className="modal-input" 
+                     placeholder="(00) 00000-0000" 
+                     value={(formData as any).guestPhone || ''} 
+                     onChange={e => setFormData({...formData, guestPhone: e.target.value} as any)} 
+                   />
+                </div>
+                <p className="text-[10px] text-blue-500 font-medium italic">
+                  ✨ O código de acesso de 6 dígitos será gerado ao salvar.
+                </p>
+              </div>
             )}
           </div>
 

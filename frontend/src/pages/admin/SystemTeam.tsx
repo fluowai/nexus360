@@ -4,6 +4,7 @@ import {
   UserPlus, 
   Shield, 
   Trash2, 
+  Edit3,
   Mail,
   Calendar,
   CheckCircle2
@@ -14,6 +15,8 @@ import { apiFetch } from "../../lib/api";
 export default function SystemTeam() {
   const [admins, setAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<any>(null);
 
   const fetchAdmins = async () => {
     try {
@@ -84,13 +87,94 @@ export default function SystemTeam() {
                  <CheckCircle2 size={12} />
                  <span>ACESSO TOTAL</span>
                </div>
-               <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                 <Trash2 size={16} />
-               </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      setEditData({...admin, password: ''});
+                      setIsEditing(true);
+                    }}
+                    className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                  <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                    <Trash2 size={16} />
+                  </button>
+               </div>
             </div>
           </motion.div>
         ))}
       </div>
+      {/* Modal Editar Usuário */}
+      {isEditing && editData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl"
+          >
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Editar Administrador</h2>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const res = await apiFetch(`/api/admin/users/${editData.id}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify(editData)
+                });
+                if (res.ok) {
+                  setIsEditing(false);
+                  fetchAdmins();
+                }
+              } catch (err) { console.error(err); }
+            }} className="flex flex-col gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome</label>
+                <input 
+                  required
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                  value={editData.name}
+                  onChange={e => setEditData({...editData, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">E-mail</label>
+                <input 
+                  required
+                  type="email"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                  value={editData.email}
+                  onChange={e => setEditData({...editData, email: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nova Senha (deixe vazio para manter)</label>
+                <input 
+                  type="password"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                  value={editData.password}
+                  onChange={e => setEditData({...editData, password: e.target.value})}
+                  placeholder="********"
+                />
+              </div>
+              <div className="flex gap-4 mt-4">
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 px-4 py-3 rounded-xl font-bold text-gray-400 hover:bg-gray-100 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

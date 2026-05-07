@@ -49,6 +49,9 @@ import WhiteLabel from "./pages/admin/WhiteLabel";
 
 import LandingPage from "./pages/LandingPage";
 import PromptArchitect from "./pages/PromptArchitect";
+import LandingDemo from "./pages/LandingDemo";
+import LandingEditor from "./pages/LandingTemplates/LandingEditor";
+import PublicProposal from "./pages/PublicProposal";
 
 const Login = lazy(() => import("./pages/Login"));
 
@@ -91,8 +94,10 @@ const Layout = ({
     const reservedWords = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports', 'api'];
     const urlHasSlug = firstPart && !reservedWords.includes(firstPart);
 
+    const isPublicProposal = location.pathname.startsWith('/p/');
+
     // Páginas públicas: nunca redirecionar
-    if (isLoginPath || isMeetPath || isLandingPage || isOnboardingPath) return;
+    if (isLoginPath || isMeetPath || isLandingPage || isOnboardingPath || isPublicProposal) return;
 
     // Se não tem token e NÃO está em página pública, manda para login
     if (!token) {
@@ -130,7 +135,7 @@ const Layout = ({
     }
   }, [location.pathname, user, navigate, authLoading, selectedClientId]);
 
-  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site') {
+  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site' || location.pathname.startsWith('/p/')) {
     return <>{children}</>;
   }
 
@@ -265,6 +270,9 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/meet/:roomName" element={<MeetingRoom />} />
+          <Route path="/landing-demo" element={<LandingDemo />} />
+          <Route path="/landing-editor" element={<LandingEditor />} />
+          <Route path="/p/:slug" element={<PublicProposal />} />
 
           {/* Super Admin */}
           <Route path="/admin" element={<SuperAdmin />} />

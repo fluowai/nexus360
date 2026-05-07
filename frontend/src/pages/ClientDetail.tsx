@@ -234,7 +234,81 @@ export default function ClientDetail() {
                 </motion.div>
               )}
               
-              {/* Espaço para outras abas (produtos, contratos, etc) */}
+              {activeTab === 'produtos' && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="space-y-6">
+                   <div className="flex justify-between items-center">
+                      <h4 className="text-lg font-black text-gray-900">Serviços Contratados</h4>
+                   </div>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {client?.soldProducts?.map((p: any) => (
+                        <div key={p.id} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex flex-col gap-2">
+                           <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{p.status}</span>
+                           <h5 className="text-xl font-black text-slate-900">{p.name}</h5>
+                           <div className="flex justify-between items-end mt-4">
+                              <div>
+                                 <p className="text-[10px] text-gray-400 font-bold uppercase">Mensalidade</p>
+                                 <p className="text-lg font-black text-slate-700">R$ {p.monthlyValue.toLocaleString()}</p>
+                              </div>
+                              <div className="text-right">
+                                 <p className="text-[10px] text-gray-400 font-bold uppercase">Setup</p>
+                                 <p className="text-sm font-bold text-slate-500">R$ {p.setupValue.toLocaleString()}</p>
+                              </div>
+                           </div>
+                        </div>
+                      ))}
+                   </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'contratos' && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="space-y-4">
+                   <h4 className="text-lg font-black text-gray-900">Documentos e Contratos</h4>
+                   {client?.contracts?.map((c: any) => (
+                     <div key={c.id} className="p-5 border border-gray-100 rounded-2xl flex items-center justify-between hover:bg-gray-50 transition-all">
+                        <div className="flex items-center gap-4">
+                           <div className="w-10 h-10 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
+                              <FileText size={20} />
+                           </div>
+                           <div>
+                              <p className="font-bold text-gray-900">{c.title || 'Contrato de Prestação de Serviços'}</p>
+                              <p className="text-[10px] text-gray-400 uppercase font-black">{c.contractNumber || `ID: ${c.id.substring(0,8)}`}</p>
+                           </div>
+                        </div>
+                        <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg">
+                           <Download size={18} />
+                        </button>
+                     </div>
+                   ))}
+                </motion.div>
+              )}
+
+              {activeTab === 'atividades' && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="space-y-6">
+                   <h4 className="text-lg font-black text-gray-900">Histórico Financeiro (Faturas)</h4>
+                   <div className="space-y-3">
+                      {client?.invoices?.map((inv: any) => (
+                        <div key={inv.id} className="p-4 bg-white border border-gray-100 rounded-2xl flex items-center justify-between">
+                           <div className="flex items-center gap-4">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                inv.status === 'paga' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                              }`}>
+                                 <DollarSign size={20} />
+                              </div>
+                              <div>
+                                 <p className="font-bold text-slate-800 text-sm">R$ {inv.total.toLocaleString()}</p>
+                                 <p className="text-[10px] text-gray-400 font-bold uppercase">Vencimento: {new Date(inv.dueDate).toLocaleDateString('pt-BR')}</p>
+                              </div>
+                           </div>
+                           <span className={`text-[9px] font-black uppercase px-2 py-1 rounded-md border ${
+                             inv.status === 'paga' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
+                           }`}>
+                              {inv.status}
+                           </span>
+                        </div>
+                      ))}
+                   </div>
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
         </div>

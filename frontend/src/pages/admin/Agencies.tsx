@@ -4,6 +4,7 @@ import {
   Plus, 
   Search, 
   Trash2, 
+  Edit3,
   ExternalLink, 
   MoreVertical,
   ArrowRight,
@@ -34,6 +35,8 @@ export default function AdminAgencies() {
   const [showDomainModal, setShowDomainModal] = useState(false);
   const [customDomain, setCustomDomain] = useState('');
   const [registeringDomain, setRegisteringDomain] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<any>(null);
 
   const generatePassword = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
@@ -197,12 +200,20 @@ export default function AdminAgencies() {
                       >
                         <Globe size={16} />
                       </button>
-                      <button className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-all">
-                        <ExternalLink size={16} />
+                      <button 
+                        onClick={() => {
+                          setEditData(org);
+                          setIsEditing(true);
+                        }}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-all"
+                        title="Editar Agência"
+                      >
+                        <Edit3 size={16} />
                       </button>
                       <button 
                         onClick={() => handleDelete(org.id)}
                         className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-all"
+                        title="Remover Agência"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -410,6 +421,104 @@ export default function AdminAgencies() {
                   ) : (
                     <span>Confirmar</span>
                   )}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+      {/* Edit Modal */}
+      {isEditing && editData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl"
+          >
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Editar Agência</h2>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const res = await apiFetch(`/api/admin/orgs/${editData.id}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify(editData)
+                });
+                if (res.ok) {
+                  setIsEditing(false);
+                  fetchAgencies();
+                }
+              } catch (err) { console.error(err); }
+            }} className="flex flex-col gap-4">
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome da Agência</label>
+                <input 
+                  required
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                  value={editData.name}
+                  onChange={e => setEditData({...editData, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Slug / Link</label>
+                <input 
+                  required
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono"
+                  value={editData.slug}
+                  onChange={e => setEditData({...editData, slug: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Plano</label>
+                <select 
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none outline-none focus:ring-2 focus:ring-primary"
+                  value={editData.plan}
+                  onChange={e => setEditData({...editData, plan: e.target.value})}
+                >
+                  <option value="Free">Gratuito</option>
+                  <option value="Pro">Pro</option>
+                  <option value="Enterprise">Enterprise</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2 mt-4">
+                 <h3 className="text-[10px] font-bold text-blue-600 uppercase tracking-[2px] mb-2">Dados de Acesso (Opcional)</h3>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">E-mail</label>
+                <input 
+                  type="email"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                  value={editData.adminEmail || ''}
+                  onChange={e => setEditData({...editData, adminEmail: e.target.value})}
+                  placeholder="Novo e-mail"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nova Senha</label>
+                <input 
+                  type="password"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono"
+                  value={editData.password || ''}
+                  onChange={e => setEditData({...editData, password: e.target.value})}
+                  placeholder="********"
+                />
+              </div>
+
+              <div className="flex gap-4 mt-4">
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 px-4 py-3 rounded-xl font-bold text-gray-400 hover:bg-gray-100 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg"
+                >
+                  Salvar Alterações
                 </button>
               </div>
             </form>

@@ -117,6 +117,7 @@ model User {
   assignedTasks        Task[]
   managedClients       Client[]
   managedOpportunities Opportunity[]
+  followUps            FollowUp[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -142,6 +143,7 @@ model Lead {
 
   followUps       FollowUp[]
   quizSubmissions QuizSubmission[]
+  proposals       Proposal[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -158,6 +160,8 @@ model FollowUp {
   status      String    @default("pending")
   scheduledAt DateTime?
   createdAt   DateTime  @default(now())
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
 }
 
 model Creative {
@@ -228,6 +232,10 @@ model Client {
 
   // Status
   status String @default("prospect") // prospect, onboarding, ativo, inativo, churned
+
+  // Origem (Raio-X)
+  source       String? // Google Ads, Instagram, Indicação, Prospecção Ativa
+  sourceDetail String? // Ex: Campanha X, Nome de quem indicou
 
   // Relations
   organizationId String
@@ -317,33 +325,31 @@ model Opportunity {
 }
 
 model Proposal {
-  id          String  @id @default(uuid())
-  title       String
-  description String?
-  status      String  @default("rascunho")
+  id              String   @id @default(uuid())
+  title           String
+  slug            String   @unique
+  status          String   @default("draft")
+  
+  clientId        String?
+  client          Client?  @relation(fields: [clientId], references: [id])
+  
+  leadId          String?
+  lead            Lead?    @relation(fields: [leadId], references: [id])
+  
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
 
-  subtotal Float @default(0)
-  discount Float @default(0)
-  total    Float @default(0)
-
-  sentAt     DateTime?
-  expiresAt  DateTime?
-  acceptedAt DateTime?
-  rejectedAt DateTime?
-
-  items ProposalItem[]
-
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-
-  clientId String
-  client   Client @relation(fields: [clientId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  logoUrl         String?
+  footerText      String?
+  
+  content         Json     
+  items           ProposalItem[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@index([organizationId])
-  @@index([clientId])
+  @@index([slug])
 }
 
 model ProposalItem {
@@ -858,6 +864,7 @@ model LandingPage {
   metaTitle       String?
   metaDescription String?
   metaImage       String?
+  config          String?      @db.Text
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id])
 
@@ -1043,3 +1050,4 @@ model Domain {
 
   @@index([organizationId])
 }
+

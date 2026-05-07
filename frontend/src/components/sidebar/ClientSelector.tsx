@@ -29,7 +29,7 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
     const fetchClients = async () => {
       try {
         const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-        const endpoint = isSuperAdmin ? '/api/admin/orgs' : '/api/clients';
+        const endpoint = isSuperAdmin ? '/api/admin/orgs' : '/api/crm/clients';
         const response = await apiFetch(endpoint);
         
         if (response.ok) {

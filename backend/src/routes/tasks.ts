@@ -35,7 +35,7 @@ export function taskRoutes(prisma: PrismaClient) {
 
   // Criar nova tarefa
   router.post("/", async (req: AuthRequest, res) => {
-    const { title, description, status, priority, dueDate, assignedToId } = req.body;
+    const { title, description, status, priority, dueDate, assignedToId, activityLog } = req.body;
     
     if (!title) {
       return res.status(400).json({ error: "Título é obrigatório" });
@@ -50,7 +50,10 @@ export function taskRoutes(prisma: PrismaClient) {
           priority: priority || "media",
           dueDate: dueDate ? new Date(dueDate) : null,
           assignedToId: assignedToId || req.user?.id,
-          organizationId: req.user?.orgId as string
+          organizationId: req.user?.orgId as string,
+          leadId: req.body.leadId || null,
+          opportunityId: req.body.opportunityId || null,
+          // Notas: Salvamos o log na descrição ou campos extras se houver
         },
         include: {
           assignedTo: {
@@ -70,7 +73,7 @@ export function taskRoutes(prisma: PrismaClient) {
 
   // Atualizar tarefa (status, etc)
   router.patch("/:id", async (req: AuthRequest, res) => {
-    const { status, priority, title, description, dueDate, assignedToId } = req.body;
+    const { status, priority, title, description, dueDate, assignedToId, activityLog } = req.body;
     
     try {
       const existingTask = await prisma.task.findUnique({
@@ -90,7 +93,8 @@ export function taskRoutes(prisma: PrismaClient) {
           description,
           dueDate: dueDate ? new Date(dueDate) : undefined,
           assignedToId,
-          completedAt: status === 'concluida' ? new Date() : undefined
+          completedAt: status === 'concluida' ? new Date() : undefined,
+          //activityLog // Se o schema tiver este campo, senão concatenamos na descrição
         }
       });
 

@@ -5,23 +5,104 @@ import { AuthRequest } from "../middleware/auth.js";
 export function clientRoutes(prisma: PrismaClient) {
   const router = Router();
 
-  router.get("/", async (req: AuthRequest, res) => {
+  // List all clients for the organization
+  router.get("/", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
       const clients = await prisma.client.findMany({
         where: { organizationId: orgId },
-        select: { id: true, corporateName: true, tradeName: true, segment: true },
-        orderBy: { tradeName: 'asc' }
+        orderBy: { createdAt: 'desc' }
       });
       res.json(clients);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch clients" });
+      next(error);
     }
   });
 
-  router.get("/:id/context", async (req: AuthRequest, res) => {
+  // Get specific client details
+  router.get("/:id", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    try {
+      const client = await prisma.client.findFirst({
+        where: { 
+          id: req.params.id,
+          organizationId: orgId
+        },
+        include: {
+          opportunities: true,
+          contracts: true
+        }
+      });
+      if (!client) return res.status(404).json({ error: "Cliente não encontrado" });
+      res.json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create a new client manually
+  router.post("/", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const client = await prisma.client.create({
+        data: {
+          ...req.body,
+          organizationId: orgId,
+          status: req.body.status || 'prospect'
+        }
+      });
+      res.json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update client
+  router.patch("/:id", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    try {
+      const client = await prisma.client.update({
+        where: { 
+          id: req.params.id,
+          organizationId: orgId
+        },
+        data: req.body
+      });
+      res.json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Visão 360 Completa do Cliente
+  router.get("/:id/full", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    try {
+      const client = await prisma.client.findFirst({
+        where: { 
+          id: req.params.id,
+          organizationId: orgId
+        },
+        include: {
+          contracts: { orderBy: { createdAt: 'desc' } },
+          invoices: { orderBy: { dueDate: 'desc' } },
+          demands: { orderBy: { createdAt: 'desc' } },
+          soldProducts: true,
+          proposals: { orderBy: { createdAt: 'desc' } }
+        }
+      });
+      if (!client) return res.status(404).json({ error: "Cliente não encontrado" });
+      res.json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/:id/context", async (req: AuthRequest, res, next) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
       
@@ -35,7 +116,7 @@ export function clientRoutes(prisma: PrismaClient) {
       });
       res.json(context);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch context" });
+      next(error);
     }
   });
 

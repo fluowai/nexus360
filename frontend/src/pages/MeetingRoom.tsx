@@ -1,12 +1,31 @@
 import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Shield, LogOut, Video, Copy, Check, BrainCircuit, CheckCircle, AlertTriangle, ListTodo, FileText } from "lucide-react";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { 
+  Shield, 
+  LogOut, 
+  Video, 
+  Copy, 
+  Check, 
+  BrainCircuit, 
+  CheckCircle, 
+  AlertTriangle, 
+  ListTodo, 
+  FileText,
+  User,
+  Mail,
+  Key,
+  Camera,
+  Mic,
+  Settings,
+  ArrowRight
+} from "lucide-react";
 import {
   LiveKitRoom,
   VideoConference,
   RoomAudioRenderer,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
+import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../lib/api";
 import { TranscriptionEngine } from "../components/TranscriptionEngine";
 
@@ -27,7 +46,18 @@ function MeetingContent({
 
 export default function MeetingRoom() {
   const { roomName } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  
+  // Estados de Entrada
+  const [isPreflight, setIsPreflight] = useState(true);
+  const [participantInfo, setParticipantInfo] = useState({
+    name: localStorage.getItem('nexus_user_name') || '',
+    email: '',
+    code: searchParams.get('code') || ''
+  });
+  const [isValidating, setIsValidating] = useState(false);
+  
   const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
@@ -38,32 +68,66 @@ export default function MeetingRoom() {
   const [feedbackData, setFeedbackData] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   
+  const videoPreviewRef = useRef<HTMLVideoElement>(null);
   const notepadRef = useRef<HTMLDivElement>(null);
-
-  const userName = localStorage.getItem('nexus_user_name') || 'Participante';
   const livekitUrl = import.meta.env.VITE_LIVEKIT_URL;
 
+  // Lógica de Preview de Câmera
   useEffect(() => {
-    const fetchToken = async () => {
-      try {
-        const response = await apiFetch('/api/livekit/token', {
-          method: 'POST',
-          body: JSON.stringify({
-            roomName: `nexus-360-${roomName}`,
-            participantName: userName,
-          })
-        });
-        
-        if (!response.ok) throw new Error('Falha na autenticação da sala');
+    if (isPreflight) {
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+          if (videoPreviewRef.current) {
+            videoPreviewRef.current.srcObject = stream;
+          }
+        })
+        .catch(err => console.error("Camera access denied", err));
+    }
+  }, [isPreflight]);
 
-        const data = await response.json();
-        setToken(data.token);
-      } catch (err) {
-        setError("Não foi possível gerar a credencial da sala segura.");
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!participantInfo.name || !participantInfo.email || !participantInfo.code) {
+      setError("Por favor, preencha todos os campos obrigatórios.");
+      return;
+    }
+
+    setIsValidating(true);
+    try {
+      // 1. Validar Código e Convidado
+      const valRes = await apiFetch('/api/livekit/validate-code', {
+        method: 'POST',
+        body: JSON.stringify({ code: participantInfo.code, email: participantInfo.email })
+      });
+      
+      if (!valRes.ok) {
+        const data = await valRes.json();
+        throw new Error(data.error || "Código de acesso inválido.");
       }
-    };
-    if (roomName) fetchToken();
-  }, [roomName, userName]);
+
+      // 2. Buscar Token do LiveKit
+      const response = await apiFetch('/api/livekit/token', {
+        method: 'POST',
+        body: JSON.stringify({
+          roomName: `nexus-360-${roomName}`,
+          participantName: participantInfo.name,
+        })
+      });
+      
+      if (!response.ok) throw new Error('Falha ao gerar credenciais de acesso.');
+
+      const data = await response.json();
+      setToken(data.token);
+      setIsPreflight(false);
+      
+      // Salvar nome para conveniência
+      localStorage.setItem('nexus_user_name', participantInfo.name);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsValidating(false);
+    }
+  };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -76,7 +140,6 @@ export default function MeetingRoom() {
     setTranscriptLines(prev => [...prev, { time, sender, text }]);
   };
 
-  // Auto-scroll no bloco de notas
   useEffect(() => {
     if (notepadRef.current) {
       notepadRef.current.scrollTop = notepadRef.current.scrollHeight;
@@ -85,22 +148,17 @@ export default function MeetingRoom() {
 
   const handleEndMeeting = async () => {
     const fullTranscriptStr = transcriptLines.map(t => `[${t.time}] ${t.sender}: ${t.text}`).join('\n');
-
-    // Se não teve conversa suficiente, sai direto
     if (fullTranscriptStr.length < 50) {
       navigate(-1);
       return;
     }
-
     setShowFeedback(true);
     setIsAnalyzing(true);
-
     try {
       const response = await apiFetch('/api/ai/meeting-feedback', {
         method: 'POST',
         body: JSON.stringify({ transcript: fullTranscriptStr })
       });
-      
       if (response.ok) {
         const data = await response.json();
         setFeedbackData(data.feedback);
@@ -111,6 +169,135 @@ export default function MeetingRoom() {
       setIsAnalyzing(false);
     }
   };
+
+  // -----------------------------------------------------
+  // TELA DE PRE-FLIGHT (SALA DE ESPERA)
+  // -----------------------------------------------------
+  if (isPreflight) {
+    return (
+      <div className="fixed inset-0 bg-[#0A0C10] text-white flex items-center justify-center p-6 overflow-y-auto">
+        <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          
+          {/* Lado Esquerdo: Preview e Branding */}
+          <div className="space-y-8">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary p-3 rounded-2xl shadow-lg shadow-primary/20">
+                <BrainCircuit size={32} />
+              </div>
+              <h1 className="text-3xl font-extrabold tracking-tighter">Nexus Meet <span className="text-primary">Elite</span></h1>
+            </div>
+
+            <div className="relative aspect-video bg-[#15181E] rounded-[32px] overflow-hidden border border-gray-800 shadow-2xl group">
+               <video 
+                 ref={videoPreviewRef} 
+                 autoPlay 
+                 muted 
+                 playsInline 
+                 className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
+               />
+               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+               <div className="absolute bottom-6 left-6 right-6 flex justify-center gap-4">
+                  <button className="p-4 bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-700 hover:bg-gray-800 transition-all">
+                    <Mic size={20} />
+                  </button>
+                  <button className="p-4 bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-700 hover:bg-gray-800 transition-all">
+                    <Camera size={20} />
+                  </button>
+                  <button className="p-4 bg-gray-900/80 backdrop-blur-md rounded-2xl border border-gray-700 hover:bg-gray-800 transition-all">
+                    <Settings size={20} />
+                  </button>
+               </div>
+            </div>
+
+            <div className="bg-[#15181E] p-6 rounded-[24px] border border-gray-800/50">
+              <div className="flex gap-4 items-start text-sm text-gray-400">
+                <Shield className="text-primary mt-1 shrink-0" size={18} />
+                <p>Esta reunião é protegida por criptografia ponta-a-ponta e supervisionada por nossa Inteligência Artificial para gerar insights automáticos.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Lado Direito: Formulário de Entrada */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="bg-[#15181E] p-10 rounded-[40px] border border-gray-800 shadow-2xl"
+          >
+            <h2 className="text-2xl font-bold mb-2">Pronto para entrar?</h2>
+            <p className="text-gray-500 mb-8 text-sm">Preencha seus dados reais para participar da sessão.</p>
+
+            <form onSubmit={handleJoin} className="space-y-5">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Seu Nome Real</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input 
+                    required
+                    placeholder="Como deseja ser chamado?"
+                    className="w-full pl-12 pr-4 py-4 bg-[#0A0C10] border border-gray-800 rounded-2xl outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium"
+                    value={participantInfo.name}
+                    onChange={e => setParticipantInfo({...participantInfo, name: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">E-mail de Cadastro</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input 
+                    required
+                    type="email"
+                    placeholder="seu@email.com"
+                    className="w-full pl-12 pr-4 py-4 bg-[#0A0C10] border border-gray-800 rounded-2xl outline-none focus:ring-2 focus:ring-primary/50 transition-all font-medium"
+                    value={participantInfo.email}
+                    onChange={e => setParticipantInfo({...participantInfo, email: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Código de Acesso</label>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                  <input 
+                    required
+                    placeholder="000000"
+                    maxLength={6}
+                    className="w-full pl-12 pr-4 py-4 bg-[#0A0C10] border border-gray-800 rounded-2xl outline-none focus:ring-2 focus:ring-primary/50 transition-all font-mono tracking-[4px] font-bold text-xl"
+                    value={participantInfo.code}
+                    onChange={e => setParticipantInfo({...participantInfo, code: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex gap-3 text-red-400 text-sm animate-shake">
+                  <AlertTriangle size={18} className="shrink-0" />
+                  <p>{error}</p>
+                </div>
+              )}
+
+              <button 
+                type="submit"
+                disabled={isValidating}
+                className="w-full py-5 bg-primary text-white rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 hover:bg-blue-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+              >
+                {isValidating ? (
+                  <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-white" />
+                ) : (
+                  <>
+                    <span>Entrar na Reunião</span>
+                    <ArrowRight size={20} />
+                  </>
+                )}
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   // -----------------------------------------------------
   // TELA DE FEEDBACK DO SUPERVISOR (Pós-reunião)
@@ -186,11 +373,10 @@ export default function MeetingRoom() {
   }
 
   // -----------------------------------------------------
-  // TELAS DE ERRO / LOADING
+  // TELA PRINCIPAL DA SALA (VÍDEO)
   // -----------------------------------------------------
   if (!livekitUrl) return <div className="fixed inset-0 bg-[#0F1115] text-white flex items-center justify-center p-6 text-center">Sem configuração de LiveKit</div>;
-  if (error) return <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col items-center justify-center p-6 text-center"><Shield size={48} className="text-red-500 mb-4" /><h2 className="text-xl font-bold mb-2">Erro</h2><p className="text-gray-400 mb-6">{error}</p><button onClick={() => navigate(-1)} className="px-6 py-2 bg-primary rounded-lg font-bold">Voltar</button></div>;
-  if (!token) return <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col items-center justify-center z-40"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-primary mb-4"></div><p className="text-gray-400 text-sm">Gerando credenciais seguras...</p></div>;
+  if (!token) return null; // Já validado no handleJoin
 
   return (
     <div className="fixed inset-0 bg-[#0F1115] text-white flex flex-col overflow-hidden custom-livekit-theme">
@@ -209,7 +395,6 @@ export default function MeetingRoom() {
             <span className={copied ? "text-green-500" : ""}>{copied ? 'Link Copiado!' : 'Copiar Link'}</span>
           </button>
           <div className="w-[1px] h-6 bg-gray-700"></div>
-          {/* Botão de Encerrar Customizado que aciona a IA */}
           <button onClick={handleEndMeeting} className="flex items-center gap-2 px-5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all text-sm font-bold shadow-lg shadow-red-500/20">
             <BrainCircuit size={16} />
             <span>Encerrar & Analisar IA</span>
@@ -217,14 +402,12 @@ export default function MeetingRoom() {
         </div>
       </div>
 
-      {/* Workspace Principal (Vídeo + Bloco de Notas) */}
+      {/* Workspace Principal */}
       <div className="flex-1 flex overflow-hidden">
-        
-        {/* Lado Esquerdo: Sala de Vídeo LiveKit */}
         <div className="flex-1 relative bg-black">
           <LiveKitRoom
-            video={false} 
-            audio={false}
+            video={true} 
+            audio={true}
             token={token}
             serverUrl={livekitUrl}
             data-lk-theme="default"
@@ -235,7 +418,7 @@ export default function MeetingRoom() {
           </LiveKitRoom>
         </div>
 
-        {/* Lado Direito: Bloco de Notas */}
+        {/* Bloco de Notas */}
         <div className="w-80 md:w-96 bg-[#13151A] border-l border-gray-800 flex flex-col shadow-[-10px_0_30px_rgba(0,0,0,0.5)] z-40">
           <div className="h-14 px-4 flex items-center gap-2 border-b border-gray-800 bg-[#1A1D23]">
             <FileText size={16} className="text-primary" />
@@ -266,7 +449,6 @@ export default function MeetingRoom() {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );

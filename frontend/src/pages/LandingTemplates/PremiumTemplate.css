@@ -1,0 +1,196 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@400;700;800&family=Outfit:wght@400;600;700;800&display=swap');
+
+/* Base Variables */
+:root {
+  --pt-transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* THEME: ANCORA (Clean Emerald) */
+.theme-ancora {
+  --pt-bg: #ffffff;
+  --pt-surface: #f7fdfa;
+  --pt-primary: #1a4d33;
+  --pt-accent: #2e7d32;
+  --pt-accent-light: #e8f5e9;
+  --pt-text: #1a4d33;
+  --pt-text-muted: #668c78;
+  --pt-font-heading: 'Playfair Display', serif;
+  --pt-font-body: 'Inter', sans-serif;
+  --pt-radius: 0.5rem;
+}
+
+/* THEME: EXECUTIVE (Martins Gold) */
+.theme-executive {
+  --pt-bg: #000000;
+  --pt-surface: #0a0a0a;
+  --pt-primary: #ffffff;
+  --pt-accent: #c5a059;
+  --pt-accent-light: #e2c28a;
+  --pt-text: #ffffff;
+  --pt-text-muted: #a1a1aa;
+  --pt-font-heading: 'Playfair Display', serif;
+  --pt-font-body: 'Inter', sans-serif;
+  --pt-radius: 0.25rem;
+}
+
+/* THEME: MODERN (Carvalho Navy) */
+.theme-modern {
+  --pt-bg: #ffffff;
+  --pt-surface: #f1f5f9;
+  --pt-primary: #0f172a;
+  --pt-accent: #1e3a8a;
+  --pt-accent-light: #dbeafe;
+  --pt-text: #0f172a;
+  --pt-text-muted: #64748b;
+  --pt-font-heading: 'Inter', sans-serif;
+  --pt-font-body: 'Inter', sans-serif;
+  --pt-radius: 1rem;
+}
+
+/* THEME: PRESTIGE (Seu Nome) */
+.theme-prestige {
+  --pt-bg: #0f172a; /* Navy Body */
+  --pt-surface: #1e293b;
+  --pt-primary: #ffffff;
+  --pt-accent: #fbbf24; /* Gold/Amber */
+  --pt-accent-light: #fef3c7;
+  --pt-text: #ffffff;
+  --pt-text-muted: #94a3b8;
+  --pt-font-heading: 'Outfit', sans-serif;
+  --pt-font-body: 'Inter', sans-serif;
+  --pt-radius: 0.75rem;
+}
+
+/* THEME: ELEGANCE (Ana Beatriz Wine) */
+.theme-elegance {
+  --pt-bg: #fdfaf7;
+  --pt-surface: #fff;
+  --pt-primary: #4a0404; /* Wine */
+  --pt-accent: #722f37;
+  --pt-accent-light: #f5e6e8;
+  --pt-text: #2b1c1c;
+  --pt-text-muted: #8c7171;
+  --pt-font-heading: 'Playfair Display', serif;
+  --pt-font-body: 'Inter', sans-serif;
+  --pt-radius: 0rem;
+}
+
+/* Global Styles */
+.pt-container {
+  background-color: var(--pt-bg);
+  color: var(--pt-text);
+  font-family: var(--pt-font-body);
+  transition: var(--pt-transition);
+}
+
+.pt-heading {
+  font-family: var(--pt-font-heading);
+}
+
+.pt-section {
+  padding: 120px 0;
+}
+
+.pt-btn-primary {
+  background-color: var(--pt-accent);
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: var(--pt-radius);
+  font-weight: 700;
+  transition: var(--pt-transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.1);
+}
+
+.pt-btn-primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.pt-card {
+  background-color: var(--pt-surface);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: var(--pt-radius);
+  padding: 2.5rem;
+  transition: var(--pt-transition);
+}
+
+.theme-executive .pt-card, .theme-prestige .pt-card {
+  border-color: rgba(255, 255, 255, 0.05);
+}
+
+.pt-card:hover {
+  transform: translateY(-8px);
+  border-color: var(--pt-accent);
+}
+
+.pt-icon-box {
+  width: 56px;
+  height: 56px;
+  background-color: var(--pt-accent-light);
+  color: var(--pt-accent);
+  border-radius: calc(var(--pt-radius) / 1.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+}
+
+.pt-nav {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 100;
+  background-color: rgba(var(--pt-bg), 0.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  transition: var(--pt-transition);
+}
+
+.pt-hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.pt-stat-value {
+  font-size: 3rem;
+  font-weight: 800;
+  color: var(--pt-accent);
+  font-family: var(--pt-font-heading);
+}
+
+.whatsapp-float {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  width: 64px;
+  height: 64px;
+  background-color: #25d366;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  box-shadow: 0 15px 30px rgba(37, 211, 102, 0.4);
+  z-index: 1000;
+  transition: var(--pt-transition);
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--pt-accent);
+  border-radius: 10px;
+}

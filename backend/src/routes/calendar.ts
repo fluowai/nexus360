@@ -34,16 +34,19 @@ export function calendarRoutes(prisma: PrismaClient) {
 
     // Gerar link de reunião automático quando o tipo for "reunion"
     let meetingLink: string | null = null;
+    let meetingCode: string | null = null;
+    
     if (type === 'reunion') {
-      const roomId = crypto.randomUUID().split('-')[0];
-      meetingLink = `/meet/nexus-${roomId}`;
+      const roomId = `room-${Math.random().toString(36).substring(7)}`;
+      meetingCode = Math.floor(100000 + Math.random() * 900000).toString();
+      meetingLink = `/meet/${roomId}?code=${meetingCode}`;
     }
 
     try {
       const event = await prisma.calendarEvent.create({
         data: {
           title,
-          description,
+          description: meetingCode ? `${description || ''}\n🔑 Código Meet: ${meetingCode}` : description,
           startDate: new Date(startDate),
           endDate: endDate ? new Date(endDate) : null,
           allDay: Boolean(allDay),

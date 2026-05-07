@@ -128,7 +128,7 @@ export const Sidebar: React.FC<{
   setCollapsed: (collapsed: boolean) => void;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
-}> = ({ 
+ }> = ({ 
   onLogout, 
   user, 
   isMobileOpen, 
@@ -291,6 +291,16 @@ export const Sidebar: React.FC<{
                   collapsed={collapsed}
                 />
                 <SidebarItem 
+                  icon={BarChart3} 
+                  label="Relatórios" 
+                  path={getPath("/reports")} 
+                  isActive={location.pathname === getPath('/reports')}
+                  collapsed={collapsed}
+                />
+              </SidebarGroup>
+
+              <SidebarGroup label="Comercial" collapsed={collapsed}>
+                <SidebarItem 
                   icon={CalendarDays} 
                   label="Agenda" 
                   collapsed={collapsed}
@@ -309,10 +319,31 @@ export const Sidebar: React.FC<{
                   />
                 </SidebarItem>
                 <SidebarItem 
-                  icon={BarChart3} 
-                  label="Relatórios" 
-                  path={getPath("/reports")} 
-                  isActive={location.pathname === getPath('/reports')}
+                  icon={Users} 
+                  label="CRM Leads" 
+                  path={getPath("/crm")} 
+                  isActive={location.pathname === getPath('/crm')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={UsersRound} 
+                  label="Gestão de Clientes" 
+                  path={getPath("/clients")} 
+                  isActive={location.pathname.startsWith(getPath('/clients'))}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Zap} 
+                  label="Sales Machine" 
+                  path={getPath("/sales-machine")} 
+                  isActive={location.pathname === getPath('/sales-machine')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={FileText} 
+                  label="Propostas" 
+                  path={getPath("/proposals")} 
+                  isActive={location.pathname === getPath('/proposals')}
                   collapsed={collapsed}
                 />
               </SidebarGroup>
@@ -351,37 +382,6 @@ export const Sidebar: React.FC<{
                   label="Assets" 
                   path={getPath("/assets")} 
                   isActive={location.pathname === getPath('/assets')}
-                  collapsed={collapsed}
-                />
-              </SidebarGroup>
-
-              <SidebarGroup label="Comercial" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={Users} 
-                  label="CRM Leads" 
-                  path={getPath("/crm")} 
-                  isActive={location.pathname === getPath('/crm')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={UsersRound} 
-                  label="Gestão de Clientes" 
-                  path={getPath("/clients")} 
-                  isActive={location.pathname.startsWith(getPath('/clients'))}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Zap} 
-                  label="Sales Machine" 
-                  path={getPath("/sales-machine")} 
-                  isActive={location.pathname === getPath('/sales-machine')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={FileText} 
-                  label="Propostas" 
-                  path={getPath("/proposals")} 
-                  isActive={location.pathname === getPath('/proposals')}
                   collapsed={collapsed}
                 />
               </SidebarGroup>
@@ -444,7 +444,20 @@ export const Sidebar: React.FC<{
                   path={getPath("/settings")} 
                   isActive={location.pathname === getPath('/settings') || location.pathname === getPath('/ai-settings')}
                   collapsed={collapsed}
-                />
+                >
+                  <SidebarItem 
+                    icon={ChevronRight} 
+                    label="Dados Gerais" 
+                    path={getPath("/settings")} 
+                    isActive={location.pathname === getPath('/settings')}
+                  />
+                  <SidebarItem 
+                    icon={Sparkles} 
+                    label="Configurações de IA" 
+                    path={getPath("/ai-settings")} 
+                    isActive={location.pathname === getPath('/ai-settings')}
+                  />
+                </SidebarItem>
               </SidebarGroup>
             </>
           )}

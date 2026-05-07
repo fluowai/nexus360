@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
 
-export async function apiFetch(path: string, options: RequestInit = {}) {
+export async function apiFetch(path: string, options: RequestInit = {}, retries = 2) {
   const token = localStorage.getItem('nexus_token');
   const userRole = localStorage.getItem('nexus_user_role');
   const impersonatedOrgId = localStorage.getItem('nexus_selected_client');
@@ -13,27 +13,41 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
     ...options.headers,
   };
 
-  // Garante a correta concatenação da URL da API
   const normalizedBase = API_URL?.replace(/\/$/, '') || '';
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${normalizedBase}${normalizedPath}`;
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
-  // Só redireciona para login se for um 401 real (não durante validação inicial)
-  if (response.status === 401 || response.status === 403) {
-    // Não redireciona se for a chamada de validação do /me (primeira carga)
-    const isAuthCheck = path.includes('/api/auth/me');
-    if (!isAuthCheck) {
-      localStorage.removeItem('nexus_token');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+    const response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    // Auth Error Handling
+    if (response.status === 401 || response.status === 403) {
+      const isAuthCheck = path.includes('/api/auth/me');
+      if (!isAuthCheck) {
+        localStorage.removeItem('nexus_token');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       }
     }
-  }
 
-  return response;
+    return response;
+  } catch (error: any) {
+    if (retries > 0 && (error.name === 'AbortError' || error.name === 'TypeError')) {
+      console.warn(`[API_FETCH] Tentando novamente... (${retries} restantes) para: ${path}`);
+      return apiFetch(path, options, retries - 1);
+    }
+    
+    console.error(`[API_FETCH_ERROR] Falha crítica em ${path}:`, error);
+    throw error;
+  }
 }

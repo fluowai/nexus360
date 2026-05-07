@@ -1,22 +1,84 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { AuthRequest } from "../middleware/auth.js";
+import { proposalAI } from "../services/proposalAI.js";
+import { v4 as uuidv4 } from 'uuid';
 
 export function salesRoutes(prisma: PrismaClient) {
   const router = Router();
 
-  // Fila de Vendas
-  router.get("/queue", (req, res) => {
-    res.json([]);
+  // Listar Propostas da Organização
+  router.get("/proposals", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    try {
+      const proposals = await prisma.proposal.findMany({
+        where: { organizationId: orgId },
+        include: { client: { select: { corporateName: true } }, lead: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' }
+      });
+      res.json(proposals);
+    } catch (error) {
+      next(error);
+    }
   });
 
-  // Propostas
-  router.get("/proposals", (req, res) => {
-    res.json([]);
+  // Gerar Proposta com IA
+  router.post("/proposals/generate", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    const { niche, clientName, services } = req.body;
+
+    try {
+      const config = await prisma.organizationAIConfig.findUnique({
+        where: { organizationId: orgId }
+      });
+
+      if (!config?.groqKey) {
+        return res.status(400).json({ error: "Configure sua chave do Groq para usar a IA." });
+      }
+
+      const content = await proposalAI.generate(niche, clientName, services, config.groqKey);
+      res.json(content);
+    } catch (error) {
+      next(error);
+    }
   });
 
-  // Serviços Vendidos
-  router.get("/sold-services", (req, res) => {
-    res.json([]);
+  // Salvar Proposta Final
+  router.post("/proposals", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    const { title, clientId, leadId, content, logoUrl, footerText } = req.body;
+
+    try {
+      const proposal = await prisma.proposal.create({
+        data: {
+          title,
+          slug: uuidv4().substring(0, 8), // Gera um link único curto
+          organizationId: orgId!,
+          clientId,
+          leadId,
+          content,
+          logoUrl,
+          footerText,
+          status: 'sent'
+        }
+      });
+      res.json(proposal);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Buscar Detalhes
+  router.get("/proposals/:id", async (req: AuthRequest, res, next) => {
+    try {
+      const proposal = await prisma.proposal.findUnique({
+        where: { id: req.params.id },
+        include: { client: true, lead: true }
+      });
+      res.json(proposal);
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;

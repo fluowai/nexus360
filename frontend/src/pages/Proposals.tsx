@@ -1,17 +1,38 @@
 import { useState, useEffect } from "react";
 import { apiFetch } from "../lib/api";
-import { Plus, Search, FileText, CheckCircle2, Clock, Send, FileEdit, Trash2, UserPlus } from "lucide-react";
+import { 
+  Plus, 
+  Search, 
+  FileText, 
+  CheckCircle2, 
+  Clock, 
+  Send, 
+  FileEdit, 
+  Trash2, 
+  UserPlus, 
+  Sparkles, 
+  Link as LinkIcon, 
+  Copy, 
+  ExternalLink,
+  ChevronRight,
+  Target,
+  Image as ImageIcon,
+  Type,
+  ArrowRight
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function Proposals() {
   const [proposals, setProposals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const fetchProposals = async () => {
     try {
       const res = await apiFetch(`/api/sales/proposals`);
-      setProposals(await res.json());
+      const data = await res.json();
+      setProposals(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -23,69 +44,105 @@ export default function Proposals() {
     fetchProposals();
   }, []);
 
+  const copyLink = (slug: string) => {
+    const url = `${window.location.origin}/p/${slug}`;
+    navigator.clipboard.writeText(url);
+    alert("Link da proposta copiado!");
+  };
+
+  const filteredProposals = proposals.filter(p => 
+    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.client?.corporateName?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex justify-between items-end">
+    <div className="flex flex-col gap-8 p-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Propostas & Contratos</h1>
-          <p className="text-gray-500">Crie faturamentos e propostas comerciais profissionais para os novos clientes.</p>
+          <h1 className="text-4xl font-black tracking-tight text-gray-900 mb-2">Comercial Machine</h1>
+          <p className="text-gray-500 font-medium">Crie propostas irrecusáveis através de links inteligentes.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded-xl hover:bg-black transition-all font-medium shadow-lg shadow-gray-200"
-        >
-          <Plus size={18} />
-          <span>Nova Proposta</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" size={18} />
+            <input 
+              type="text" 
+              placeholder="Buscar proposta..." 
+              className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-2xl w-[250px] focus:ring-4 focus:ring-primary/10 outline-none transition-all text-sm shadow-sm"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-slate-800 transition-all font-bold shadow-xl shadow-slate-200"
+          >
+            <Plus size={20} />
+            <span>Criar Nova Proposta</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {proposals.map((item) => (
+        {filteredProposals.map((item) => (
           <motion.div 
             layoutId={item.id}
             key={item.id} 
-            className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex flex-col gap-4 group"
+            className="bg-white border border-gray-100 p-8 rounded-[32px] shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all flex flex-col gap-6 group relative overflow-hidden"
           >
-            <div className="flex justify-between items-start">
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                <FileText size={24} />
-              </div>
-              <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-md shadow-sm border ${
-                item.status === 'aceita' ? 'bg-green-100 text-green-700 border-green-200' :
-                item.status === 'enviada' ? 'bg-blue-100 text-primary border-blue-200' :
-                'bg-gray-100 text-gray-700 border-gray-200'
+            <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-[40px] flex items-center justify-center text-blue-500 opacity-20 group-hover:opacity-100 transition-opacity">
+               <FileText size={32} />
+            </div>
+
+            <div className="flex justify-between items-start pr-12">
+              <span className={`text-[10px] uppercase font-black px-3 py-1 rounded-lg tracking-widest border ${
+                item.status === 'accepted' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                item.status === 'sent' ? 'bg-blue-100 text-primary border-blue-200' :
+                'bg-gray-100 text-gray-500 border-gray-200'
               }`}>
-                {item.status}
+                {item.status === 'accepted' ? 'Aceita' : item.status === 'sent' ? 'Enviada' : 'Rascunho'}
               </span>
             </div>
 
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg group-hover:text-primary transition-colors truncate">{item.title}</h3>
-              <p className="text-sm text-gray-500 font-medium truncate mt-1">Para: {item.client?.corporateName || 'Cliente'}</p>
+            <div className="space-y-2">
+              <h3 className="font-black text-gray-900 text-xl group-hover:text-primary transition-colors leading-tight">{item.title}</h3>
+              <p className="text-xs text-gray-400 font-bold uppercase flex items-center gap-1.5">
+                 <Target size={12} /> {item.client?.corporateName || item.lead?.name || 'Cliente em Prospecção'}
+              </p>
             </div>
 
-            <div className="flex items-end justify-between mt-auto pt-4 border-t border-gray-50">
-               <div>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Valor Total</p>
-                  <p className="font-bold text-gray-900 text-xl">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.total)}
-                  </p>
+            <div className="flex items-center gap-4 py-4 border-y border-gray-50">
+               <button 
+                onClick={() => copyLink(item.slug)}
+                className="flex-1 flex items-center justify-center gap-2 bg-gray-50 text-gray-500 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-gray-100 transition-all"
+               >
+                 <Copy size={14} /> Link
+               </button>
+               <a 
+                href={`/p/${item.slug}`} 
+                target="_blank"
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-50 text-primary py-3 rounded-xl text-[10px] font-black uppercase hover:bg-blue-100 transition-all"
+               >
+                 <ExternalLink size={14} /> Ver
+               </a>
+            </div>
+
+            <div className="flex items-end justify-between mt-auto">
+               <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                  Criada em {new Date(item.createdAt).toLocaleDateString('pt-BR')}
                </div>
                <div className="flex gap-2">
-                 <button className="p-2 bg-gray-50 text-gray-400 hover:text-primary rounded-lg transition-colors border border-gray-100" title="Editar">
-                   <FileEdit size={16} />
-                 </button>
-                 <button className="p-2 bg-gray-50 text-gray-400 hover:text-blue-600 rounded-lg transition-colors border border-gray-100" title="Enviar">
-                   <Send size={16} />
-                 </button>
+                 <button className="p-2 text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                </div>
             </div>
           </motion.div>
         ))}
-        {proposals.length === 0 && !loading && (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50/50">
-             <FileText size={40} className="text-gray-300 mb-2" />
-             <p className="text-gray-400 font-medium text-sm">Nenhuma proposta criada.</p>
+        {filteredProposals.length === 0 && !loading && (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-[40px] bg-gray-50/30">
+             <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-gray-300 mb-4">
+               <Sparkles size={32} />
+             </div>
+             <p className="text-gray-400 font-black uppercase tracking-widest text-xs">Nenhuma proposta na agulha.</p>
           </div>
         )}
       </div>
@@ -94,10 +151,7 @@ export default function Proposals() {
         {isModalOpen && (
           <NewProposalModal 
             onClose={() => setIsModalOpen(false)} 
-            onSuccess={() => {
-              setIsModalOpen(false);
-              fetchProposals();
-            }} 
+            onSuccess={() => { setIsModalOpen(false); fetchProposals(); }} 
           />
         )}
       </AnimatePresence>
@@ -106,158 +160,135 @@ export default function Proposals() {
 }
 
 function NewProposalModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
-  const [formData, setFormData] = useState({ title: '', clientId: '', newClientName: '', newClientEmail: '' });
-  const [items, setItems] = useState([{ service: '', quantity: 1, unitPrice: 0 }]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [step, setStep] = useState(1);
+  const [niche, setNiche] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [aiContent, setAiContent] = useState<any>(null);
+  const [logoUrl, setLogoUrl] = useState("");
+  const [footerText, setFooterText] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    apiFetch(`/api/clients`).then(r => r.json()).then(setClients).catch(console.error);
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    const orgId = localStorage.getItem('nexus_org_id') || '';
-    
-    let finalClientId = formData.clientId;
-
-    if (isCreatingClient) {
-       const clientRes = await apiFetch('/api/clients', {
-         method: 'POST',
-         body: JSON.stringify({ corporateName: formData.newClientName, email: formData.newClientEmail })
-       });
-       const clientData = await clientRes.json();
-       finalClientId = clientData.id;
+  const handleGenerate = async () => {
+    if (!niche || !clientName) return alert("Preencha o nicho e o nome do cliente.");
+    setGenerating(true);
+    try {
+      const res = await apiFetch('/api/sales/proposals/generate', {
+        method: 'POST',
+        body: JSON.stringify({ niche, clientName, services: ['Gestão Estratégica', 'Automação IA', 'CRM'] })
+      });
+      const data = await res.json();
+      setAiContent(data);
+      setStep(2);
+    } catch (err) {
+      alert("Erro ao gerar proposta com IA.");
+    } finally {
+      setGenerating(true);
+      setTimeout(() => setGenerating(false), 500); // Para animação suave
     }
-
-    if (!finalClientId) return alert("Selecione ou crie um cliente.");
-
-    await apiFetch('/api/sales/proposals', {
-      method: 'POST',
-      body: JSON.stringify({ title: formData.title, clientId: finalClientId, items, status: 'enviada' })
-    });
-    
-    onSuccess();
   };
 
-  const addItem = () => setItems([...items, { service: '', quantity: 1, unitPrice: 0 }]);
-  const updateItem = (index: number, field: string, value: any) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setItems(newItems);
-  };
-  const removeItem = (index: number) => {
-    if (items.length === 1) return;
-    setItems(items.filter((_, i) => i !== index));
-  };
-
-  const calculateTotal = () => {
-    return items.reduce((acc, current) => acc + (current.quantity * current.unitPrice), 0);
+  const handleSave = async () => {
+    setSubmitting(true);
+    try {
+      await apiFetch('/api/sales/proposals', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: `Proposta: ${clientName}`,
+          content: aiContent,
+          logoUrl,
+          footerText
+        })
+      });
+      onSuccess();
+    } catch (err) {
+      alert("Erro ao salvar proposta.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div onClick={onClose} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative z-10"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden relative z-10"
       >
-        <div className="p-8 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white/95 backdrop-blur-sm z-20">
-           <div>
-             <h2 className="text-2xl font-bold text-gray-900">Construir Proposta</h2>
-             <p className="text-sm text-gray-500">Crie o orçamento detalhado</p>
-           </div>
-           <div className="text-right">
-             <p className="text-[10px] text-gray-400 font-bold uppercase">Total Estimado</p>
-             <p className="text-2xl font-bold text-primary">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculateTotal())}
-             </p>
-           </div>
+        <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Gerador de Propostas IA</h2>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Nível Senior Direct Response</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all border border-transparent hover:border-gray-100">
+            <X size={20} className="text-gray-400" />
+          </button>
         </div>
-        
-        <form onSubmit={handleSubmit} className="p-8 flex flex-col gap-8">
-           
-           {/* Info Principal */}
-           <div className="flex flex-col gap-4">
-             <h3 className="font-bold text-gray-800 border-b border-gray-100 pb-2">Informações da Proposta</h3>
-             <div className="flex flex-col gap-1">
-               <label className="text-[10px] font-bold text-gray-400 uppercase">Título Interno</label>
-               <input required className="modal-input" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ex: Proposta B2B SaaS Tráfego" />
-             </div>
 
-             <div className="flex flex-col gap-1 bg-gray-50 p-4 rounded-xl border border-gray-100">
-               <div className="flex justify-between mb-2">
-                 <label className="text-[10px] font-bold text-gray-400 uppercase">Cliente Alvo</label>
-                 <button 
-                  type="button" 
-                  onClick={() => setIsCreatingClient(!isCreatingClient)}
-                  className="text-xs font-bold text-primary flex items-center gap-1"
-                 >
-                   <UserPlus size={14}/> {isCreatingClient ? 'Selecionar Existente' : 'Cadastrar Novo'}
-                 </button>
+        <div className="p-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          {step === 1 ? (
+            <div className="space-y-6">
+               <div className="flex flex-col gap-2">
+                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nicho / Setor do Cliente</label>
+                 <input className="modal-input font-bold" placeholder="Ex: Advocacia Previdenciária, Clínica de Estética..." value={niche} onChange={e => setNiche(e.target.value)} />
                </div>
-               
-               {isCreatingClient ? (
-                 <div className="grid grid-cols-2 gap-4">
-                    <input required className="modal-input bg-white" value={formData.newClientName} onChange={e => setFormData({...formData, newClientName: e.target.value})} placeholder="Nome da Empresa" />
-                    <input required type="email" className="modal-input bg-white" value={formData.newClientEmail} onChange={e => setFormData({...formData, newClientEmail: e.target.value})} placeholder="Email de Contato" />
-                 </div>
-               ) : (
-                 <select required className="modal-input bg-white" value={formData.clientId} onChange={e => setFormData({...formData, clientId: e.target.value})}>
-                   <option value="">Selecione um cliente cadastrado...</option>
-                   {clients.map(c => <option key={c.id} value={c.id}>{c.corporateName}</option>)}
-                 </select>
-               )}
-             </div>
-           </div>
-
-           {/* Itens */}
-           <div className="flex flex-col gap-4">
-             <div className="flex justify-between items-end border-b border-gray-100 pb-2">
-               <h3 className="font-bold text-gray-800">Itens / Escopo</h3>
-               <button type="button" onClick={addItem} className="text-xs font-bold text-primary hover:text-blue-700 flex items-center gap-1">
-                 <Plus size={14}/> Adicionar Item
+               <div className="flex flex-col gap-2">
+                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nome do Lead / Empresa</label>
+                 <input className="modal-input font-bold" placeholder="Ex: João da Silva ou Advocacia S/A" value={clientName} onChange={e => setClientName(e.target.value)} />
+               </div>
+               <button 
+                onClick={handleGenerate}
+                disabled={generating}
+                className="w-full py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center justify-center gap-3 hover:bg-blue-600 transition-all"
+               >
+                 {generating ? <Loader2 className="animate-spin" /> : <Sparkles size={20} />}
+                 Gerar Estratégia de Vendas
                </button>
-             </div>
+            </div>
+          ) : (
+            <div className="space-y-8">
+               {/* Preview Rápido */}
+               <div className="p-6 rounded-3xl bg-blue-50 border border-blue-100 space-y-3">
+                  <h3 className="font-black text-primary text-lg">{aiContent.headline}</h3>
+                  <p className="text-xs text-blue-900/60 font-medium leading-relaxed">{aiContent.introduction?.substring(0, 150)}...</p>
+               </div>
 
-             {items.map((item, index) => (
-                <div key={index} className="flex items-center gap-4 bg-white p-4 border border-gray-200 rounded-xl shadow-sm relative group">
-                  <div className="flex-1 grid grid-cols-12 gap-4">
-                     <div className="col-span-12 md:col-span-6">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Serviço/Produto</label>
-                        <input required className="modal-input bg-gray-50/50" value={item.service} onChange={e => updateItem(index, 'service', e.target.value)} placeholder="Ex: Gestão de Tráfego" />
-                     </div>
-                     <div className="col-span-6 md:col-span-2">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Qtd</label>
-                        <input type="number" required min="1" className="modal-input bg-gray-50/50" value={item.quantity} onChange={e => updateItem(index, 'quantity', Number(e.target.value))} />
-                     </div>
-                     <div className="col-span-6 md:col-span-4">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Valor Unitário (R$)</label>
-                        <input type="number" required className="modal-input bg-gray-50/50" value={item.unitPrice || ''} onChange={e => updateItem(index, 'unitPrice', Number(e.target.value))} placeholder="0.00" />
-                     </div>
-                  </div>
-                  {items.length > 1 && (
-                    <button type="button" onClick={() => removeItem(index)} className="p-2 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0 mt-4">
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </div>
-             ))}
-           </div>
+               <div className="grid grid-cols-2 gap-6">
+                 <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 flex items-center gap-2">
+                       <ImageIcon size={10} /> URL da sua Logo
+                    </label>
+                    <input className="modal-input text-xs" placeholder="https://sua-empresa.com/logo.png" value={logoUrl} onChange={e => setLogoUrl(e.target.value)} />
+                 </div>
+                 <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 flex items-center gap-2">
+                       <Type size={10} /> Info Rodapé
+                    </label>
+                    <input className="modal-input text-xs" placeholder="Ex: CNPJ 00.000 / Endereço..." value={footerText} onChange={e => setFooterText(e.target.value)} />
+                 </div>
+               </div>
 
-           <div className="flex justify-end gap-4 mt-4 pt-4 border-t border-gray-100">
-             <button type="button" onClick={onClose} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-all">Cancelar</button>
-             <button disabled={submitting} type="submit" className="px-8 py-3 bg-gray-900 text-white rounded-xl font-bold hover:bg-black transition-all shadow-xl shadow-gray-200 flex items-center gap-2">
-               <Send size={18} />
-               Gerar Proposta
-             </button>
-           </div>
-        </form>
+               <div className="flex gap-4">
+                  <button onClick={() => setStep(1)} className="flex-1 py-4 text-[10px] font-black uppercase text-gray-400">Voltar</button>
+                  <button onClick={handleSave} disabled={submitting} className="flex-[2] py-4 bg-emerald-500 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-emerald-100 flex items-center justify-center gap-2">
+                    {submitting ? 'Ativando link...' : 'Lançar Proposta ao Vivo'}
+                    <ArrowRight size={18} />
+                  </button>
+               </div>
+            </div>
+          )}
+        </div>
       </motion.div>
     </div>
+  );
+}
+
+function X({ size, className }: { size: number, className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <line x1="18" y1="6" x2="6" y2="18"></line>
+      <line x1="6" y1="6" x2="18" y2="18"></line>
+    </svg>
   );
 }

@@ -126,13 +126,72 @@ export function adminRoutes(prisma: PrismaClient) {
     }
   });
 
+  // Atualizar Organização / Cliente (SUPER_ADMIN)
+  router.patch("/orgs/:id", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { name, domain, plan, slug, adminEmail, password } = req.body;
+    
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Atualizar Organização
+        const org = await tx.organization.update({
+          where: { id: req.params.id },
+          data: { name, domain, plan, slug }
+        });
+
+        // 2. Se houver email ou senha, atualizar o usuário ORG_ADMIN vinculado
+        if (adminEmail || password) {
+          const updateData: any = {};
+          if (adminEmail) updateData.email = adminEmail;
+          if (password && password.trim() !== "") {
+            updateData.password = await bcrypt.hash(password, 10);
+          }
+
+          // Busca o primeiro admin dessa organização para atualizar
+          const admin = await tx.user.findFirst({
+            where: { organizationId: req.params.id, role: 'ORG_ADMIN' }
+          });
+
+          if (admin) {
+            await tx.user.update({
+              where: { id: admin.id },
+              data: updateData
+            });
+          }
+        }
+
+        return org;
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error("[ADMIN_ORGS_PATCH]", error);
+      res.status(500).json({ error: "Failed to update organization and admin" });
+    }
+  });
+
+  // Excluir Organização (Cascata)
   router.delete("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { id } = req.params;
+    
     try {
-      await prisma.organization.delete({ where: { id: req.params.id } });
+      await prisma.$transaction(async (tx) => {
+        // Remover dependências em cascata (Exemplos)
+        await tx.domain.deleteMany({ where: { organizationId: id } });
+        await tx.lead.deleteMany({ where: { organizationId: id } });
+        await tx.client.deleteMany({ where: { organizationId: id } });
+        await tx.project.deleteMany({ where: { organizationId: id } });
+        await tx.user.deleteMany({ where: { organizationId: id } });
+        
+        // Finalmente deletar a organização
+        await tx.organization.delete({ where: { id } });
+      });
+      
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: "Failed to delete organization" });
+      console.error("[ADMIN_ORGS_DELETE]", error);
+      res.status(500).json({ error: "Failed to delete organization (cascade error)" });
     }
   });
 
@@ -145,6 +204,30 @@ export function adminRoutes(prisma: PrismaClient) {
       res.json(users);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // Editar Usuário (SUPER_ADMIN)
+  router.patch("/users/:id", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { name, email, role, password, status } = req.body;
+    
+    try {
+      const updateData: any = { name, email, role, status };
+      
+      // Se a senha foi enviada, criptografar
+      if (password && password.trim() !== "") {
+        updateData.password = await bcrypt.hash(password, 10);
+      }
+
+      const user = await prisma.user.update({
+        where: { id: req.params.id },
+        data: updateData
+      });
+      res.json(user);
+    } catch (error) {
+      console.error("[ADMIN_USER_PATCH]", error);
+      res.status(500).json({ error: "Failed to update user" });
     }
   });
 

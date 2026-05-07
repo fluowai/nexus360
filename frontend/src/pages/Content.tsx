@@ -50,58 +50,64 @@ export default function Content() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingArt, setIsGeneratingArt] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
-  const [generatedArts, setGeneratedArts] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [activeProvider, setActiveProvider] = useState<any>(null);
+  
+  // Contexto de Vínculo
+  const [clients, setClients] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState("");
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [generatedArts, setGeneratedArts] = useState<string[]>([]);
 
   useEffect(() => {
     const config = getActiveConfig();
     setActiveProvider(config);
+    
+    // Buscar Clientes
+    const fetchClients = async () => {
+      const res = await apiFetch('/api/crm/clients');
+      const data = await res.json();
+      setClients(data);
+    };
+    fetchClients();
   }, []);
 
+  // Buscar Campanhas quando mudar o cliente
+  useEffect(() => {
+    if (selectedClientId) {
+      const fetchCampaigns = async () => {
+        const res = await apiFetch(`/api/marketing/campaigns?clientId=${selectedClientId}`);
+        const data = await res.json();
+        setCampaigns(data);
+      };
+      fetchCampaigns();
+    } else {
+      setCampaigns([]);
+    }
+  }, [selectedClientId]);
+
   const handleGenerate = async () => {
-    if (!prompt || !activeProvider) return;
+    if (!prompt) return;
     setIsGenerating(true);
     setGeneratedArts([]);
     
     try {
-      const refinedPrompt = `Como um especialista em marketing 360, crie um conteúdo do tipo ${type} baseado no seguinte tema: ${prompt}. Retorne em formato markdown. Use um tom profissional e persuasivo em Português do Brasil.`;
+      const data = await apiFetch("/api/ai/generate-content", {
+        method: "POST",
+        body: JSON.stringify({ 
+          prompt, 
+          type,
+          clientId: selectedClientId,
+          campaignId: selectedCampaignId
+        })
+      });
       
-      let response;
-      
-      if (activeProvider.provider === "gemini") {
-        const res = await fetch(`${PROVIDERS.gemini.baseUrl}/${activeProvider.model}:generateContent?key=${activeProvider.apiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: refinedPrompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 2048 }
-          })
-        });
-        const data = await res.json();
-        response = { text: data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro ao gerar" };
-      } else {
-        const res = await fetch(PROVIDERS[activeProvider.provider as keyof typeof PROVIDERS].baseUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${activeProvider.apiKey}`
-          },
-          body: JSON.stringify({
-            model: activeProvider.model,
-            messages: [{ role: "user", content: refinedPrompt }],
-            temperature: 0.7,
-            max_tokens: 2048
-          })
-        });
-        const data = await res.json();
-        response = { text: data.choices?.[0]?.message?.content || "Erro ao gerar" };
-      }
-
-      setGeneratedContent(response.text || "Não foi possível gerar o conteúdo.");
+      const res = await data.json();
+      setGeneratedContent(res.text || "Não foi possível gerar o conteúdo.");
     } catch (error) {
       console.error("AI Generation Error:", error);
-      alert("Erro ao gerar conteúdo com IA. Verifique as configurações.");
+      alert("Erro ao gerar conteúdo com IA no servidor.");
     } finally {
       setIsGenerating(false);
     }
@@ -195,6 +201,35 @@ export default function Content() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Vincular Cliente</label>
+              <select 
+                className="modal-input font-semibold"
+                value={selectedClientId}
+                onChange={e => setSelectedClientId(e.target.value)}
+              >
+                <option value="">Selecione um Cliente...</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.tradeName || c.corporateName}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Vincular Campanha</label>
+              <select 
+                className="modal-input font-semibold"
+                value={selectedCampaignId}
+                onChange={e => setSelectedCampaignId(e.target.value)}
+                disabled={!selectedClientId}
+              >
+                <option value="">{selectedClientId ? "Selecione a Campanha..." : "Selecione o cliente primeiro"}</option>
+                {campaigns.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
           </div>
 

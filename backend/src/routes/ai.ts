@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import { getOrgAIKeys } from "../utils/aiKeys.js";
+import { AuthRequest } from "../middleware/auth.js";
 
 export function aiRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -14,7 +16,8 @@ export function aiRoutes(prisma: PrismaClient) {
       }
 
       // Usamos a chave provida ou configurada no painel
-      const groqKey = process.env.GROQ_API_KEY;
+      const orgId = (req as any).user?.orgId;
+      const { groqKey } = await getOrgAIKeys(prisma, orgId);
 
       // Converter Base64 para Buffer e depois para Blob (Suportado no Node 18+)
       const buffer = Buffer.from(audioBase64, "base64");
@@ -57,7 +60,8 @@ export function aiRoutes(prisma: PrismaClient) {
         return res.status(400).json({ error: "Transcrição não fornecida" });
       }
 
-      const groqKey = process.env.GROQ_API_KEY;
+      const orgId = (req as any).user?.orgId;
+      const { groqKey } = await getOrgAIKeys(prisma, orgId);
 
       const prompt = `Você é um Supervisor de Vendas e Atendimento Sênior avaliando uma reunião.
 Abaixo está a transcrição da reunião.
@@ -102,6 +106,38 @@ ${transcript}
     } catch (error) {
       console.error("[FEEDBACK_ERROR]", error);
       res.status(500).json({ error: "Internal Server Error" });
+    }
+  });
+
+  // Gerador de Conteúdo para Creative Machine
+  router.post("/generate-content", async (req, res) => {
+    try {
+      const { prompt, type } = req.body;
+      const orgId = (req as any).user?.orgId;
+      const { geminiKey } = await getOrgAIKeys(prisma, orgId);
+
+      if (!geminiKey) {
+        return res.status(500).json({ error: "Gemini API Key não configurada no servidor ou organização" });
+      }
+
+      const refinedPrompt = `Como um especialista em marketing 360, crie um conteúdo do tipo ${type} baseado no seguinte tema: ${prompt}. Retorne em formato markdown puro. Use um tom profissional e persuasivo em Português do Brasil.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: refinedPrompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 4096 }
+        })
+      });
+
+      const data = await response.json();
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro ao gerar conteúdo";
+      
+      res.json({ text: content });
+    } catch (error) {
+      console.error("[AI_GEN_ERROR]", error);
+      res.status(500).json({ error: "Erro interno ao gerar conteúdo" });
     }
   });
 

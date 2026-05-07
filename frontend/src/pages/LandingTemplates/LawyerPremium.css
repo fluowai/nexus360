@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@400;700;800&display=swap');
+
+:root {
+  --lp-navy: #0a192f;
+  --lp-navy-light: #112240;
+  --lp-gold: #c5a059;
+  --lp-gold-light: #e2c28a;
+  --lp-text: #e6f1ff;
+  --lp-text-muted: #8892b0;
+  --lp-white: #ffffff;
+  --lp-glass: rgba(255, 255, 255, 0.05);
+  --lp-border: rgba(197, 160, 89, 0.2);
+  --lp-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lp-container {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: var(--lp-navy);
+  overflow-x: hidden;
+  background-color: var(--lp-white);
+}
+
+.lp-section {
+  padding: 100px 0;
+}
+
+.lp-heading-serif {
+  font-family: 'Playfair Display', serif;
+}
+
+.lp-gradient-text {
+  background: linear-gradient(135deg, var(--lp-navy) 0%, var(--lp-gold) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.lp-hero-gradient {
+  background: linear-gradient(rgba(10, 25, 47, 0.85), rgba(10, 25, 47, 0.85)), url('/law_office_lobby.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+.lp-card {
+  background: var(--lp-white);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  transition: var(--lp-transition);
+  border-radius: 1rem;
+}
+
+.lp-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.05);
+  border-color: var(--lp-gold);
+}
+
+.lp-btn-gold {
+  background: var(--lp-gold);
+  color: var(--lp-white);
+  padding: 0.85rem 2rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  transition: var(--lp-transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lp-btn-gold:hover {
+  background: var(--lp-gold-light);
+  transform: scale(1.05);
+  box-shadow: 0 10px 20px rgba(197, 160, 89, 0.3);
+}
+
+.lp-nav {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.lp-nav-dark {
+  backdrop-filter: blur(10px);
+  background: rgba(10, 25, 47, 0.8);
+  border-bottom: 1px solid rgba(197, 160, 89, 0.1);
+}
+
+.lp-service-icon {
+  width: 60px;
+  height: 60px;
+  background: rgba(197, 160, 89, 0.1);
+  color: var(--lp-gold);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+}
+
+.lp-timeline-step {
+  position: relative;
+  padding-left: 3rem;
+}
+
+.lp-timeline-step::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--lp-gold);
+  opacity: 0.3;
+}
+
+.lp-timeline-number {
+  position: absolute;
+  left: -1rem;
+  top: 0;
+  width: 2rem;
+  height: 2rem;
+  background: var(--lp-gold);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 0.875rem;
+}
+
+.lp-footer {
+  background: var(--lp-navy);
+  color: var(--lp-white);
+  padding: 80px 0 40px;
+}
+
+.lp-input {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  outline: none;
+  transition: var(--lp-transition);
+}
+
+.lp-input:focus {
+  border-color: var(--lp-gold);
+  box-shadow: 0 0 0 4px rgba(197, 160, 89, 0.1);
+}
+
+.whatsapp-float {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  background: #25d366;
+  color: white;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  box-shadow: 0 10px 25px rgba(37, 211, 102, 0.3);
+  z-index: 1000;
+  transition: var(--lp-transition);
+}
+
+.whatsapp-float:hover {
+  transform: scale(1.1) rotate(10deg);
+}

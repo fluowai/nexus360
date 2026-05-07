@@ -84,7 +84,7 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     try {
       const users = await prisma.user.findMany({
         where: { organizationId: orgId },
-        select: { id: true, name: true, email: true, role: true, createdAt: true, status: true }
+        select: { id: true, name: true, email: true, role: true, department: true, createdAt: true, status: true }
       });
       res.json(users);
     } catch (error) {
@@ -98,15 +98,20 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
+      const { name, email, role, department } = req.body;
       const user = await prisma.user.create({
         data: {
-          ...req.body,
+          name,
+          email,
+          role,
+          department: department || 'GERAL',
           organizationId: orgId,
-          password: 'default_password' // Idealmente enviaria e-mail de convite
+          password: await bcrypt.hash('nexus123', 10) // Senha padrão inicial
         }
       });
       res.json(user);
     } catch (error) {
+      console.error(error);
       res.status(500).json({ error: "Failed to create team member" });
     }
   });
@@ -117,8 +122,8 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
-      const { name, email, role, password, status } = req.body;
-      const updateData: any = { name, email, role, status };
+      const { name, email, role, department, password, status } = req.body;
+      const updateData: any = { name, email, role, department, status };
 
       if (password && password.trim() !== "") {
         updateData.password = await bcrypt.hash(password, 10);

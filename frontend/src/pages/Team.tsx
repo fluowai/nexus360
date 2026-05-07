@@ -14,7 +14,7 @@ export default function Team() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [newMember, setNewMember] = useState({ name: '', email: '', role: 'USER' });
+  const [newMember, setNewMember] = useState({ name: '', email: '', role: 'USER', department: 'GERAL' });
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchMembers = async () => {
@@ -201,6 +201,20 @@ export default function Team() {
                   <option value="ORG_ADMIN">Administrador da Agência</option>
                 </select>
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Setor / Agenda</label>
+                <select 
+                  className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
+                  value={editMemberData.department}
+                  onChange={e => setEditMemberData({...editMemberData, department: e.target.value})}
+                >
+                  <option value="GERAL">Geral</option>
+                  <option value="BDR">BDR</option>
+                  <option value="SDR">SDR</option>
+                  <option value="CLOSER">Closer</option>
+                  <option value="MKT">Marketing</option>
+                </select>
+              </div>
               <button 
                 type="submit"
                 disabled={isSaving}
@@ -252,6 +266,20 @@ export default function Team() {
                 >
                   <option value="USER">Colaborador</option>
                   <option value="ORG_ADMIN">Administrador da Agência</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Setor / Agenda</label>
+                <select 
+                  className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-primary/20"
+                  value={newMember.department}
+                  onChange={e => setNewMember({...newMember, department: e.target.value})}
+                >
+                  <option value="GERAL">Geral</option>
+                  <option value="BDR">BDR</option>
+                  <option value="SDR">SDR</option>
+                  <option value="CLOSER">Closer</option>
+                  <option value="MKT">Marketing</option>
                 </select>
               </div>
               <button 

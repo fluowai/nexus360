@@ -6,12 +6,26 @@ import crypto from "crypto";
 export function calendarRoutes(prisma: PrismaClient) {
   const router = Router();
 
-  // Listar todos os eventos da organização do usuário
+  // Listar todos os eventos (com suporte a filtro por setor ou profissional)
   router.get("/", async (req: AuthRequest, res) => {
     try {
+      const { department, userId } = req.query;
+      let where: any = {
+        organizationId: req.user?.orgId
+      };
+
+      if (userId) {
+        where.userId = userId;
+      } else if (department) {
+        where.user = { department: department as string };
+      }
+
       const events = await prisma.calendarEvent.findMany({
-        where: {
-          organizationId: req.user?.orgId
+        where,
+        include: {
+          user: {
+            select: { name: true, department: true }
+          }
         },
         orderBy: {
           startDate: 'asc'
@@ -26,7 +40,7 @@ export function calendarRoutes(prisma: PrismaClient) {
 
   // Criar novo evento
   router.post("/", async (req: AuthRequest, res) => {
-    const { title, description, startDate, endDate, allDay, type, reminder } = req.body;
+    const { title, description, startDate, endDate, allDay, type, reminder, userId } = req.body;
     
     if (!title || !startDate || !type) {
       return res.status(400).json({ error: "Título, data de início e tipo são obrigatórios" });
@@ -53,6 +67,7 @@ export function calendarRoutes(prisma: PrismaClient) {
           type,
           reminder: reminder ? Number(reminder) : null,
           meetingLink,
+          userId: userId || req.user?.id, // Se não passar, vincula ao criador
           organizationId: req.user?.orgId as string
         }
       });

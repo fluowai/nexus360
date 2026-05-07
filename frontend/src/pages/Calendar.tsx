@@ -15,7 +15,8 @@ import {
   Trash2,
   Copy,
   Check,
-  Link2
+  Link2,
+  CheckCircle2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../lib/api";
@@ -57,11 +58,31 @@ export default function Calendar() {
   const [editingEvent, setEditingEvent] = useState<any>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [showMeetScheduler, setShowMeetScheduler] = useState(false);
+  const [activeDepartment, setActiveDepartment] = useState('GERAL');
+  const [members, setMembers] = useState<any[]>([]);
+
+  const fetchMembers = async () => {
+    try {
+      const res = await apiFetch('/api/settings/team');
+      const data = await res.json();
+      setMembers(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const DEPARTMENTS = [
+    { id: 'GERAL', label: 'Visão Geral', icon: Users },
+    { id: 'BDR', label: 'Agendas BDR', icon: CalendarIcon },
+    { id: 'SDR', label: 'Agendas SDR', icon: Phone },
+    { id: 'CLOSER', label: 'Agendas Closers', icon: CheckCircle2 }
+  ];
 
   const fetchEvents = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/calendar`);
+      const url = activeDepartment === 'GERAL' ? '/api/calendar' : `/api/calendar?department=${activeDepartment}`;
+      const res = await apiFetch(url);
       const data = await res.json();
       if (Array.isArray(data)) {
         setEvents(data);
@@ -78,7 +99,8 @@ export default function Calendar() {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+    fetchMembers();
+  }, [activeDepartment]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -143,9 +165,23 @@ export default function Calendar() {
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Calendário</h1>
           <p className="text-gray-500">Agende reuniões, deadlines e eventos.</p>
         </div>
+        <div className="flex items-center gap-2 bg-white p-1 rounded-2xl border border-gray-100 shadow-sm">
+          {DEPARTMENTS.map(dept => (
+            <button
+              key={dept.id}
+              onClick={() => setActiveDepartment(dept.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                activeDepartment === dept.id ? 'bg-primary text-white shadow-lg shadow-blue-100' : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <dept.icon size={14} />
+              {dept.label}
+            </button>
+          ))}
+        </div>
         <button 
           onClick={() => { setEditingEvent(null); setModalOpen(true); }}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl hover:bg-blue-600 transition-all font-medium shadow-lg shadow-blue-200"
+          className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-xl hover:bg-blue-600 transition-all font-bold shadow-lg shadow-blue-200"
         >
           <Plus size={18} />
           <span>Novo Evento</span>
@@ -309,6 +345,7 @@ export default function Calendar() {
             onSuccess={() => { setModalOpen(false); setEditingEvent(null); fetchEvents(); }}
             initialDate={selectedDate}
             editingEvent={editingEvent}
+            members={members}
           />
         )}
         {showMeetScheduler && (
@@ -321,11 +358,12 @@ export default function Calendar() {
   );
 }
 
-function EventModal({ onClose, onSuccess, initialDate, editingEvent }: { 
+function EventModal({ onClose, onSuccess, initialDate, editingEvent, members }: { 
   onClose: () => void, 
   onSuccess: () => void, 
   initialDate: Date,
-  editingEvent?: any
+  editingEvent?: any,
+  members: any[]
 }) {
   const isEditing = !!editingEvent;
   
@@ -348,7 +386,8 @@ function EventModal({ onClose, onSuccess, initialDate, editingEvent }: {
     endTime: editingEvent?.endDate ? getTimeStr(editingEvent.endDate) : '10:00',
     type: editingEvent?.type || 'reunion',
     allDay: editingEvent?.allDay || false,
-    reminder: editingEvent?.reminder || 15
+    reminder: editingEvent?.reminder || 15,
+    userId: editingEvent?.userId || ''
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -427,7 +466,23 @@ function EventModal({ onClose, onSuccess, initialDate, editingEvent }: {
               <option value="birthday">🎂 Aniversário</option>
               <option value="holiday">🌴 Feriado</option>
             </select>
-            {formData.type === 'reunion' && !isEditing && (
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Profissional Responsável</label>
+            <select 
+              className="modal-input"
+              value={formData.userId}
+              onChange={e => setFormData({...formData, userId: e.target.value})}
+            >
+              <option value="">Selecione o profissional...</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>{m.name} ({m.department || 'Geral'})</option>
+              ))}
+            </select>
+          </div>
+
+          {formData.type === 'reunion' && !isEditing && (
               <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex flex-col gap-3">
                 <p className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">Configuração Elite</p>
                 <div className="flex flex-col gap-2">

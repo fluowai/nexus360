@@ -118,6 +118,8 @@ model User {
   managedClients       Client[]
   managedOpportunities Opportunity[]
   followUps            FollowUp[]
+  department           String?       @default("GERAL") // BDR, SDR, CLOSER, etc
+  calendarEvents       CalendarEvent[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -664,6 +666,9 @@ model CalendarEvent {
 
   meetingRoom String?
   meetingLink String?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

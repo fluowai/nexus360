@@ -52,6 +52,8 @@ import PromptArchitect from "./pages/PromptArchitect";
 import LandingDemo from "./pages/LandingDemo";
 import LandingEditor from "./pages/LandingTemplates/LandingEditor";
 import PublicProposal from "./pages/PublicProposal";
+import LeadCapture from "./pages/prospecting/LeadCapture";
+import CapturedLists from "./pages/prospecting/CapturedLists";
 
 const Login = lazy(() => import("./pages/Login"));
 
@@ -266,6 +268,10 @@ export default function App() {
         <Routes>
           {/* Public & Auth */}
           <Route path="/" element={<Dashboard />} />
+          <Route path="/crm" element={<CRM />} />
+          <Route path="/prospecting/capture" element={<LeadCapture />} />
+          <Route path="/prospecting/lists" element={<CapturedLists />} />
+          <Route path="/team" element={<Team />} />
           <Route path="/site" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/onboarding" element={<Onboarding />} />
@@ -300,6 +306,8 @@ export default function App() {
           <Route path="/:slug/ad-accounts" element={<AdAccounts />} />
           <Route path="/:slug/assets" element={<AssetsLibrary />} />
           <Route path="/:slug/landing-pages" element={<LandingPages />} />
+          <Route path="/:slug/prospecting/capture" element={<LeadCapture />} />
+          <Route path="/:slug/prospecting/lists" element={<CapturedLists />} />
           <Route path="/:slug/quiz" element={<QuizBuilder />} />
           <Route path="/:slug/content" element={<Content />} />
           <Route path="/:slug/projects" element={<Projects />} />

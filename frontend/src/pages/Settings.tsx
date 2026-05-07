@@ -25,7 +25,8 @@ export default function Settings() {
   
   // States
   const [agencyData, setAgencyData] = useState({
-    corporateName: '', tradeName: '', cnpj: '', email: '', phone: '', website: '', address: '', city: '', state: ''
+    corporateName: '', tradeName: '', cnpj: '', email: '', phone: '', website: '', address: '', city: '', state: '',
+    groqKey: '', serpApiKey: '', outscraperKey: ''
   });
   const [team, setTeam] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -33,34 +34,25 @@ export default function Settings() {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      console.log("[Settings] Carregando perfil...");
       const orgRes = await apiFetch('/api/org/profile');
-      const isJson = orgRes.headers.get('content-type')?.includes('application/json');
-
-      if (orgRes.ok && isJson) {
+      if (orgRes.ok) {
         const data = await orgRes.json();
         setAgencyData(data);
-      } else {
-        console.warn("[Settings] Resposta inválida Perfil:", orgRes.status, isJson ? "JSON" : "HTML/Outro");
       }
 
-      console.log("[Settings] Carregando equipe...");
       const teamRes = await apiFetch('/api/org/team');
-      const isTeamJson = teamRes.headers.get('content-type')?.includes('application/json');
-      if (teamRes.ok && isTeamJson) {
+      if (teamRes.ok) {
         const data = await teamRes.json();
         setTeam(data);
       }
 
-      console.log("[Settings] Carregando modelos...");
       const templatesRes = await apiFetch('/api/org/templates');
-      const isTemplatesJson = templatesRes.headers.get('content-type')?.includes('application/json');
-      if (templatesRes.ok && isTemplatesJson) {
+      if (templatesRes.ok) {
         const data = await templatesRes.json();
         setTemplates(data);
       }
     } catch (err) {
-      console.error("[Settings] Erro na requisição:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -75,7 +67,7 @@ export default function Settings() {
     { id: 'equipe', label: 'Gestão de Equipe', icon: Users },
     { id: 'modelos', label: 'Modelos de Contrato', icon: FileText },
     { id: 'dominios', label: 'Domínios', icon: Globe },
-    { id: 'ia', label: 'Agente Jurídico (Groq)', icon: Sparkles },
+    { id: 'ia', label: 'Conectores & IA', icon: Sparkles },
   ];
 
   return (
@@ -113,7 +105,7 @@ export default function Settings() {
             {activeTab === 'equipe' && <TeamTab team={team} onRefresh={fetchSettings} />}
             {activeTab === 'modelos' && <TemplatesTab templates={templates} onRefresh={fetchSettings} />}
             {activeTab === 'dominios' && <DomainSettings />}
-            {activeTab === 'ia' && <IATab />}
+            {activeTab === 'ia' && <IATab data={agencyData} setData={setAgencyData} onSave={fetchSettings} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -238,13 +230,8 @@ function TemplatesTab({ templates, onRefresh }: any) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('name', file.name.split('.')[0]);
-
     try {
-      // Por enquanto enviamos como JSON o nome, mas o backend lidará com o multipart futuramente
-      const response = await apiFetch('/api/org/templates', {
+      await apiFetch('/api/org/templates', {
         method: 'POST',
         body: JSON.stringify({
           name: file.name.split('.')[0],
@@ -252,14 +239,8 @@ function TemplatesTab({ templates, onRefresh }: any) {
           category: 'Padrão Agência'
         })
       });
-
-      if (response.ok) {
-        onRefresh();
-        alert("Modelo enviado com sucesso!");
-      } else {
-        const err = await response.json();
-        alert(err.error || "Erro no upload");
-      }
+      onRefresh();
+      alert("Modelo enviado com sucesso!");
     } catch (error) {
       console.error(error);
     }
@@ -346,41 +327,86 @@ function TemplatesTab({ templates, onRefresh }: any) {
   );
 }
 
-function IATab() {
+function IATab({ data, setData, onSave }: any) {
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiFetch('/api/org/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          groqKey: data.groqKey,
+          serpApiKey: data.serpApiKey,
+          outscraperKey: data.outscraperKey
+        })
+      });
+      alert("Configurações de API salvas!");
+      onSave();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao salvar configurações.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="max-w-2xl space-y-8">
       <div className="p-10 bg-slate-900 rounded-[40px] text-white relative overflow-hidden">
         <div className="relative z-10 space-y-4">
           <div className="flex items-center gap-3 text-blue-400">
             <Sparkles size={32} />
-            <span className="font-black text-xl tracking-tighter uppercase">Groq AI Engine</span>
+            <span className="font-black text-xl tracking-tighter uppercase">Nexus AI & Prospecting</span>
           </div>
-          <h3 className="text-4xl font-black leading-tight">Agente Jurídico Especialista</h3>
-          <p className="text-slate-400 text-lg">Este agente usa seus modelos de contrato como base de conhecimento para gerar documentos personalizados em segundos.</p>
-          
-          <div className="pt-6 flex gap-4">
-            <div className="flex-1 p-4 bg-white/5 rounded-2xl border border-white/10">
-              <Shield className="text-blue-400 mb-2" size={24} />
-              <h4 className="font-bold text-sm">Segurança Jurídica</h4>
-              <p className="text-[10px] text-slate-500">Mantém seu padrão de escrita</p>
-            </div>
-            <div className="flex-1 p-4 bg-white/5 rounded-2xl border border-white/10">
-              <Loader2 className="text-blue-400 mb-2" size={24} />
-              <h4 className="font-bold text-sm">Alta Velocidade</h4>
-              <p className="text-[10px] text-slate-500">Processamento Groq Llama 3</p>
-            </div>
-          </div>
+          <h3 className="text-4xl font-black leading-tight">Conectores de API</h3>
+          <p className="text-slate-400 text-lg">Configure suas próprias chaves para captação de leads e inteligência artificial.</p>
         </div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 blur-[120px] rounded-full -mr-20 -mt-20" />
       </div>
 
-      <div className="space-y-4">
-        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Configuração do Modelo</h4>
-        <select className="modal-input bg-gray-50 border-gray-200">
-          <option>Groq Llama 3 70B (Velocidade Extrema)</option>
-          <option>Groq Mixtral 8x7B (Raciocínio Jurídico)</option>
-        </select>
+      <div className="grid grid-cols-1 gap-6">
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Groq API Key (IA)</label>
+          <input 
+            type="password"
+            className="modal-input bg-gray-50" 
+            value={data.groqKey || ''} 
+            onChange={e => setData({...data, groqKey: e.target.value})} 
+            placeholder="gsk_..." 
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">SerpApi Key (Google Maps)</label>
+          <input 
+            type="password"
+            className="modal-input bg-gray-50" 
+            value={data.serpApiKey || ''} 
+            onChange={e => setData({...data, serpApiKey: e.target.value})} 
+            placeholder="Sua chave SerpApi" 
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Outscraper Key (Deep Data)</label>
+          <input 
+            type="password"
+            className="modal-input bg-gray-50" 
+            value={data.outscraperKey || ''} 
+            onChange={e => setData({...data, outscraperKey: e.target.value})} 
+            placeholder="Sua chave Outscraper" 
+          />
+        </div>
       </div>
+
+      <button 
+        onClick={handleSave} 
+        disabled={saving} 
+        className="w-full bg-primary text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-blue-600 shadow-xl shadow-blue-100 transition-all"
+      >
+        {saving ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> Salvar Conectores</>}
+      </button>
     </div>
   );
 }

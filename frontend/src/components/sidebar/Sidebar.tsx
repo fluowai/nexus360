@@ -15,6 +15,9 @@ import {
   KanbanSquare, 
   UsersRound, 
   BarChart3, 
+  Search,
+  ListFilter,
+  CheckSquare, 
   Sparkles, 
   Settings,
   Layout,
@@ -394,6 +397,24 @@ export const Sidebar: React.FC<{
                   isActive={location.pathname === getPath('/sold-services')}
                   collapsed={collapsed}
                 />
+                <SidebarItem 
+                  icon={Search} 
+                  label="Prospecção" 
+                  collapsed={collapsed}
+                >
+                  <SidebarItem 
+                    icon={Search} 
+                    label="Captação de Leads" 
+                    path={getPath("/prospecting/capture")} 
+                    isActive={location.pathname === getPath('/prospecting/capture')}
+                  />
+                  <SidebarItem 
+                    icon={ListFilter} 
+                    label="Listas Captadas" 
+                    path={getPath("/prospecting/lists")} 
+                    isActive={location.pathname === getPath('/prospecting/lists')}
+                  />
+                </SidebarItem>
                 <SidebarItem 
                   icon={KanbanSquare} 
                   label="Projetos" 

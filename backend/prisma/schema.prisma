@@ -22,6 +22,8 @@ model Organization {
 
   geminiKey  String?
   groqKey    String?
+  serpApiKey String?
+  outscraperKey String?
   aiProvider String  @default("gemini")
 
   users             User[]
@@ -50,6 +52,10 @@ model Organization {
   promptTemplates   PromptTemplate[]
   generatedPrompts  GeneratedPrompt[]
   domains           Domain[]
+  
+  leadCaptureSources    LeadCaptureSource[]
+  capturedLeads         CapturedLead[]
+  leadCaptureUsageLogs  LeadCaptureUsageLog[]
 
   // SaaS Control (Super Admin -> Agency)
   saasSubscriptions SaaSSubscription[]
@@ -120,6 +126,8 @@ model User {
   followUps            FollowUp[]
   department           String?       @default("GERAL") // BDR, SDR, CLOSER, etc
   calendarEvents       CalendarEvent[]
+  leadCaptureSources   LeadCaptureSource[]
+  leadCaptureUsageLogs LeadCaptureUsageLog[]
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -1042,14 +1050,12 @@ model GeneratedPrompt {
   generatedContent String       @db.Text
   modelProvider    String?
   modelName        String?
-  status           String       @default("completed")
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([organizationId])
   @@index([clientId])
 }
-
 
 model Domain {
   id             String       @id @default(uuid())
@@ -1064,3 +1070,130 @@ model Domain {
   @@index([organizationId])
 }
 
+model LeadCaptureSource {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id])
+  
+  provider       String
+  query          String
+  niche          String?
+  keyword        String?
+  city           String?
+  state          String?
+  country        String       @default("Brasil")
+  neighborhood   String?
+  requestedLimit Int          @default(100)
+  totalFound     Int          @default(0)
+  totalImported  Int          @default(0)
+  status         String       @default("processing") // processing, completed, failed
+  errorMessage   String?
+  
+  rawRequest     Json?
+  rawResponse    Json?
+  
+  capturedLeads  CapturedLead[]
+  usageLogs      LeadCaptureUsageLog[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model CapturedLead {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  sourceId       String?
+  source         LeadCaptureSource? @relation(fields: [sourceId], references: [id])
+  
+  provider       String
+  externalId     String
+  placeId        String?
+
+  businessName   String
+  category       String?
+  businessType   String?
+
+  phone           String?
+  phoneNormalized String?
+  website         String?
+  email           String?
+  instagram       String?
+  facebook        String?
+  linkedin        String?
+
+  address      String?
+  neighborhood String?
+  city         String?
+  state        String?
+  country      String  @default("Brasil")
+  postalCode   String?
+
+  latitude  Float?
+  longitude Float?
+
+  rating       Float?
+  reviewsCount Int?
+  reviews      Json?
+
+  openingHours  Json?
+  googleMapsUrl String?
+  searchUrl     String?
+
+  hasPhone    Boolean @default(false)
+  hasWebsite  Boolean @default(false)
+  hasEmail    Boolean @default(false)
+  hasSocial   Boolean @default(false)
+
+  // AI & Scoring
+  scoreOpportunity   Int     @default(0)
+  opportunityLevel   String? // Baixa, Média, Alta, Prioridade
+  aiDiagnosis        String? @db.Text
+  aiWeaknesses       Json?
+  aiOpportunities    Json?
+  coldCallScript     String? @db.Text
+  whatsappMessage    String? @db.Text
+  suggestedOffer     String? @db.Text
+
+  // CRM Sync
+  crmStatus     String  @default("novo")
+  sentToCrm     Boolean @default(false)
+  crmLeadId     String?
+  responsibleId String?
+
+  rawData       Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, provider, externalId])
+  @@index([organizationId])
+  @@index([sourceId])
+}
+
+model LeadCaptureUsageLog {
+  id             String            @id @default(uuid())
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id])
+  userId         String?
+  user           User?             @relation(fields: [userId], references: [id])
+  sourceId       String?
+  source         LeadCaptureSource? @relation(fields: [sourceId], references: [id])
+
+  provider      String
+  query         String?
+  requestedLimit Int?
+  returnedCount  Int?
+  importedCount  Int?
+  estimatedCost  Float? @default(0)
+  status        String @default("success")
+  errorMessage  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}

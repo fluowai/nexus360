@@ -30,8 +30,11 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
       const org = await prisma.organization.update({
         where: { id: orgId },
         data: {
-          name: req.body.corporateName || req.body.name,
-          domain: req.body.domain
+          name: req.body.corporateName || req.body.name || undefined,
+          domain: req.body.domain,
+          groqKey: req.body.groqKey,
+          serpApiKey: req.body.serpApiKey,
+          outscraperKey: req.body.outscraperKey
         }
       });
       res.json(org);
@@ -51,6 +54,8 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
         select: {
           geminiKey: true,
           groqKey: true,
+          serpApiKey: true,
+          outscraperKey: true,
           aiProvider: true
         }
       });
@@ -66,10 +71,10 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
-      const { geminiKey, groqKey, aiProvider } = req.body;
+      const { geminiKey, groqKey, serpApiKey, outscraperKey, aiProvider } = req.body;
       const org = await prisma.organization.update({
         where: { id: orgId },
-        data: { geminiKey, groqKey, aiProvider }
+        data: { geminiKey, groqKey, serpApiKey, outscraperKey, aiProvider }
       });
       res.json(org);
     } catch (error) {

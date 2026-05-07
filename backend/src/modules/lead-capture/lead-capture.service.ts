@@ -31,7 +31,7 @@ export class LeadCaptureService {
     });
 
     try {
-      const apiKey = providerName === 'serpapi' ? organization?.serpApiKey : organization?.outscraperKey;
+      const apiKey = (providerName === 'serpapi' ? organization?.serpApiKey : organization?.outscraperKey) || undefined;
       
       if (!apiKey) {
         throw new Error(`Chave de API do provedor ${providerName} não configurada para esta organização.`);

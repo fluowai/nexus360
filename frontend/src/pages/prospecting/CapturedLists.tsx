@@ -9,7 +9,7 @@ import {
   MoreVertical,
   ArrowRight
 } from 'lucide-react';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../../lib/api';
 import { useNavigate } from 'react-router-dom';
 
 export default function CapturedLists() {

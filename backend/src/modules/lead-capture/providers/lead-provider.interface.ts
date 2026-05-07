@@ -30,31 +30,31 @@ export interface LeadSearchFilters {
 }
 
 export interface NormalizedLead {
-  external_id?: string;
-  place_id?: string;
+  external_id?: string | null;
+  place_id?: string | null;
   business_name: string;
-  category?: string;
-  phone?: string;
-  phone_normalized?: string;
-  website?: string;
-  email?: string;
-  instagram?: string;
-  facebook?: string;
-  linkedin?: string;
-  address?: string;
-  neighborhood?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  postal_code?: string;
-  latitude?: number;
-  longitude?: number;
-  rating?: number;
-  reviews_count?: number;
-  reviews?: any;
-  opening_hours?: any;
-  google_maps_url?: string;
-  search_url?: string;
+  category?: string | null;
+  phone?: string | null;
+  phone_normalized?: string | null;
+  website?: string | null;
+  email?: string | null;
+  instagram?: string | null;
+  facebook?: string | null;
+  linkedin?: string | null;
+  address?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  postal_code?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  rating?: number | null;
+  reviews_count?: number | null;
+  reviews?: any | null;
+  opening_hours?: any | null;
+  google_maps_url?: string | null;
+  search_url?: string | null;
   raw_data: any;
 }
 

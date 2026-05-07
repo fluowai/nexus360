@@ -66,7 +66,7 @@ export class LeadAiService {
       }
     `;
 
-    const chatCompletion = await this.groq.chat.completions.create({
+    const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
       model: "llama-3.3-70b-versatile",
       response_format: { type: "json_object" }
@@ -113,7 +113,7 @@ export class LeadAiService {
       }
     `;
 
-    const chatCompletion = await this.groq.chat.completions.create({
+    const chatCompletion = await groq.chat.completions.create({
       messages: [{ role: "user", content: prompt }],
       model: "llama-3.3-70b-versatile",
       response_format: { type: "json_object" }

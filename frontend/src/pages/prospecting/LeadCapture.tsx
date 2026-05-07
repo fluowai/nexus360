@@ -20,7 +20,7 @@ import {
   ListFilter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '../../lib/api';
 
 interface Lead {
   id: string;

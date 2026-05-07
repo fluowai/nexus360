@@ -132,7 +132,7 @@ export class LeadCaptureService {
     }
   }
 
-  private normalizeBrazilianPhone(phone?: string): string | null {
+  private normalizeBrazilianPhone(phone?: string | null): string | null {
     if (!phone) return null;
     let cleaned = phone.replace(/\D/g, '');
     

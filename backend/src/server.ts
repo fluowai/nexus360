@@ -187,7 +187,7 @@ app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
     const orgId = req.user.orgId;
     const where = orgId ? { organizationId: orgId } : {};
     
-    const [leads, clients, proposals, invoices, contentCount] = await Promise.all([
+    const [leads, clients, proposals, invoices, contentCount, org] = await Promise.all([
       prisma.lead.count({ where }),
       prisma.client.count({ where }),
       prisma.proposal.count({ where }),
@@ -195,12 +195,17 @@ app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
         where: { ...where, status: 'paga' },
         _sum: { total: true }
       }),
-      prisma.creative.count({ where })
+      prisma.creative.count({ where }),
+      prisma.organization.findUnique({
+        where: { id: orgId as string },
+        select: { name: true }
+      })
     ]);
 
     const revenue = invoices._sum.total || 0;
 
     res.json({
+      orgName: org?.name || "Minha Agência",
       metrics: { 
         leads, 
         clients, 

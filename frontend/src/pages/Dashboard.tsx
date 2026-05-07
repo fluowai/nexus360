@@ -68,8 +68,8 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-2">Bem-vindo, Agência Alpha 👋</h1>
-        <p className="text-sm sm:text-base text-gray-500">Aqui está um resumo da performance da sua agência hoje.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-2">Bem-vindo, {data.orgName} 👋</h1>
+        <p className="text-sm sm:text-base text-gray-500">Aqui está um resumo da performance do seu negócio hoje.</p>
       </div>
 
       {/* Stats Grid */}
@@ -110,7 +110,7 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="w-full h-[300px] min-h-[300px]">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+            <ResponsiveContainer width="100%" height="100%" minHeight={300}>
               <AreaChart data={data.chartData}>
               <defs>
                 <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">

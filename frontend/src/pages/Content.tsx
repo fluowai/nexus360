@@ -66,7 +66,7 @@ export default function Content() {
     
     // Buscar Clientes
     const fetchClients = async () => {
-      const res = await apiFetch('/api/crm/clients');
+      const res = await apiFetch('/api/clients');
       const data = await res.json();
       setClients(data);
     };

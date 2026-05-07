@@ -1048,6 +1048,7 @@ model GeneratedPrompt {
   promptType       String
   inputData        Json // Salva todas as respostas do wizard
   generatedContent String       @db.Text
+  status           String       @default("completed")
   modelProvider    String?
   modelName        String?
   createdAt DateTime @default(now())

@@ -15,7 +15,7 @@ export function projectRoutes(prisma: PrismaClient) {
         where: { organizationId: orgId },
         include: { 
           tasks: true,
-          client: { select: { name: true } }
+          client: { select: { corporateName: true } }
         },
         orderBy: { createdAt: 'desc' }
       });

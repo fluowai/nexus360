@@ -22,10 +22,11 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       });
       res.json(result);
     } catch (error: any) {
-      console.error("[LEAD_CAPTURE_ERROR] Falha na busca de leads:", error);
+      console.error("[LEAD_CAPTURE_ERROR] Falha na busca de leads:", error?.response?.data || error?.message || error);
+      const errorMsg = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Erro desconhecido na captação';
       res.status(500).json({ 
-        error: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: errorMsg,
+        details: error?.response?.data || undefined
       });
     }
   });

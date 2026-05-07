@@ -44,6 +44,7 @@ export default function LeadCapture() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sources, setSources] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'search' | 'history'>('search');
+  const [searchError, setSearchError] = useState<string | null>(null);
   
   const [searchParams, setSearchParams] = useState({
     provider: 'serpapi',
@@ -86,17 +87,23 @@ export default function LeadCapture() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSearchError(null);
     try {
       const res = await apiFetch('/api/lead-capture/search', {
         method: 'POST',
         body: JSON.stringify(searchParams)
       });
       const data = await res.json();
+      if (!res.ok) {
+        setSearchError(data.error || `Erro ${res.status}: Falha na busca de leads`);
+        return;
+      }
       setLeads(data.leads || []);
       fetchSources();
       setActiveTab('search');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setSearchError(err.message || 'Erro de conexão com o servidor');
     } finally {
       setLoading(false);
     }
@@ -235,6 +242,13 @@ export default function LeadCapture() {
                 {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
                 Buscar Leads Agora
               </button>
+
+              {searchError && (
+                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium flex items-start gap-2">
+                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                  <span>{searchError}</span>
+                </div>
+              )}
             </form>
           </div>
 

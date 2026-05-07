@@ -9,7 +9,9 @@ import {
   Zap, 
   Brain,
   ShieldCheck,
-  Globe
+  Globe,
+  Search,
+  Database
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
@@ -17,6 +19,8 @@ const AISettings: React.FC = () => {
   const [settings, setSettings] = useState({
     geminiKey: '',
     groqKey: '',
+    serpApiKey: '',
+    outscraperKey: '',
     aiProvider: 'gemini'
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -35,6 +39,8 @@ const AISettings: React.FC = () => {
         setSettings({
           geminiKey: data.geminiKey || '',
           groqKey: data.groqKey || '',
+          serpApiKey: data.serpApiKey || '',
+          outscraperKey: data.outscraperKey || '',
           aiProvider: data.aiProvider || 'gemini'
         });
       }
@@ -54,7 +60,7 @@ const AISettings: React.FC = () => {
         body: JSON.stringify(settings)
       });
       if (response.ok) {
-        setMessage({ type: 'success', text: 'Configurações de IA atualizadas com sucesso!' });
+        setMessage({ type: 'success', text: 'Configurações de API e IA atualizadas!' });
       } else {
         throw new Error();
       }
@@ -70,15 +76,15 @@ const AISettings: React.FC = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 p-4">
       <header>
-        <h1 className="text-3xl font-black text-gray-900 mb-2">Configurações de I.A.</h1>
-        <p className="text-gray-500">Gerencie seus provedores de inteligência artificial e chaves de API.</p>
+        <h1 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Configurações de I.A. & Prospecção</h1>
+        <p className="text-gray-500">Gerencie seus provedores de inteligência artificial e conectores de dados.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Gemini Card */}
-        <div className={`p-6 rounded-3xl border-2 transition-all ${settings.aiProvider === 'gemini' ? 'border-blue-500 bg-blue-50' : 'border-gray-100 bg-white'}`}
+        <div className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${settings.aiProvider === 'gemini' ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-100' : 'border-gray-100 bg-white hover:border-gray-200'}`}
              onClick={() => setSettings({...settings, aiProvider: 'gemini'})}>
           <div className="flex justify-between items-start mb-4">
             <div className={`p-3 rounded-2xl ${settings.aiProvider === 'gemini' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -87,11 +93,11 @@ const AISettings: React.FC = () => {
             {settings.aiProvider === 'gemini' && <CheckCircle size={20} className="text-blue-500" />}
           </div>
           <h3 className="font-bold text-gray-900 mb-1">Google Gemini</h3>
-          <p className="text-xs text-gray-500">Modelo 1.5 Flash. Ideal para custo zero e alta velocidade.</p>
+          <p className="text-xs text-gray-500 leading-relaxed">Modelo 1.5 Flash. Ideal para custo zero e alta velocidade.</p>
         </div>
 
         {/* Groq Card */}
-        <div className={`p-6 rounded-3xl border-2 transition-all ${settings.aiProvider === 'groq' ? 'border-orange-500 bg-orange-50' : 'border-gray-100 bg-white'}`}
+        <div className={`p-6 rounded-3xl border-2 cursor-pointer transition-all ${settings.aiProvider === 'groq' ? 'border-orange-500 bg-orange-50 shadow-lg shadow-orange-100' : 'border-gray-100 bg-white hover:border-gray-200'}`}
              onClick={() => setSettings({...settings, aiProvider: 'groq'})}>
           <div className="flex justify-between items-start mb-4">
             <div className={`p-3 rounded-2xl ${settings.aiProvider === 'groq' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -100,67 +106,120 @@ const AISettings: React.FC = () => {
             {settings.aiProvider === 'groq' && <CheckCircle size={20} className="text-orange-500" />}
           </div>
           <h3 className="font-bold text-gray-900 mb-1">Groq (Llama 3)</h3>
-          <p className="text-xs text-gray-500">Inferência ultrarrápida. Excelente para scripts e copy.</p>
+          <p className="text-xs text-gray-500 leading-relaxed">Inferência ultrarrápida. Excelente para scripts e diagnósticos.</p>
         </div>
 
         {/* Info Card */}
-        <div className="p-6 rounded-3xl bg-gray-900 text-white flex flex-col justify-center">
-          <Globe size={32} className="text-blue-400 mb-4" />
-          <p className="text-xs text-gray-400 leading-relaxed">
+        <div className="p-6 rounded-3xl bg-slate-900 text-white flex flex-col justify-center relative overflow-hidden">
+          <Globe size={32} className="text-blue-400 mb-4 relative z-10" />
+          <p className="text-xs text-slate-300 leading-relaxed relative z-10 font-medium">
             Seus agentes usarão automaticamente o provedor selecionado para todas as tarefas do Método A.C.P.
           </p>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full -mr-16 -mt-16" />
         </div>
       </div>
 
-      <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm space-y-8">
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 mb-2">
-              <Key size={18} className="text-blue-500" />
-              <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Gemini API Key</label>
+      <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-xl shadow-gray-100/50 space-y-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* AI Section */}
+          <div className="space-y-6">
+            <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Provedores de IA</h4>
+            
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Key size={16} className="text-blue-500" />
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Gemini API Key</label>
+              </div>
+              <input 
+                type="password"
+                placeholder="Cole sua chave do Google AI Studio"
+                className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono text-sm"
+                value={settings.geminiKey}
+                onChange={e => setSettings({...settings, geminiKey: e.target.value})}
+              />
             </div>
-            <input 
-              type="password"
-              placeholder="Cole sua chave do Google AI Studio aqui"
-              className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all font-mono text-sm"
-              value={settings.geminiKey}
-              onChange={e => setSettings({...settings, geminiKey: e.target.value})}
-            />
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Key size={16} className="text-orange-500" />
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Groq API Key</label>
+              </div>
+              <input 
+                type="password"
+                placeholder="Cole sua chave do Groq Console"
+                className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500/20 transition-all font-mono text-sm"
+                value={settings.groqKey}
+                onChange={e => setSettings({...settings, groqKey: e.target.value})}
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 mb-2">
-              <Key size={18} className="text-orange-500" />
-              <label className="text-sm font-bold text-gray-700 uppercase tracking-wider">Groq API Key</label>
+          {/* Prospecting Section */}
+          <div className="space-y-6">
+            <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Motores de Prospecção</h4>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Search size={16} className="text-emerald-500" />
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">SerpApi Key (Google Maps)</label>
+              </div>
+              <input 
+                type="password"
+                placeholder="Sua chave SerpApi"
+                className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono text-sm"
+                value={settings.serpApiKey}
+                onChange={e => setSettings({...settings, serpApiKey: e.target.value})}
+              />
             </div>
-            <input 
-              type="password"
-              placeholder="Cole sua chave do Groq Console aqui"
-              className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500/20 transition-all font-mono text-sm"
-              value={settings.groqKey}
-              onChange={e => setSettings({...settings, groqKey: e.target.value})}
-            />
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Database size={16} className="text-purple-500" />
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Outscraper Key (Deep Data)</label>
+              </div>
+              <input 
+                type="password"
+                placeholder="Sua chave Outscraper"
+                className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-mono text-sm"
+                value={settings.outscraperKey}
+                onChange={e => setSettings({...settings, outscraperKey: e.target.value})}
+              />
+            </div>
           </div>
         </div>
 
         {message && (
-          <div className={`p-4 rounded-2xl flex items-center gap-3 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`p-4 rounded-2xl flex items-center gap-3 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-red-50 text-red-700 border border-red-100'}`}
+          >
             {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
             <span className="text-sm font-bold">{message.text}</span>
-          </div>
+          </motion.div>
         )}
 
-        <div className="pt-4 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-gray-400">
-            <ShieldCheck size={18} />
-            <span className="text-xs">As chaves são armazenadas de forma segura e cifradas.</span>
+        <div className="pt-4 border-t border-gray-50 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3 text-gray-400">
+            <div className="p-2 bg-gray-50 rounded-lg">
+              <ShieldCheck size={20} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">Segurança de Dados</span>
+              <span className="text-xs text-gray-400">Suas chaves são criptografadas e nunca compartilhadas.</span>
+            </div>
           </div>
           <button 
             disabled={isSaving}
             onClick={handleSave}
-            className="bg-gray-900 text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-3 hover:bg-black transition-all shadow-xl shadow-gray-200"
+            className="w-full md:w-auto bg-gray-900 text-white px-10 py-5 rounded-[20px] font-bold flex items-center justify-center gap-3 hover:bg-black transition-all shadow-xl shadow-gray-200 hover:scale-[1.02] active:scale-[0.98]"
           >
-            {isSaving ? 'Salvando...' : (
+            {isSaving ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Salvando...
+              </>
+            ) : (
               <>
                 <Save size={20} />
                 Salvar Configurações

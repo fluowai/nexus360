@@ -173,7 +173,7 @@ app.use("/api/finance", authenticateToken, financeRoutes(prisma));
 app.use("/api/ops", authenticateToken, opsRoutes(prisma));
 app.use("/api/ads", authenticateToken, adsRoutes(prisma));
 app.use("/api/calendar", authenticateToken, calendarRoutes(prisma));
-app.use("/api/lead-capture", leadCaptureRoutes(prisma));
+app.use("/api/lead-capture", authenticateToken, leadCaptureRoutes(prisma));
 app.use("/api/tasks", authenticateToken, taskRoutes(prisma));
 app.use("/api/creatives", authenticateToken, creativeRoutes(prisma));
 app.use("/api/domains", authenticateToken, domainRoutes(prisma));

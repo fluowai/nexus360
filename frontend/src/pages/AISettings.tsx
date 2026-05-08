@@ -19,7 +19,7 @@ const AISettings: React.FC = () => {
   const [settings, setSettings] = useState({
     geminiKey: '',
     groqKey: '',
-    serpApiKey: '',
+    serperApiKey: '',
     outscraperKey: '',
     aiProvider: 'gemini'
   });
@@ -39,7 +39,7 @@ const AISettings: React.FC = () => {
         setSettings({
           geminiKey: data.geminiKey || '',
           groqKey: data.groqKey || '',
-          serpApiKey: data.serpApiKey || '',
+          serperApiKey: data.serperApiKey || '',
           outscraperKey: data.outscraperKey || '',
           aiProvider: data.aiProvider || 'gemini'
         });
@@ -159,17 +159,17 @@ const AISettings: React.FC = () => {
             <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] ml-1">Motores de Prospecção</h4>
 
             <div className="space-y-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Search size={16} className="text-emerald-500" />
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">SerpApi Key (Google Maps)</label>
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Serper.dev Key (Google Places)</label>
+                <input 
+                  type="password"
+                  placeholder="Sua chave Serper.dev"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm font-medium"
+                  value={settings.serperApiKey}
+                  onChange={e => setSettings({...settings, serperApiKey: e.target.value})}
+                />
+                <p className="text-[10px] text-gray-400">Obtenha sua chave em <a href="https://serper.dev" target="_blank" rel="noreferrer" className="text-primary hover:underline">serper.dev</a></p>
               </div>
-              <input 
-                type="password"
-                placeholder="Sua chave SerpApi"
-                className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-mono text-sm"
-                value={settings.serpApiKey}
-                onChange={e => setSettings({...settings, serpApiKey: e.target.value})}
-              />
             </div>
 
             <div className="space-y-2">

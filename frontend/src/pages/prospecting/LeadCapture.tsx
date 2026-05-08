@@ -46,8 +46,12 @@ export default function LeadCapture() {
   const [activeTab, setActiveTab] = useState<'search' | 'history'>('search');
   const [searchError, setSearchError] = useState<string | null>(null);
   
+  useEffect(() => {
+    console.log("[NEXUS360] LeadCapture v2.0 - Provider padrão: serper");
+  }, []);
+  
   const [searchParams, setSearchParams] = useState({
-    provider: 'serpapi',
+    provider: 'serper',
     keyword: '',
     city: '',
     state: '',
@@ -135,7 +139,7 @@ export default function LeadCapture() {
           <div className="p-3 bg-primary/10 rounded-2xl">
             <Search className="text-primary" size={32} />
           </div>
-          Captação de Leads Elite
+          Captação de Leads Elite - V3 (SERPER)
         </h1>
         <p className="text-gray-500 font-medium">Motor de prospecção ativa via Google Maps e Inteligência Artificial.</p>
       </div>
@@ -157,8 +161,8 @@ export default function LeadCapture() {
                   value={searchParams.provider}
                   onChange={e => setSearchParams({...searchParams, provider: e.target.value as any})}
                 >
-                  <option value="serpapi">SerpApi (Google Local)</option>
-                  <option value="outscraper">Outscraper (Deep Data)</option>
+                  <option value="serper">Google Places (Serper.dev)</option>
+                  <option value="outscraper">Google Maps (Outscraper)</option>
                 </select>
               </div>
 

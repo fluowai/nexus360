@@ -26,7 +26,7 @@ export default function Settings() {
   // States
   const [agencyData, setAgencyData] = useState({
     corporateName: '', tradeName: '', cnpj: '', email: '', phone: '', website: '', address: '', city: '', state: '',
-    groqKey: '', serpApiKey: '', outscraperKey: ''
+    groqKey: '', serpApiKey: '', serperApiKey: '', outscraperKey: ''
   });
   const [team, setTeam] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
@@ -338,7 +338,8 @@ function IATab({ data, setData, onSave }: any) {
         body: JSON.stringify({
           groqKey: data.groqKey,
           serpApiKey: data.serpApiKey,
-          outscraperKey: data.outscraperKey
+          serperApiKey: data.serperApiKey,
+          outscraperKey: data.outscraperKey,
         })
       });
       alert("Configurações de API salvas!");
@@ -378,13 +379,13 @@ function IATab({ data, setData, onSave }: any) {
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">SerpApi Key (Google Maps)</label>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Serper.dev Key (Google Places)</label>
           <input 
             type="password"
             className="modal-input bg-gray-50" 
-            value={data.serpApiKey || ''} 
-            onChange={e => setData({...data, serpApiKey: e.target.value})} 
-            placeholder="Sua chave SerpApi" 
+            value={data.serperApiKey || ''} 
+            onChange={e => setData({...data, serperApiKey: e.target.value})} 
+            placeholder="Sua chave Serper.dev" 
           />
         </div>
 

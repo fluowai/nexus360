@@ -45,10 +45,8 @@ export default function LeadCapture() {
   const [sources, setSources] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'search' | 'history'>('search');
   const [searchError, setSearchError] = useState<string | null>(null);
-  
-  useEffect(() => {
-    console.log("[NEXUS360] LeadCapture v2.0 - Provider padrão: serper");
-  }, []);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [analyzingIds, setAnalyzingIds] = useState<string[]>([]);
   
   const [searchParams, setSearchParams] = useState({
     provider: 'serper',
@@ -88,6 +86,48 @@ export default function LeadCapture() {
     }
   };
 
+  const toggleSelectAll = () => {
+    if (selectedLeads.length === leads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(leads.map(l => l.id));
+    }
+  };
+
+  const toggleSelectLead = (id: string) => {
+    setSelectedLeads(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleAnalyze = async (id: string) => {
+    setAnalyzingIds(prev => [...prev, id]);
+    try {
+      const res = await apiFetch(`/api/lead-capture/leads/${id}/analyze`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setLeads(prev => prev.map(l => l.id === id ? data : l));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAnalyzingIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleBulkValidate = async () => {
+    if (selectedLeads.length === 0) return;
+    setLoading(true);
+    try {
+      for (const id of selectedLeads) {
+        await handleAnalyze(id);
+      }
+    } finally {
+      setLoading(false);
+      setSelectedLeads([]);
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -113,308 +153,289 @@ export default function LeadCapture() {
     }
   };
 
-  const handleAnalyze = async (leadId: string) => {
-    try {
-      await apiFetch(`/api/lead-capture/leads/${leadId}/analyze`, { method: 'POST' });
-      fetchLeads();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleSendToCrm = async (leadId: string) => {
     try {
-      await apiFetch(`/api/lead-capture/leads/${leadId}/send-to-crm`, { method: 'POST' });
-      fetchLeads();
+      const res = await apiFetch(`/api/lead-capture/leads/${leadId}/send-to-crm`, { method: 'POST' });
+      if (res.ok) {
+        const updatedLead = await res.json();
+        setLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
   return (
-    <div className="p-8 space-y-8 max-w-[1600px] mx-auto">
-      {/* Header */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
-          <div className="p-3 bg-primary/10 rounded-2xl">
-            <Search className="text-primary" size={32} />
+    <div className="flex flex-col gap-6 p-2 md:p-4 max-w-[1600px] mx-auto">
+      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+            <div className="p-2.5 bg-primary/10 rounded-2xl">
+              <Search className="text-primary" size={28} />
+            </div>
+            Captação de Leads Elite
+          </h1>
+          <p className="text-gray-500 font-medium text-sm">Prospecção ativa e inteligência de dados em escala.</p>
+        </div>
+
+        {selectedLeads.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex items-center gap-3 p-2 bg-primary/5 border border-primary/20 rounded-2xl shadow-sm"
+          >
+            <span className="text-xs font-bold text-primary ml-2">{selectedLeads.length} selecionados</span>
+            <button 
+              onClick={handleBulkValidate}
+              disabled={loading}
+              className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-xl hover:bg-primary/90 transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-primary/20"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+              Validar em Massa
+            </button>
+          </motion.div>
+        )}
+      </header>
+
+      {/* Busca Horizontal */}
+      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Motor de Busca</label>
+            <select 
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium"
+              value={searchParams.provider}
+              onChange={e => setSearchParams({...searchParams, provider: e.target.value as any})}
+            >
+              <option value="serper">Places (Serper.dev)</option>
+              <option value="outscraper">Maps (Outscraper)</option>
+            </select>
           </div>
-          Captação de Leads Elite - V3 (SERPER)
-        </h1>
-        <p className="text-gray-500 font-medium">Motor de prospecção ativa via Google Maps e Inteligência Artificial.</p>
+
+          <div className="lg:col-span-1 space-y-1.5">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nicho / Palavra-chave</label>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input 
+                type="text"
+                placeholder="Ex: Clínica Odontológica"
+                className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium"
+                value={searchParams.keyword}
+                onChange={e => setSearchParams({...searchParams, keyword: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Cidade / UF</label>
+            <div className="flex gap-2">
+              <input 
+                type="text" placeholder="Cidade"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium"
+                value={searchParams.city}
+                onChange={e => setSearchParams({...searchParams, city: e.target.value})}
+              />
+              <input 
+                type="text" placeholder="UF" maxLength={2}
+                className="w-20 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium uppercase text-center"
+                value={searchParams.state}
+                onChange={e => setSearchParams({...searchParams, state: e.target.value.toUpperCase()})}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6 h-[50px] px-2">
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input 
+                type="checkbox" 
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                checked={searchParams.filters.onlyWithPhone}
+                onChange={e => setSearchParams({...searchParams, filters: {...searchParams.filters, onlyWithPhone: e.target.checked}})}
+              />
+              <span className="text-[11px] font-bold text-gray-500 group-hover:text-primary transition-colors">Apenas Telefone</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input 
+                type="checkbox" 
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                checked={searchParams.filters.onlyWithWebsite}
+                onChange={e => setSearchParams({...searchParams, filters: {...searchParams.filters, onlyWithWebsite: e.target.checked}})}
+              />
+              <span className="text-[11px] font-bold text-gray-500 group-hover:text-primary transition-colors">Apenas Site</span>
+            </label>
+          </div>
+
+          <button 
+            type="submit"
+            disabled={loading}
+            className="h-[50px] bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
+            <span>Buscar Leads</span>
+          </button>
+        </form>
+
+        {searchError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium flex items-center gap-2">
+            <AlertCircle size={16} />
+            {searchError}
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sidebar Controls */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-            <div className="flex items-center gap-2 pb-4 border-b border-gray-50">
-              <Filter className="text-primary" size={20} />
-              <h2 className="font-bold text-gray-800 uppercase text-xs tracking-widest">Configuração da Busca</h2>
-            </div>
-
-            <form onSubmit={handleSearch} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Provedor</label>
-                <select 
-                  className="w-full p-3 bg-gray-50 border border-transparent rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                  value={searchParams.provider}
-                  onChange={e => setSearchParams({...searchParams, provider: e.target.value as any})}
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Lista de Resultados */}
+        <div className="flex-1 space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
+                Resultados
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] rounded-full">{leads.length} encontrados</span>
+              </h2>
+              {leads.length > 0 && (
+                <button 
+                  onClick={toggleSelectAll}
+                  className="text-[10px] font-bold text-primary hover:underline"
                 >
-                  <option value="serper">Google Places (Serper.dev)</option>
-                  <option value="outscraper">Google Maps (Outscraper)</option>
-                </select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nicho / Palavra-chave</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="text"
-                    placeholder="Ex: Clínica Odontológica"
-                    className="w-full p-3 pl-10 bg-gray-50 border border-transparent rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                    value={searchParams.keyword}
-                    onChange={e => setSearchParams({...searchParams, keyword: e.target.value})}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Cidade</label>
-                  <input 
-                    type="text"
-                    placeholder="Florianópolis"
-                    className="w-full p-3 bg-gray-50 border border-transparent rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                    value={searchParams.city}
-                    onChange={e => setSearchParams({...searchParams, city: e.target.value})}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">UF</label>
-                  <input 
-                    type="text"
-                    placeholder="SC"
-                    maxLength={2}
-                    className="w-full p-3 bg-gray-50 border border-transparent rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                    value={searchParams.state}
-                    onChange={e => setSearchParams({...searchParams, state: e.target.value.toUpperCase()})}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Limite de Leads</label>
-                <input 
-                  type="number"
-                  className="w-full p-3 bg-gray-50 border border-transparent rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
-                  value={searchParams.limit}
-                  onChange={e => setSearchParams({...searchParams, limit: Number(e.target.value)})}
-                />
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <input 
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    checked={searchParams.filters.onlyWithPhone}
-                    onChange={e => setSearchParams({...searchParams, filters: {...searchParams.filters, onlyWithPhone: e.target.checked}})}
-                  />
-                  <span className="text-xs font-bold text-gray-600 group-hover:text-primary transition-colors">Apenas com telefone</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <input 
-                    type="checkbox"
-                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
-                    checked={searchParams.filters.onlyWithWebsite}
-                    onChange={e => setSearchParams({...searchParams, filters: {...searchParams.filters, onlyWithWebsite: e.target.checked}})}
-                  />
-                  <span className="text-xs font-bold text-gray-600 group-hover:text-primary transition-colors">Apenas com site</span>
-                </label>
-              </div>
-
-              <button 
-                type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-70 mt-4"
-              >
-                {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
-                Buscar Leads Agora
-              </button>
-
-              {searchError && (
-                <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium flex items-start gap-2">
-                  <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
-                  <span>{searchError}</span>
-                </div>
+                  {selectedLeads.length === leads.length ? 'Desmarcar Tudo' : 'Selecionar Tudo'}
+                </button>
               )}
-            </form>
+            </div>
+            
+            <div className="flex items-center gap-2">
+               <button className="p-2 text-gray-400 hover:text-primary transition-colors"><ListFilter size={18} /></button>
+               <button className="p-2 text-gray-400 hover:text-primary transition-colors"><Download size={18} /></button>
+            </div>
           </div>
 
-          {/* Search History Card */}
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <History className="text-gray-400" size={18} />
-                <h2 className="font-bold text-gray-800 text-xs uppercase tracking-widest">Histórico</h2>
-              </div>
-              <button onClick={() => fetchLeads()} className="text-[10px] font-bold text-primary hover:underline">Ver Todos</button>
-            </div>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-              {sources.map(source => (
-                <button 
-                  key={source.id}
-                  onClick={() => fetchLeads(source.id)}
-                  className="w-full p-3 rounded-xl border border-gray-50 hover:border-primary/20 hover:bg-primary/5 transition-all text-left group"
+          <div className="grid grid-cols-1 gap-3">
+            <AnimatePresence mode="popLayout">
+              {leads.map((lead) => (
+                <motion.div
+                  key={lead.id}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className={`group relative bg-white p-4 rounded-2xl border-2 transition-all hover:shadow-xl hover:shadow-gray-200/40 ${selectedLeads.includes(lead.id) ? 'border-primary bg-primary/5 shadow-md' : 'border-gray-50'}`}
                 >
-                  <p className="text-xs font-bold text-gray-800 line-clamp-1">{source.query}</p>
-                  <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] font-medium text-gray-400 capitalize">{source.provider}</span>
-                    <span className="text-[10px] font-bold text-primary">{source.totalImported} leads</span>
+                  <div className="flex items-start gap-4">
+                    <div className="flex items-center h-full pt-1">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                        checked={selectedLeads.includes(lead.id)}
+                        onChange={() => toggleSelectLead(lead.id)}
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="font-bold text-gray-900 truncate pr-4">{lead.businessName}</h3>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-gray-400">
+                              <MapPin size={12} /> {lead.city || 'N/I'}, {lead.state || 'N/I'}
+                            </span>
+                            <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-black rounded-md uppercase tracking-wider">
+                              {lead.category || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className={`flex flex-col items-end px-3 py-1 rounded-xl ${
+                            (lead.scoreOpportunity || 0) > 70 ? 'bg-green-50 text-green-600' : 
+                            (lead.scoreOpportunity || 0) > 40 ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400'
+                          }`}>
+                            <span className="text-[10px] font-black leading-none">{lead.scoreOpportunity || 0}%</span>
+                            <span className="text-[8px] font-bold uppercase tracking-widest mt-0.5">Score</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-gray-50 pt-4">
+                        <div className="flex items-center gap-2">
+                          {lead.phone ? (
+                            <a href={`tel:${lead.phone}`} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors">
+                              <Phone size={12} /> {lead.phone}
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 text-gray-400 rounded-lg text-[11px] font-bold italic">
+                              <Phone size={12} /> Sem número
+                            </span>
+                          )}
+
+                          {lead.website && (
+                            <a href={lead.website} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[11px] font-bold hover:bg-indigo-100 transition-all shadow-sm">
+                              <Globe size={12} /> Website
+                            </a>
+                          )}
+                        </div>
+
+                        <div className="flex-1" />
+
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleAnalyze(lead.id)}
+                            disabled={analyzingIds.includes(lead.id)}
+                            className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold disabled:opacity-50"
+                          >
+                            {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                            Analisar
+                          </button>
+                          <button 
+                            disabled={lead.sentToCrm}
+                            onClick={() => handleSendToCrm(lead.id)}
+                            className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all disabled:opacity-30"
+                          >
+                            <Send size={16} />
+                          </button>
+                          <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </button>
+                </motion.div>
               ))}
-            </div>
+            </AnimatePresence>
+
+            {leads.length === 0 && !loading && (
+              <div className="flex flex-col items-center justify-center py-20 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
+                <Database size={40} className="text-gray-200 mb-2" />
+                <p className="text-gray-500 font-bold text-sm">Nenhum lead encontrado.</p>
+                <p className="text-xs text-gray-400">Inicie uma busca acima para começar.</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Main Content - Results */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
-            <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
-              <div className="flex items-center gap-4">
-                <div className="bg-white p-2.5 rounded-xl shadow-sm">
-                  <Database className="text-primary" size={20} />
+        {/* Histórico */}
+        <div className="lg:w-80 space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-black text-gray-900 text-sm tracking-tight flex items-center gap-2">
+              <History size={16} className="text-primary" />
+              Buscas Recentes
+            </h3>
+          </div>
+          
+          <div className="space-y-3">
+            {sources.slice(0, 5).map((source) => (
+              <div key={source.id} className="bg-white p-4 rounded-2xl border border-gray-100 hover:border-primary/20 transition-all cursor-pointer shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[8px] font-black rounded uppercase tracking-wider">{source.provider}</span>
+                  <span className="text-[9px] text-gray-400">{new Date(source.createdAt).toLocaleDateString()}</span>
                 </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">Leads Captados</h3>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{leads.length} registros encontrados</p>
+                <p className="text-xs font-bold text-gray-800 truncate">{source.keyword}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{source.city}, {source.state}</p>
+                <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between">
+                   <span className="text-[10px] font-black text-primary">{source.totalImported} leads</span>
+                   <CheckCircle2 size={12} className="text-green-500" />
                 </div>
               </div>
-              <div className="flex gap-2">
-                <button className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-600 hover:text-primary transition-all shadow-sm">
-                  <Download size={20} />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Empresa</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Contato</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Score</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  <AnimatePresence>
-                    {leads.map((lead, idx) => (
-                      <motion.tr 
-                        key={lead.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.05 }}
-                        className="hover:bg-gray-50/80 transition-all group"
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-gray-900 group-hover:text-primary transition-colors">{lead.businessName}</span>
-                            <span className="text-[10px] font-medium text-gray-400 flex items-center gap-1">
-                              <MapPin size={10} /> {lead.city}, {lead.state}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {lead.phone ? (
-                              <div className="p-2 bg-green-50 text-green-600 rounded-lg" title={lead.phone}>
-                                <Phone size={14} />
-                              </div>
-                            ) : (
-                              <div className="p-2 bg-gray-50 text-gray-300 rounded-lg">
-                                <Phone size={14} />
-                              </div>
-                            )}
-                            {lead.website ? (
-                              <a href={lead.website} target="_blank" rel="noreferrer" className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all">
-                                <Globe size={14} />
-                              </a>
-                            ) : (
-                              <div className="p-2 bg-gray-50 text-gray-300 rounded-lg">
-                                <Globe size={14} />
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col items-center gap-1">
-                            <div className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                              lead.scoreOpportunity > 70 ? 'bg-orange-100 text-orange-600' : 
-                              lead.scoreOpportunity > 40 ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {lead.scoreOpportunity}%
-                            </div>
-                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">{lead.opportunityLevel}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {lead.sentToCrm ? (
-                            <div className="flex items-center justify-center gap-1.5 text-green-600">
-                              <CheckCircle2 size={16} />
-                              <span className="text-[10px] font-bold uppercase tracking-widest">No CRM</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center gap-1.5 text-gray-300">
-                              <Database size={16} />
-                              <span className="text-[10px] font-bold uppercase tracking-widest">Pendente</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <button 
-                              onClick={() => handleAnalyze(lead.id)}
-                              className="p-2 bg-primary/5 text-primary border border-primary/10 rounded-xl hover:bg-primary hover:text-white transition-all" 
-                              title="Gerar Diagnóstico IA"
-                            >
-                              <Wand2 size={16} />
-                            </button>
-                            <button 
-                              disabled={lead.sentToCrm}
-                              onClick={() => handleSendToCrm(lead.id)}
-                              className="p-2 bg-green-50 text-green-600 border border-green-100 rounded-xl hover:bg-green-600 hover:text-white transition-all disabled:opacity-30" 
-                              title="Enviar para CRM"
-                            >
-                              <Send size={16} />
-                            </button>
-                            <button className="p-2 bg-gray-50 text-gray-400 border border-gray-100 rounded-xl hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                </tbody>
-              </table>
-              {leads.length === 0 && !loading && (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                  <div className="p-6 bg-gray-50 rounded-full mb-4">
-                    <Search size={48} className="opacity-20" />
-                  </div>
-                  <p className="font-bold">Nenhum lead encontrado.</p>
-                  <p className="text-sm">Inicie uma nova busca para captar oportunidades.</p>
-                </div>
-              )}
-            </div>
+            ))}
           </div>
         </div>
       </div>

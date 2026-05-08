@@ -132,15 +132,20 @@ export class LeadAiService {
 
   async generateDossier(leadId: string, orgId: string) {
     const groq = await this.getGroqClient(orgId);
-    const lead = await this.prisma.capturedLead.findFirst({
-      where: { id: leadId, organizationId: orgId }
-    });
+    
+    // Fetch lead and organization details
+    const [lead, org] = await Promise.all([
+      this.prisma.capturedLead.findFirst({ where: { id: leadId, organizationId: orgId } }),
+      this.prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
+    ]);
 
     if (!lead) throw new Error("Lead not found");
+    const agencyName = org?.name || "Nossa Agência";
 
     const prompt = `
-      Você é um Consultor de Inteligência de Negócios Sênior da Nexus360.
-      Sua tarefa é gerar um DOSSIÊ COMPLETO e PROFUNDO sobre a empresa abaixo para preparar uma reunião estratégica de vendas.
+      Você é um Consultor de Inteligência de Negócios Sênior da agência ${agencyName}.
+      Sua tarefa é gerar um DOSSIÊ COMPLETO e PROFUNDO sobre a empresa abaixo. 
+      Este dossiê será usado pela ${agencyName} para apresentar oportunidades de crescimento para esse lead.
 
       Dados Disponíveis:
       Nome: ${lead.businessName}
@@ -150,15 +155,14 @@ export class LeadAiService {
       Avaliações Google: ${lead.rating} (${lead.reviewsCount} reviews)
 
       O Dossiê deve conter:
-      1. PERFIL DA EMPRESA: Quem são, o que provavelemente fazem de melhor.
-      2. ANÁLISE DE PRESENÇA DIGITAL: Avaliação do site e reputação no Google.
-      3. PONTOS FORTES E FRACOS: Baseado nos dados e na categoria de mercado.
-      4. CANAIS DE VENDA PROVÁVEIS: Como eles atraem clientes hoje.
-      5. OPORTUNIDADES DE CRESCIMENTO: Onde o Nexus360 (Método ACP) pode ajudar mais.
-      6. RISCOS DE MERCADO: O que pode estar ameaçando o negócio deles.
-      7. RECOMENDAÇÃO ESTRATÉGICA: Como o vendedor deve se portar e o que deve propor.
+      1. APRESENTAÇÃO: A ${agencyName} analisou seu negócio e identificou o seguinte perfil...
+      2. PERFIL DA EMPRESA: Quem são, o que provavelemente fazem de melhor.
+      3. ANÁLISE DE PRESENÇA DIGITAL: Avaliação do site e reputação no Google.
+      4. PONTOS FORTES E FRACOS: Onde a ${agencyName} pode atuar.
+      5. OPORTUNIDADES DE CRESCIMENTO: Plano de ação sugerido pela ${agencyName}.
+      6. RECOMENDAÇÃO ESTRATÉGICA: Como a ${agencyName} vai ajudar esse lead a vender mais.
 
-      Responda em formato Markdown profissional e rico em detalhes.
+      Responda em formato Markdown profissional, usando o nome da agência (${agencyName}) em todo o texto para gerar autoridade.
     `;
 
     const chatCompletion = await groq.chat.completions.create({

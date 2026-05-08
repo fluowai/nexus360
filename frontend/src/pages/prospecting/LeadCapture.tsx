@@ -38,6 +38,7 @@ interface Lead {
   opportunityLevel: string;
   sentToCrm: boolean;
   aiDiagnosis?: string;
+  notes?: string;
 }
 
 export default function LeadCapture() {
@@ -148,6 +149,34 @@ export default function LeadCapture() {
     }
   };
 
+  const handleBulkSendToCrm = async () => {
+    if (selectedLeads.length === 0) return;
+    setLoading(true);
+    try {
+      for (const id of selectedLeads) {
+        await handleSendToCrm(id);
+      }
+    } finally {
+      setLoading(false);
+      setSelectedLeads([]);
+    }
+  };
+
+  const updateLeadNotes = async (id: string, notes: string) => {
+    try {
+      const res = await apiFetch(`/api/lead-capture/leads/${id}/notes`, {
+        method: 'PATCH',
+        body: JSON.stringify({ notes })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setLeads(prev => prev.map(l => l.id === id ? updated : l));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -212,6 +241,14 @@ export default function LeadCapture() {
             >
               {loading ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
               Validar em Massa
+            </button>
+            <button 
+              onClick={handleBulkSendToCrm}
+              disabled={loading}
+              className="px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-xl hover:bg-green-700 transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-green-600/20"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+              Enviar para o CRM
             </button>
           </motion.div>
         )}
@@ -401,6 +438,16 @@ export default function LeadCapture() {
                               <Globe size={12} /> Website
                             </a>
                           )}
+                        </div>
+
+                        {/* Notes Section */}
+                        <div className="w-full mt-3">
+                          <textarea 
+                            placeholder="Anotações de ligações / Atividades..."
+                            className="w-full p-2 bg-gray-50 border border-gray-100 rounded-xl text-[11px] font-medium focus:ring-2 focus:ring-primary/10 outline-none min-h-[60px] transition-all"
+                            defaultValue={lead.notes || ''}
+                            onBlur={(e) => updateLeadNotes(lead.id, e.target.value)}
+                          />
                         </div>
 
                         <div className="flex-1" />

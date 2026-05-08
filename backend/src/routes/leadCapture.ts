@@ -142,5 +142,20 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
     }
   });
 
+  // Update Lead Notes
+  router.patch("/leads/:id/notes", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    const { notes } = req.body;
+    try {
+      const updated = await prisma.capturedLead.update({
+        where: { id: req.params.id, organizationId: orgId },
+        data: { notes }
+      });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return router;
 }

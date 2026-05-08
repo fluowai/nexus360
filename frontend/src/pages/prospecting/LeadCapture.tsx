@@ -39,6 +39,8 @@ interface Lead {
   sentToCrm: boolean;
   aiDiagnosis?: string;
   notes?: string;
+  cnpj?: string;
+  owners?: string;
 }
 
 export default function LeadCapture() {
@@ -51,6 +53,8 @@ export default function LeadCapture() {
   const [analyzingIds, setAnalyzingIds] = useState<string[]>([]);
   const [activeDossier, setActiveDossier] = useState<Lead | null>(null);
   const [showDossierModal, setShowDossierModal] = useState(false);
+  const [showScriptsModal, setShowScriptsModal] = useState(false);
+  const [activeScripts, setActiveScripts] = useState<{ coldCallScript: string, whatsappMessage: string } | null>(null);
 
   const handleDossier = async (id: string) => {
     setAnalyzingIds(prev => [...prev, id]);
@@ -61,6 +65,38 @@ export default function LeadCapture() {
         setLeads(prev => prev.map(l => l.id === id ? data : l));
         setActiveDossier(data);
         setShowDossierModal(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAnalyzingIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleGenerateScripts = async (id: string) => {
+    setAnalyzingIds(prev => [...prev, id]);
+    try {
+      const res = await apiFetch(`/api/lead-capture/leads/${id}/scripts`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setLeads(prev => prev.map(l => l.id === id ? data : l));
+        setActiveScripts({ coldCallScript: data.coldCallScript, whatsappMessage: data.whatsappMessage });
+        setShowScriptsModal(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAnalyzingIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleEnrich = async (id: string) => {
+    setAnalyzingIds(prev => [...prev, id]);
+    try {
+      const res = await apiFetch(`/api/lead-capture/leads/${id}/enrich`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setLeads(prev => prev.map(l => l.id === id ? data : l));
       }
     } catch (err) {
       console.error(err);
@@ -394,9 +430,21 @@ export default function LeadCapture() {
                             <span className="flex items-center gap-1 text-[11px] font-bold text-gray-400">
                               <MapPin size={12} /> {lead.address || `${lead.city}, ${lead.state}` || 'Endereço não informado'}
                             </span>
-                            <span className="w-fit px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-black rounded-md uppercase tracking-wider">
-                              {lead.category || 'N/A'}
-                            </span>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              <span className="w-fit px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-black rounded-md uppercase tracking-wider">
+                                {lead.category || 'N/A'}
+                              </span>
+                              {lead.cnpj && (
+                                <span className="w-fit px-2 py-0.5 bg-orange-50 text-orange-600 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1">
+                                  <Database size={10} /> {lead.cnpj}
+                                </span>
+                              )}
+                              {lead.owners && (
+                                <span className="w-fit px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1">
+                                  <Star size={10} /> {lead.owners}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -452,7 +500,15 @@ export default function LeadCapture() {
 
                         <div className="flex-1" />
 
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleEnrich(lead.id)}
+                            disabled={analyzingIds.includes(lead.id)}
+                            className="p-2 text-orange-600 hover:bg-orange-50 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold disabled:opacity-50"
+                            title="Buscar CNPJ e Sócios"
+                          >
+                            {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
+                            Enriquecer
+                          </button>
                           <button 
                             onClick={() => handleDossier(lead.id)}
                             disabled={analyzingIds.includes(lead.id)}
@@ -463,13 +519,13 @@ export default function LeadCapture() {
                             Dossiê
                           </button>
                           <button 
-                            onClick={() => handleAnalyze(lead.id)}
+                            onClick={() => handleGenerateScripts(lead.id)}
                             disabled={analyzingIds.includes(lead.id)}
                             className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold disabled:opacity-50"
-                            title="Analisar Oportunidade"
+                            title="Scripts de Abordagem"
                           >
                             {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
-                            Analisar
+                            Scripts
                           </button>
                           <button 
                             disabled={lead.sentToCrm}
@@ -571,6 +627,69 @@ export default function LeadCapture() {
                 <button className="px-6 py-3 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all flex items-center gap-2">
                   <Download size={20} />
                   Baixar PDF
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Scripts Modal */}
+      <AnimatePresence>
+        {showScriptsModal && activeScripts && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-2xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-2xl text-primary">
+                    <Wand2 size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-gray-900 tracking-tight">Scripts de Abordagem</h2>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Estratégia de Contato IA</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowScriptsModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-400 hover:text-gray-900"
+                >
+                  <Search className="rotate-45" size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Phone size={14} className="text-blue-500" />
+                    Cold Call (Roteiro de Ligação)
+                  </h3>
+                  <div className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-medium">
+                    {activeScripts.coldCallScript}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                    <Phone size={14} className="text-green-500 rotate-90" />
+                    Mensagem de WhatsApp
+                  </h3>
+                  <div className="p-4 bg-green-50/50 border border-green-100 rounded-2xl text-sm text-gray-700 leading-relaxed whitespace-pre-wrap font-medium">
+                    {activeScripts.whatsappMessage}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 bg-white flex justify-end gap-3">
+                <button 
+                  onClick={() => setShowScriptsModal(false)}
+                  className="px-6 py-3 bg-gray-900 text-white font-bold rounded-2xl hover:scale-105 transition-all"
+                >
+                  Entendido
                 </button>
               </div>
             </motion.div>

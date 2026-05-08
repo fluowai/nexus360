@@ -1168,6 +1168,8 @@ model CapturedLead {
   responsibleId String?
 
   notes         String? @db.Text
+  cnpj          String?
+  owners        String? @db.Text
   rawData       Json?
 
   createdAt DateTime @default(now())

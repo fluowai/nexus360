@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { Groq } from "groq-sdk";
+import axios from "axios";
 
 export class LeadAiService {
   constructor(private prisma: PrismaClient) {}
@@ -178,5 +179,71 @@ export class LeadAiService {
         aiDiagnosis: dossier,
       }
     });
+  }
+
+  async enrichLead(leadId: string, orgId: string) {
+    const groq = await this.getGroqClient(orgId);
+    const lead = await this.prisma.capturedLead.findFirst({
+      where: { id: leadId, organizationId: orgId }
+    });
+
+    if (!lead) throw new Error("Lead not found");
+
+    // 1. Fetch Serper API Key
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { serperApiKey: true }
+    });
+
+    if (!org?.serperApiKey) throw new Error("Serper API Key not configured.");
+
+    // 2. Perform a deep search for CNPJ and Owners
+    const searchQuery = `${lead.businessName} ${lead.city} ${lead.state} CNPJ socios quadro societario`;
+    
+    try {
+      const searchRes = await axios.post('https://google.serper.dev/search', {
+        q: searchQuery,
+        gl: 'br',
+        hl: 'pt-br'
+      }, {
+        headers: { 'X-API-KEY': org.serperApiKey }
+      });
+
+      const searchData = JSON.stringify(searchRes.data);
+
+      // 3. Use AI to extract information from search results
+      const prompt = `
+        Abaixo estão os resultados de uma busca no Google sobre a empresa "${lead.businessName}".
+        Extraia o CNPJ e os NOMES DOS SÓCIOS se estiverem presentes nos textos.
+
+        Resultados da Busca:
+        ${searchData.substring(0, 5000)} // Limit to 5k chars for prompt efficiency
+
+        Responda EXCLUSIVAMENTE em JSON:
+        {
+          "cnpj": "string ou null",
+          "owners": "string ou null"
+        }
+      `;
+
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "llama-3.3-70b-versatile",
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+
+      return await this.prisma.capturedLead.update({
+        where: { id: leadId },
+        data: {
+          cnpj: result.cnpj,
+          owners: result.owners
+        }
+      });
+    } catch (err: any) {
+      console.error("[ENRICH_LEAD_ERROR]", err.message);
+      throw err;
+    }
   }
 }

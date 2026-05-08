@@ -133,9 +133,10 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
         },
         orderBy: { createdAt: 'desc' }
       });
-      res.json(leads);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch leads" });
+      res.json(Array.isArray(leads) ? leads : []);
+    } catch (error: any) {
+      console.error("[GET_LEADS_ERROR]", error.message);
+      res.status(500).json({ error: "Erro ao buscar leads. Certifique-se de que as migrações do banco de dados foram aplicadas.", details: error.message });
     }
   });
 

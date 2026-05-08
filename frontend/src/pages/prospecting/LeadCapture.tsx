@@ -137,9 +137,10 @@ export default function LeadCapture() {
       const url = sourceId ? `/api/lead-capture/leads?sourceId=${sourceId}` : '/api/lead-capture/leads';
       const res = await apiFetch(url);
       const data = await res.json();
-      setLeads(data);
+      setLeads(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
+      setLeads([]);
     }
   };
 

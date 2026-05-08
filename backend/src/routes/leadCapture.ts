@@ -42,6 +42,17 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
     }
   });
 
+  // Run AI Dossier
+  router.post("/leads/:id/dossier", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    try {
+      const result = await aiService.generateDossier(req.params.id, orgId!);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Generate Scripts
   router.post("/leads/:id/scripts", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;

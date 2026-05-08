@@ -47,6 +47,25 @@ export default function LeadCapture() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [analyzingIds, setAnalyzingIds] = useState<string[]>([]);
+  const [activeDossier, setActiveDossier] = useState<Lead | null>(null);
+  const [showDossierModal, setShowDossierModal] = useState(false);
+
+  const handleDossier = async (id: string) => {
+    setAnalyzingIds(prev => [...prev, id]);
+    try {
+      const res = await apiFetch(`/api/lead-capture/leads/${id}/dossier`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setLeads(prev => prev.map(l => l.id === id ? data : l));
+        setActiveDossier(data);
+        setShowDossierModal(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAnalyzingIds(prev => prev.filter(i => i !== id));
+    }
+  };
   
   const [searchParams, setSearchParams] = useState({
     provider: 'serper',
@@ -333,11 +352,11 @@ export default function LeadCapture() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <h3 className="font-bold text-gray-900 truncate pr-4">{lead.businessName}</h3>
-                          <div className="flex items-center gap-3 mt-1.5">
+                          <div className="flex flex-col gap-1 mt-1.5">
                             <span className="flex items-center gap-1 text-[11px] font-bold text-gray-400">
-                              <MapPin size={12} /> {lead.city || 'N/I'}, {lead.state || 'N/I'}
+                              <MapPin size={12} /> {lead.address || `${lead.city}, ${lead.state}` || 'Endereço não informado'}
                             </span>
-                            <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-black rounded-md uppercase tracking-wider">
+                            <span className="w-fit px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-black rounded-md uppercase tracking-wider">
                               {lead.category || 'N/A'}
                             </span>
                           </div>
@@ -357,9 +376,19 @@ export default function LeadCapture() {
                       <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-gray-50 pt-4">
                         <div className="flex items-center gap-2">
                           {lead.phone ? (
-                            <a href={`tel:${lead.phone}`} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors">
-                              <Phone size={12} /> {lead.phone}
-                            </a>
+                            <div className="flex items-center gap-1">
+                              <a href={`tel:${lead.phone}`} className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[11px] font-bold hover:bg-blue-100 transition-colors">
+                                <Phone size={12} /> Ligar
+                              </a>
+                              <a 
+                                href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-green-50 text-green-600 rounded-lg text-[11px] font-bold hover:bg-green-100 transition-colors"
+                              >
+                                <Phone size={12} className="rotate-90" /> WhatsApp
+                              </a>
+                            </div>
                           ) : (
                             <span className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 text-gray-400 rounded-lg text-[11px] font-bold italic">
                               <Phone size={12} /> Sem número
@@ -377,9 +406,19 @@ export default function LeadCapture() {
 
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button 
+                            onClick={() => handleDossier(lead.id)}
+                            disabled={analyzingIds.includes(lead.id)}
+                            className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold disabled:opacity-50"
+                            title="Gerar Dossiê de Inteligência"
+                          >
+                            {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
+                            Dossiê
+                          </button>
+                          <button 
                             onClick={() => handleAnalyze(lead.id)}
                             disabled={analyzingIds.includes(lead.id)}
                             className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold disabled:opacity-50"
+                            title="Analisar Oportunidade"
                           >
                             {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                             Analisar
@@ -439,6 +478,57 @@ export default function LeadCapture() {
           </div>
         </div>
       </div>
+
+      {/* Dossier Modal */}
+      <AnimatePresence>
+        {showDossierModal && activeDossier && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary/10 rounded-2xl text-primary">
+                    <Database size={24} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-gray-900 tracking-tight">Dossiê Estratégico</h2>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{activeDossier.businessName}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowDossierModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-400 hover:text-gray-900"
+                >
+                  <Search className="rotate-45" size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 prose prose-slate max-w-none prose-headings:font-black prose-headings:tracking-tight prose-p:text-gray-600 prose-p:leading-relaxed">
+                <div className="whitespace-pre-wrap text-gray-700 font-medium">
+                  {activeDossier.aiDiagnosis || 'Gerando conteúdo...'}
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100 bg-white flex justify-end gap-3">
+                <button 
+                  onClick={() => setShowDossierModal(false)}
+                  className="px-6 py-3 border border-gray-200 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition-all"
+                >
+                  Fechar
+                </button>
+                <button className="px-6 py-3 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all flex items-center gap-2">
+                  <Download size={20} />
+                  Baixar PDF
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

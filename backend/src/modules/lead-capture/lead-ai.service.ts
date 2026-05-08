@@ -128,6 +128,8 @@ export class LeadAiService {
         whatsappMessage: result.whatsappMessage
       }
     });
+  }
+
   async generateDossier(leadId: string, orgId: string) {
     const groq = await this.getGroqClient(orgId);
     const lead = await this.prisma.capturedLead.findFirst({
@@ -169,7 +171,7 @@ export class LeadAiService {
     return await this.prisma.capturedLead.update({
       where: { id: leadId },
       data: {
-        aiDiagnosis: dossier, // Storing dossier in aiDiagnosis for now or use a dedicated field
+        aiDiagnosis: dossier,
       }
     });
   }

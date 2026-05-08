@@ -28,6 +28,7 @@ interface Lead {
   category: string;
   phone: string;
   website: string;
+  address: string;
   city: string;
   state: string;
   rating: number;

@@ -84,6 +84,7 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       });
       if (!capturedLead) return res.status(404).json({ error: "Lead not found" });
 
+      const { boardId, stageId } = req.body;
       const newLead = await prisma.lead.create({
         data: {
           name: capturedLead.businessName,
@@ -91,6 +92,8 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
           phone: capturedLead.phoneNormalized || capturedLead.phone,
           status: "novo",
           organizationId: orgId!,
+          boardId,
+          stageId,
           notes: `[Captação de Leads - ${capturedLead.provider}]\nDiagnóstico: ${capturedLead.aiDiagnosis}\nSite: ${capturedLead.website}`
         }
       });

@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Organization {
@@ -52,6 +53,8 @@ model Organization {
   promptTemplates   PromptTemplate[]
   generatedPrompts  GeneratedPrompt[]
   domains           Domain[]
+  crmBoards         CrmBoard[]
+  agendas           Agenda[]
   
   leadCaptureSources    LeadCaptureSource[]
   capturedLeads         CapturedLead[]
@@ -150,6 +153,11 @@ model Lead {
 
   assignedToId String?
   assignedTo   User?   @relation(fields: [assignedToId], references: [id])
+
+  boardId String?
+  board   CrmBoard? @relation(fields: [boardId], references: [id])
+  stageId String?
+  stage   CrmStage? @relation(fields: [stageId], references: [id])
 
   followUps       FollowUp[]
   quizSubmissions QuizSubmission[]
@@ -686,6 +694,9 @@ model CalendarEvent {
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
 
+  agendaId String?
+  agenda   Agenda? @relation(fields: [agendaId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1198,6 +1209,46 @@ model LeadCaptureUsageLog {
   errorMessage  String?
 
   createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model CrmBoard {
+  id             String      @id @default(uuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  stages         CrmStage[]
+  leads          Lead[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([organizationId])
+}
+
+model CrmStage {
+  id        String   @id @default(uuid())
+  name      String
+  order     Int      @default(0)
+  color     String?
+  boardId   String
+  board     CrmBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  leads     Lead[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([boardId])
+}
+
+model Agenda {
+  id             String         @id @default(uuid())
+  name           String
+  color          String?
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  events         CalendarEvent[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([organizationId])
 }

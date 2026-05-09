@@ -104,12 +104,21 @@ export class LeadAiService {
       Categoria: ${lead.category}
       Diagnóstico: ${lead.aiDiagnosis}
 
-      O roteiro de Cold Call deve ter: Abertura, Contexto, Quebra de Padrão, Pergunta de Diagnóstico, Gancho para Reunião e Fechamento.
-      A mensagem de WhatsApp deve ser curta, humana e consultiva.
+      IMPORTANTE: O roteiro de Cold Call NÃO DEVE ser um único bloco de texto gigante. 
+      Ele DEVE ser dividido e estruturado em partes (passo a passo) para que o vendedor não fale tudo de uma vez, permitindo a interação com o lead e confirmando se está falando com a pessoa certa.
+      
+      Exemplo de estrutura desejada (use quebras de linha):
+      [Passo 1 - Filtro Inicial]: "Oi, bom dia! Tudo bem? Gostaria de falar com o responsável pelo comercial/marketing da empresa."
+      [Passo 2 - Permissão]: "Para eu não tomar muito seu tempo, deixa eu te explicar rapidamente o meu trabalho para ver se falo com você mesmo ou com outra pessoa..."
+      [Passo 3 - Elevator Pitch / Quebra de Padrão]: ...
+      [Passo 4 - Pergunta de Diagnóstico]: ...
+      [Passo 5 - Gancho para Reunião]: ...
 
-      Responda EXCLUSIVAMENTE em JSON:
+      A mensagem de WhatsApp deve ser curta, humana, consultiva e terminar com uma pergunta que gere resposta.
+
+      Responda EXCLUSIVAMENTE em JSON válido:
       {
-        "coldCallScript": "string",
+        "coldCallScript": "string formatada com os passos separados por quebras de linha",
         "whatsappMessage": "string"
       }
     `;

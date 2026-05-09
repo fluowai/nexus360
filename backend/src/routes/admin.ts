@@ -265,5 +265,46 @@ export function adminRoutes(prisma: PrismaClient) {
     }
   });
 
+  // Criar Usuário (SUPER_ADMIN)
+  router.post("/users", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { name, email, role, password } = req.body;
+    
+    try {
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) return res.status(400).json({ error: "E-mail já está em uso." });
+
+      const hashedPassword = await bcrypt.hash(password || 'nexus123', 10);
+      const user = await prisma.user.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          role: role || 'USER',
+          status: 'ACTIVE'
+        }
+      });
+      res.status(201).json(user);
+    } catch (error) {
+      console.error("[ADMIN_USER_POST]", error);
+      res.status(500).json({ error: "Failed to create system user" });
+    }
+  });
+
+  // Excluir Usuário (SUPER_ADMIN)
+  router.delete("/users/:id", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    try {
+      // Impedir de excluir a si mesmo
+      if (req.params.id === req.user.id) {
+        return res.status(400).json({ error: "Você não pode excluir sua própria conta." });
+      }
+      await prisma.user.delete({ where: { id: req.params.id } });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+
   return router;
 }

@@ -129,33 +129,49 @@ export function adminRoutes(prisma: PrismaClient) {
   // Atualizar Organização / Cliente (SUPER_ADMIN)
   router.patch("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { id } = req.params;
     const { name, domain, plan, slug, adminEmail, password } = req.body;
     
     try {
       const result = await prisma.$transaction(async (tx) => {
-        // 1. Atualizar Organização
+        // 1. Verificar se a organização existe
+        const existingOrg = await tx.organization.findUnique({ where: { id } });
+        if (!existingOrg) throw new Error("Organização não encontrada.");
+
+        // 2. Atualizar Organização
         const org = await tx.organization.update({
-          where: { id: req.params.id },
-          data: { name, domain, plan, slug }
+          where: { id },
+          data: { 
+            ...(name && { name }),
+            ...(domain !== undefined && { domain }),
+            ...(plan && { plan }),
+            ...(slug && { slug })
+          }
         });
 
-        // 2. Se houver email ou senha, atualizar o usuário ORG_ADMIN vinculado
-        if (adminEmail || password) {
-          const updateData: any = {};
-          if (adminEmail) updateData.email = adminEmail;
-          if (password && password.trim() !== "") {
-            updateData.password = await bcrypt.hash(password, 10);
-          }
-
-          // Busca o primeiro admin dessa organização para atualizar
+        // 3. Atualizar Usuário Admin se solicitado
+        if (adminEmail || (password && password.trim() !== "")) {
           const admin = await tx.user.findFirst({
-            where: { organizationId: req.params.id, role: 'ORG_ADMIN' }
+            where: { organizationId: id, role: 'ORG_ADMIN' }
           });
 
           if (admin) {
+            const userUpdateData: any = {};
+            if (adminEmail) {
+              // Verificar se o email já existe em outro usuário
+              const emailConflict = await tx.user.findFirst({
+                where: { email: adminEmail, NOT: { id: admin.id } }
+              });
+              if (emailConflict) throw new Error("Este e-mail já está em uso por outro usuário.");
+              userUpdateData.email = adminEmail;
+            }
+            if (password && password.trim() !== "") {
+              userUpdateData.password = await bcrypt.hash(password, 10);
+            }
+
             await tx.user.update({
               where: { id: admin.id },
-              data: updateData
+              data: userUpdateData
             });
           }
         }
@@ -164,9 +180,12 @@ export function adminRoutes(prisma: PrismaClient) {
       });
 
       res.json(result);
-    } catch (error) {
-      console.error("[ADMIN_ORGS_PATCH]", error);
-      res.status(500).json({ error: "Failed to update organization and admin" });
+    } catch (error: any) {
+      console.error("[ADMIN_ORGS_PATCH_ERROR]", error);
+      res.status(error.message.includes("encontrada") ? 404 : 500).json({ 
+        error: "Falha ao atualizar organização",
+        details: error.message 
+      });
     }
   });
 

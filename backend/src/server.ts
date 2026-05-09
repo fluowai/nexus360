@@ -161,6 +161,25 @@ app.post("/api/public/proposals/:slug/accept", async (req, res) => {
   }
 });
 
+// Endpoint de Diagnóstico de Rotas
+app.get("/api/debug/routes", (req, res) => {
+  const routes: any[] = [];
+  app._router.stack.forEach((middleware: any) => {
+    if (middleware.route) {
+      routes.push(`${Object.keys(middleware.route.methods).join(', ').toUpperCase()} ${middleware.route.path}`);
+    } else if (middleware.name === 'router') {
+      middleware.handle.stack.forEach((handler: any) => {
+        if (handler.route) {
+          const path = handler.route.path;
+          const methods = Object.keys(handler.route.methods).join(', ').toUpperCase();
+          routes.push(`${methods} ${middleware.regexp.toString()} ${path}`);
+        }
+      });
+    }
+  });
+  res.json({ routes });
+});
+
 // Registro de Rotas (ORDEM IMPORTANTE)
 app.use("/api/auth", authRoutes(prisma));
 

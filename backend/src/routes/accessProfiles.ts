@@ -20,7 +20,7 @@ export function accessProfileRoutes(prisma: PrismaClient) {
         orderBy: { createdAt: "desc" }
       });
 
-      res.json(profiles);
+      res.json(Array.isArray(profiles) ? profiles : []);
     } catch (error) {
       console.error("[GET_ACCESS_PROFILES_ERROR]", error);
       res.status(500).json({ error: "Failed to fetch access profiles" });

@@ -6,6 +6,51 @@ import { AuthRequest } from "../middleware/auth.js";
 export function crmRoutes(prisma: PrismaClient) {
   const router = Router();
 
+  // Debug Ping
+  router.get("/ping-crm", (req, res) => res.json({ message: "crm router is active", timestamp: new Date().toISOString() }));
+
+  // List Boards (Moved to top to ensure priority)
+  router.get("/boards", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const boards = await prisma.crmBoard.findMany({
+        where: { organizationId: orgId },
+        include: { stages: { orderBy: { order: 'asc' } } }
+      });
+      res.json(boards);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Setup Default Boards
+  router.post("/boards/setup", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const boards = [
+        { name: 'BDR (Prospecção Fria)', stages: ['Novo', 'Primeiro Contato', 'Em Conversa', 'Interesse Detectado', 'Qualificado'] },
+        { name: 'SDR (Qualificação)', stages: ['Novo', 'Agendamento em Aberto', 'Reunião Marcada', 'Qualificado (SQL)', 'Descartado'] },
+        { name: 'Closer (Vendas)', stages: ['Demonstração', 'Proposta Enviada', 'Negociação', 'Fechado Ganho', 'Fechado Perdido'] }
+      ];
+
+      for (const b of boards) {
+        const board = await prisma.crmBoard.create({
+          data: { name: b.name, organizationId: orgId! }
+        });
+        for (let i = 0; i < b.stages.length; i++) {
+          await prisma.crmStage.create({
+            data: { name: b.stages[i], order: i, boardId: board.id }
+          });
+        }
+      }
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Listar leads
   router.get("/leads", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
@@ -237,45 +282,6 @@ export function crmRoutes(prisma: PrismaClient) {
     }
   });
 
-  // List Boards
-  router.get("/boards", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
-    try {
-      const boards = await prisma.crmBoard.findMany({
-        where: { organizationId: orgId },
-        include: { stages: { orderBy: { order: 'asc' } } }
-      });
-      res.json(boards);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  // Setup Default Boards
-  router.post("/boards/setup", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
-    try {
-      const boards = [
-        { name: 'BDR (Prospecção Fria)', stages: ['Novo', 'Primeiro Contato', 'Em Conversa', 'Interesse Detectado', 'Qualificado'] },
-        { name: 'SDR (Qualificação)', stages: ['Novo', 'Agendamento em Aberto', 'Reunião Marcada', 'Qualificado (SQL)', 'Descartado'] },
-        { name: 'Closer (Vendas)', stages: ['Demonstração', 'Proposta Enviada', 'Negociação', 'Fechado Ganho', 'Fechado Perdido'] }
-      ];
-
-      for (const b of boards) {
-        const board = await prisma.crmBoard.create({
-          data: { name: b.name, organizationId: orgId! }
-        });
-        for (let i = 0; i < b.stages.length; i++) {
-          await prisma.crmStage.create({
-            data: { name: b.stages[i], order: i, boardId: board.id }
-          });
-        }
-      }
-      res.json({ success: true });
-    } catch (error) {
-      next(error);
-    }
-  });
 
   return router;
 }

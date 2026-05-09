@@ -7,6 +7,23 @@ import { v4 as uuidv4 } from 'uuid';
 export function salesRoutes(prisma: PrismaClient) {
   const router = Router();
 
+  // Listar Fila de Vendas (Queue)
+  router.get("/queue", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    try {
+      const queue = await prisma.lead.findMany({
+        where: { 
+          organizationId: orgId,
+          status: { in: ['novo', 'contato'] }
+        },
+        orderBy: { updatedAt: 'desc' }
+      });
+      res.json(queue);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Listar Propostas da Organização
   router.get("/proposals", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;

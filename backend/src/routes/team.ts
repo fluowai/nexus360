@@ -28,7 +28,7 @@ export function teamRoutes(prisma: PrismaClient) {
           createdAt: true
         }
       });
-      res.json(members);
+      res.json(Array.isArray(members) ? members : []);
     } catch (error) {
       res.status(500).json({ error: "Falha ao buscar membros da equipe." });
     }

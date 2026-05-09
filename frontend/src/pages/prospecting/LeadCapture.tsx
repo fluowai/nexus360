@@ -17,7 +17,8 @@ import {
   Filter,
   History,
   Download,
-  ListFilter
+  ListFilter,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../lib/api';

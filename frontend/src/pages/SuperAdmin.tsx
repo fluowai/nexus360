@@ -53,79 +53,111 @@ export default function SuperAdmin() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
           {[
             { 
-              label: "Total de Clientes", 
-              value: "3", 
+              label: "Clientes / Agências", 
+              value: metrics.agencies, 
               icon: Building2, 
               iconColor: "text-white", 
               iconBg: "bg-blue-500",
-              shadow: "shadow-blue-200"
+              shadow: "shadow-blue-200",
+              path: "/admin/agencies"
             },
             { 
-              label: "Assinaturas Ativas", 
-              value: "3", 
+              label: "Usuários Totais", 
+              value: metrics.totalUsers, 
               icon: Users, 
               iconColor: "text-white", 
               iconBg: "bg-emerald-500",
-              shadow: "shadow-emerald-200"
+              shadow: "shadow-emerald-200",
+              path: "/admin/team"
             },
             { 
-              label: "Receita Mensal (Est.)", 
-              value: "R$ 291", 
+              label: "Receita Est. (SaaS)", 
+              value: `R$ ${metrics.revenue}`, 
               icon: Wallet, 
               iconColor: "text-white", 
               iconBg: "bg-indigo-500",
-              shadow: "shadow-indigo-200"
+              shadow: "shadow-indigo-200",
+              path: "/admin/billing"
             },
             { 
-              label: "Status do Servidor", 
-              value: "Online", 
-              icon: LayoutDashboard, 
+              label: "Leads Capturados", 
+              value: metrics.totalLeads, 
+              icon: Zap, 
               iconColor: "text-white", 
               iconBg: "bg-purple-500",
-              shadow: "shadow-purple-200"
+              shadow: "shadow-purple-200",
+              path: "/admin/monitor"
             },
           ].map((card, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className="bg-white p-8 rounded-[24px] border border-gray-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all"
-            >
-              <div>
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">{card.label}</p>
-                <h3 className="text-3xl font-black text-gray-900">{card.value}</h3>
-              </div>
-              <div className={`w-14 h-14 ${card.iconBg} rounded-[20px] flex items-center justify-center ${card.shadow} shadow-lg transition-transform group-hover:scale-110`}>
-                <card.icon className={card.iconColor} size={28} />
-              </div>
-            </motion.div>
+            <Link to={card.path} key={i} className="no-underline">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-white p-8 rounded-[24px] border border-gray-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all h-full"
+              >
+                <div>
+                  <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1">{card.label}</p>
+                  <h3 className="text-3xl font-black text-gray-900">{card.value}</h3>
+                </div>
+                <div className={`w-14 h-14 ${card.iconBg} rounded-[20px] flex items-center justify-center ${card.shadow} shadow-lg transition-transform group-hover:scale-110`}>
+                  <card.icon className={card.iconColor} size={28} />
+                </div>
+              </motion.div>
+            </Link>
           ))}
         </div>
 
         {/* Main Content Areas */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Recent Activity */}
-          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[350px] relative overflow-hidden">
-            <div className="flex items-center gap-3 mb-8">
-              <Activity className="text-gray-300" size={20} />
-              <h3 className="text-lg font-bold text-gray-900">Atividade Recente</h3>
-            </div>
-            
-            <div className="flex flex-col items-center justify-center h-[200px] text-center">
-               <p className="text-gray-400 text-sm font-medium">Nenhuma atividade recente registrada.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            {/* Recent Activity */}
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[350px] relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-8">
+                <Activity className="text-gray-300" size={20} />
+                <h3 className="text-lg font-bold text-gray-900">Atividade Recente</h3>
+              </div>
+              
+              <div className="flex flex-col items-center justify-center h-[200px] text-center">
+                 <p className="text-gray-400 text-sm font-medium">Nenhuma atividade recente registrada.</p>
+              </div>
             </div>
           </div>
 
-          {/* System Alerts */}
-          <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[350px] relative overflow-hidden">
-            <div className="flex items-center gap-3 mb-8">
-              <CheckCircle2 className="text-emerald-500" size={20} />
-              <h3 className="text-lg font-bold text-gray-900">Alertas do Sistema</h3>
-            </div>
-
-            <div className="flex flex-col items-center justify-center h-[200px] text-center">
-               <p className="text-gray-400 text-sm font-medium">Sistema operando normalmente.</p>
+          <div className="space-y-8">
+            {/* Quick Actions */}
+            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8 min-h-[350px] relative overflow-hidden">
+              <div className="flex items-center gap-3 mb-8">
+                <ShieldCheck className="text-gray-300" size={20} />
+                <h3 className="text-lg font-bold text-gray-900">Acesso Rápido</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <Link to="/admin/agencies" className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-blue-50 group transition-all">
+                  <div className="p-2 bg-white rounded-xl shadow-sm group-hover:text-blue-600 transition-colors">
+                    <Building2 size={20} />
+                  </div>
+                  <span className="text-sm font-bold text-gray-700">Gerenciar Clientes</span>
+                </Link>
+                <Link to="/admin/team" className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-emerald-50 group transition-all">
+                  <div className="p-2 bg-white rounded-xl shadow-sm group-hover:text-emerald-600 transition-colors">
+                    <Users size={20} />
+                  </div>
+                  <span className="text-sm font-bold text-gray-700">Contas de Usuários</span>
+                </Link>
+                <Link to="/admin/plans" className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-indigo-50 group transition-all">
+                  <div className="p-2 bg-white rounded-xl shadow-sm group-hover:text-indigo-600 transition-colors">
+                    <CreditCard size={20} />
+                  </div>
+                  <span className="text-sm font-bold text-gray-700">Editar Planos</span>
+                </Link>
+                <Link to="/admin/monitor" className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-purple-50 group transition-all">
+                  <div className="p-2 bg-white rounded-xl shadow-sm group-hover:text-purple-600 transition-colors">
+                    <Server size={20} />
+                  </div>
+                  <span className="text-sm font-bold text-gray-700">Status do Sistema</span>
+                </Link>
+              </div>
             </div>
           </div>
         </div>

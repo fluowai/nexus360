@@ -192,6 +192,16 @@ export default function AdminAgencies() {
                     <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => {
+                          localStorage.setItem('nexus_selected_client', org.id);
+                          window.location.href = '/dashboard';
+                        }}
+                        className="p-2 hover:bg-emerald-50 rounded-lg text-gray-400 hover:text-emerald-600 transition-all"
+                        title="Acessar como Suporte (Impersonate)"
+                      >
+                        <ExternalLink size={16} />
+                      </button>
+                      <button 
+                        onClick={() => {
                           setSelectedOrg(org);
                           setShowDomainModal(true);
                         }}

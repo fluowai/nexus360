@@ -199,7 +199,7 @@ export function adminRoutes(prisma: PrismaClient) {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     try {
       const users = await prisma.user.findMany({
-        where: { role: 'SUPER_ADMIN' },
+        include: { organization: { select: { name: true } } },
         orderBy: { createdAt: 'desc' }
       });
       res.json(users);
@@ -211,23 +211,20 @@ export function adminRoutes(prisma: PrismaClient) {
   // Editar Usuário (SUPER_ADMIN)
   router.patch("/users/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, email, role, password, status } = req.body;
+    const { name, email, role, password, status, permissions, organizationId } = req.body;
     
     try {
-      const updateData: any = { name, email, role, status };
-      
-      // Se a senha foi enviada, criptografar
-      if (password && password.trim() !== "") {
-        updateData.password = await bcrypt.hash(password, 10);
+      const data: any = { name, email, role, status, permissions, organizationId };
+      if (password) {
+        data.password = await bcrypt.hash(password, 10);
       }
 
       const user = await prisma.user.update({
         where: { id: req.params.id },
-        data: updateData
+        data
       });
       res.json(user);
     } catch (error) {
-      console.error("[ADMIN_USER_PATCH]", error);
       res.status(500).json({ error: "Failed to update user" });
     }
   });

@@ -41,7 +41,12 @@ export function teamRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    const { name, email, password, role, permissions, accessProfileId } = req.body;
+    let { name, email, password, role, permissions, accessProfileId } = req.body;
+
+    // Prevenção de Escalabilidade de Privilégios
+    if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: "Apenas Super Admins podem criar outros Super Admins." });
+    }
 
     try {
       const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -74,7 +79,12 @@ export function teamRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    const { permissions, accessProfileId, role, status } = req.body;
+    let { permissions, accessProfileId, role, status } = req.body;
+
+    // Prevenção de Escalabilidade de Privilégios
+    if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: "Apenas Super Admins podem promover usuários a Super Admin." });
+    }
 
     try {
       const user = await prisma.user.findFirst({

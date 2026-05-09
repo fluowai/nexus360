@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import rateLimit from "express-rate-limit";
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -13,7 +14,15 @@ const getJwtSecret = () => {
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
 
-  router.post("/login", async (req, res) => {
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 10, // Limite de 10 tentativas por IP
+    message: { success: false, error: "Muitas tentativas de login. Tente novamente em 15 minutos." },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  router.post("/login", loginLimiter, async (req, res) => {
     try {
       const { email, password } = req.body;
 
@@ -107,8 +116,7 @@ export function authRoutes(prisma: PrismaClient) {
 
       return res.status(500).json({
         success: false,
-        error: 'Erro interno no servidor',
-        details: String(error)
+        error: 'Erro interno no servidor'
       });
     }
   });
@@ -119,21 +127,19 @@ export function authRoutes(prisma: PrismaClient) {
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) return res.status(400).json({ error: "Este email já está em uso." });
 
-      const userCount = await prisma.user.count();
-      const isFirstUser = userCount === 0;
       const hashedPassword = await bcrypt.hash(password, 10);
 
       const result = await prisma.$transaction(async (tx) => {
         const org = await tx.organization.create({
           data: {
-            name: isFirstUser ? "Nexus360 Master" : organizationName,
-            slug: (isFirstUser ? "nexus360-master" : organizationName).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-'),
+            name: organizationName,
+            slug: organizationName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-'),
             domain: email.split('@')[1],
-            plan: isFirstUser ? "Enterprise" : "Free"
+            plan: "Free"
           }
         });
         const user = await tx.user.create({
-          data: { name, email, password: hashedPassword, role: isFirstUser ? "SUPER_ADMIN" : "ORG_ADMIN", organizationId: org.id }
+          data: { name, email, password: hashedPassword, role: "ORG_ADMIN", organizationId: org.id }
         });
         return { user, org };
       });

@@ -5,7 +5,8 @@ import jwt from "jsonwebtoken";
 
 export function clientPortalRoutes(prisma: PrismaClient) {
   const router = Router();
-  const JWT_SECRET = process.env.JWT_SECRET || 'nexus_super_secret';
+  if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET missing");
+  const JWT_SECRET = process.env.JWT_SECRET;
 
   // Autenticação do Cliente
   router.post("/auth/login", async (req, res) => {

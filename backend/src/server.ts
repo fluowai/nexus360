@@ -62,7 +62,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '50mb' })); // Aumentado para suportar criativos grandes
+app.use(express.json({ limit: '2mb' })); // Limitado para 2mb (Ataques DoS / Billing Exhaustion)
 app.use(helmet({ contentSecurityPolicy: false }));
 
 // Health Check

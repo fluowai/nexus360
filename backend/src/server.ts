@@ -31,6 +31,7 @@ import { livekitRoutes } from "./routes/livekit.js";
 import { extraRoutes } from "./routes/extras.js";
 import { teamRoutes } from "./routes/team.js";
 import { accessProfileRoutes } from "./routes/accessProfiles.js";
+import { clientPortalRoutes } from "./routes/clientPortal.js";
 
 const app = express();
 
@@ -186,6 +187,7 @@ app.use("/api/livekit", livekitRoutes(prisma));
 app.use("/api/extras", authenticateToken, extraRoutes(prisma));
 app.use("/api/team", authenticateToken, teamRoutes(prisma));
 app.use("/api/access-profiles", authenticateToken, accessProfileRoutes(prisma));
+app.use("/api/client-portal", clientPortalRoutes(prisma));
 
 // Dashboard Unificado (Dinâmico)
 app.get("/api/dashboard", authenticateToken, async (req: any, res) => {

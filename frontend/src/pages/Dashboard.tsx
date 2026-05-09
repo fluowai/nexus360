@@ -109,8 +109,8 @@ export default function Dashboard() {
               <span className="flex items-center gap-1 text-xs font-medium bg-green-50 text-green-600 px-2 py-1 rounded">Conversão</span>
             </div>
           </div>
-          <div className="w-full h-[300px] min-h-[300px]">
-            <ResponsiveContainer width="100%" height={300}>
+          <div className="w-full h-[300px] min-h-[300px] min-w-0">
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.chartData}>
               <defs>
                 <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">

@@ -283,5 +283,15 @@ export function crmRoutes(prisma: PrismaClient) {
   });
 
 
+  // Fallback para rotas não encontradas DENTRO do /api/crm
+  router.use((req, res) => {
+    res.status(404).json({ 
+      success: false, 
+      error: 'CRM Route not found', 
+      path: req.originalUrl,
+      availableRoutes: ['/leads', '/boards', '/ping-crm'] 
+    });
+  });
+
   return router;
 }

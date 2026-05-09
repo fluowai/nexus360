@@ -8,7 +8,7 @@ export function salesRoutes(prisma: PrismaClient) {
   const router = Router();
 
   // Listar Fila de Vendas (Queue)
-  router.get("/queue", async (req: AuthRequest, res, next) => {
+  router.get("/queue", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     try {
       const queue = await prisma.lead.findMany({
@@ -18,9 +18,10 @@ export function salesRoutes(prisma: PrismaClient) {
         },
         orderBy: { updatedAt: 'desc' }
       });
-      res.json(queue);
+      res.json(Array.isArray(queue) ? queue : []);
     } catch (error) {
-      next(error);
+      console.error("[SALES_QUEUE_ERROR]", error);
+      res.status(500).json({ error: "Erro ao buscar fila de vendas" });
     }
   });
 
@@ -40,9 +41,13 @@ export function salesRoutes(prisma: PrismaClient) {
   });
 
   // Gerar Proposta com IA
-  router.post("/proposals/generate", async (req: AuthRequest, res, next) => {
+  router.post("/proposals/generate", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     const { niche, clientName, services } = req.body;
+    
+    if (!niche || !clientName) {
+      return res.status(400).json({ error: "Nicho e nome do cliente são obrigatórios." });
+    }
 
     try {
       const config = await prisma.organization.findUnique({
@@ -54,10 +59,14 @@ export function salesRoutes(prisma: PrismaClient) {
         return res.status(400).json({ error: "Configure sua chave do Groq para usar a IA." });
       }
 
-      const content = await proposalAI.generate(niche, clientName, services, config.groqKey);
+      const content = await proposalAI.generate(niche, clientName, services || [], config.groqKey);
       res.json(content);
-    } catch (error) {
-      next(error);
+    } catch (error: any) {
+      console.error("[SALES_PROPOSAL_GENERATE_ERROR]", error);
+      res.status(500).json({ 
+        error: "Falha ao gerar proposta", 
+        details: error.message 
+      });
     }
   });
 

@@ -21,9 +21,11 @@ export default function SalesMachine() {
   const fetchQueue = async () => {
     try {
       const res = await apiFetch(`/api/sales/queue`);
-      setQueue(await res.json());
-    } catch (err) {
-      console.error(err);
+      const data = await res.json();
+      setQueue(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      console.error("[SALES_PROPOSAL_GENERATE_ERROR]", error);
+      setQueue([]);
     } finally {
       setLoading(false);
     }

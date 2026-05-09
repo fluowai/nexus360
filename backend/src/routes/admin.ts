@@ -199,6 +199,7 @@ export function adminRoutes(prisma: PrismaClient) {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     try {
       const users = await prisma.user.findMany({
+        where: { role: 'SUPER_ADMIN' },
         orderBy: { createdAt: 'desc' }
       });
       res.json(users);

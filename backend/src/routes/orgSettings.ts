@@ -103,17 +103,26 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
   router.post("/team", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (req.user?.role !== 'ORG_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: "Acesso negado." });
+    }
+
+    const { name, email, role, department } = req.body;
+
+    // Prevenção de Escalabilidade de Privilégios
+    if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: "Apenas Super Admins podem criar outros Super Admins." });
+    }
 
     try {
-      const { name, email, role, department } = req.body;
       const user = await prisma.user.create({
         data: {
           name,
           email,
-          role,
+          role: role || 'USER',
           department: department || 'GERAL',
           organizationId: orgId,
-          password: await bcrypt.hash('nexus123', 10) // Senha padrão inicial
+          password: await bcrypt.hash('nexus123', 10)
         }
       });
       res.json(user);
@@ -127,9 +136,18 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
   router.patch("/team/:id", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (req.user?.role !== 'ORG_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: "Acesso negado." });
+    }
+
+    const { name, email, role, department, password, status } = req.body;
+
+    // Prevenção de Escalabilidade de Privilégios
+    if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: "Apenas Super Admins podem promover usuários a Super Admin." });
+    }
 
     try {
-      const { name, email, role, department, password, status } = req.body;
       const updateData: any = { name, email, role, department, status };
 
       if (password && password.trim() !== "") {
@@ -150,8 +168,18 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
   router.delete("/team/:id", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (req.user?.role !== 'ORG_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: "Acesso negado." });
+    }
 
     try {
+      const user = await prisma.user.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+
+      if (!user) return res.status(404).json({ error: "Membro não encontrado." });
+      if (user.role === 'ORG_ADMIN') return res.status(400).json({ error: "Não é possível excluir o administrador da organização." });
+
       await prisma.user.delete({
         where: { id: req.params.id, organizationId: orgId }
       });

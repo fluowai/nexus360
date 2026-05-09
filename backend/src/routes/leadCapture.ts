@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-import { AuthRequest } from "../middleware/auth.js";
+import { AuthRequest, requirePermission } from "../middleware/auth.js";
 import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../modules/lead-capture/lead-ai.service.js";
 
@@ -124,7 +124,7 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
   });
 
   // List Captured Leads
-  router.get("/leads", async (req: AuthRequest, res) => {
+  router.get("/leads", requirePermission('leads', 'view'), async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     const { sourceId } = req.query;
     

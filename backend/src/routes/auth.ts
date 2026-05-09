@@ -26,7 +26,7 @@ export function authRoutes(prisma: PrismaClient) {
 
       const user = await prisma.user.findUnique({
         where: { email },
-        include: { organization: true }
+        include: { organization: true, accessProfile: true }
       });
 
       if (!user) {
@@ -77,7 +77,8 @@ export function authRoutes(prisma: PrismaClient) {
           id: user.id,
           email: user.email,
           role: user.role,
-          orgId: orgId
+          orgId: orgId,
+          permissions: user.accessProfile ? user.accessProfile.permissions : user.permissions
         },
         process.env.JWT_SECRET,
         {
@@ -94,6 +95,8 @@ export function authRoutes(prisma: PrismaClient) {
           email: user.email,
           role: user.role,
           status: user.status,
+          permissions: user.accessProfile ? user.accessProfile.permissions : user.permissions,
+          accessProfileId: user.accessProfileId,
           orgId,
           orgName,
           orgSlug
@@ -167,7 +170,7 @@ export function authRoutes(prisma: PrismaClient) {
       const decoded: any = jwt.verify(token, getJwtSecret());
       const user = await prisma.user.findUnique({
         where: { id: decoded.id },
-        include: { organization: true }
+        include: { organization: true, accessProfile: true }
       });
 
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -190,6 +193,8 @@ export function authRoutes(prisma: PrismaClient) {
         name: user.name, 
         email: user.email, 
         role: user.role, 
+        permissions: user.accessProfile ? user.accessProfile.permissions : user.permissions,
+        accessProfileId: user.accessProfileId,
         orgId, 
         orgName,
         orgSlug 

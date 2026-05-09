@@ -6,6 +6,7 @@ export interface AuthRequest extends Request {
     id: string;
     orgId: string;
     role: string;
+    permissions?: any;
   };
 }
 
@@ -39,3 +40,33 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     next();
   });
 }
+
+/**
+ * Middleware para checar permissões granulares
+ * Ex: requirePermission('leads', 'delete')
+ */
+export const requirePermission = (resource: string, action: string) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    // Admin da organização tem acesso total
+    if (user?.role === 'ORG_ADMIN' || user?.role === 'SUPER_ADMIN') {
+      return next();
+    }
+
+    const permissions = user?.permissions;
+
+    // Se não tiver permissões definidas ou o recurso não existir para o usuário
+    if (!permissions || !permissions[resource]) {
+      return res.status(403).json({ error: "Você não tem permissão para acessar este recurso." });
+    }
+
+    // Se a permissão for uma string '*' (acesso total ao recurso) ou se a ação estiver na lista
+    const resourcePermissions = permissions[resource];
+    if (resourcePermissions === '*' || (Array.isArray(resourcePermissions) && resourcePermissions.includes(action))) {
+      return next();
+    }
+
+    return res.status(403).json({ error: `Você não tem permissão para realizar a ação '${action}' em '${resource}'.` });
+  };
+};

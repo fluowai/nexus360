@@ -28,6 +28,7 @@ model Organization {
   aiProvider String  @default("gemini")
 
   users             User[]
+  accessProfiles    AccessProfile[]
   leads             Lead[]
   projects          Project[]
   clients           Client[]
@@ -131,8 +132,30 @@ model User {
   calendarEvents       CalendarEvent[]
   leadCaptureSources   LeadCaptureSource[]
   leadCaptureUsageLogs LeadCaptureUsageLog[]
+  permissions Json? // Ex: { "leads": ["view", "edit"], "crm": ["manage_boards"] }
+  
+  accessProfileId      String?
+  accessProfile        AccessProfile? @relation(fields: [accessProfileId], references: [id])
+  
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
+
+  @@index([organizationId])
+}
+
+model AccessProfile {
+  id             String       @id @default(uuid())
+  name           String
+  description    String?
+  permissions    Json
+  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  users          User[]
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
 }

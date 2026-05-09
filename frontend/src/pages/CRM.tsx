@@ -361,8 +361,8 @@ function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete }: {
              </div>
              <h2 className="text-3xl font-black text-gray-900 tracking-tight">{lead.name}</h2>
              <div className="flex items-center gap-4 text-xs font-bold text-gray-400">
-               <span className="flex items-center gap-1.5"><Mail size={14} className="text-gray-300" /> {lead.email}</span>
-               {lead.phone && <span className="flex items-center gap-1.5"><Phone size={14} className="text-gray-300" /> {lead.phone}</span>}
+               <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"><Mail size={14} className="text-gray-400" /> {lead.email}</a>
+               {lead.phone && <a href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-100 rounded-lg hover:bg-green-100 transition-colors"><Phone size={14} className="rotate-90" /> WhatsApp</a>}
              </div>
           </div>
           <div className="flex items-center gap-2">

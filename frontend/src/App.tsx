@@ -54,6 +54,7 @@ import LandingEditor from "./pages/LandingTemplates/LandingEditor";
 import PublicProposal from "./pages/PublicProposal";
 import LeadCapture from "./pages/prospecting/LeadCapture";
 import CapturedLists from "./pages/prospecting/CapturedLists";
+import ClientPortal from "./pages/ClientPortal";
 
 const Login = lazy(() => import("./pages/Login"));
 
@@ -97,9 +98,10 @@ const Layout = ({
     const urlHasSlug = firstPart && !reservedWords.includes(firstPart);
 
     const isPublicProposal = location.pathname.startsWith('/p/');
+    const isClientPortal = location.pathname.startsWith('/client-portal');
 
     // Páginas públicas: nunca redirecionar
-    if (isLoginPath || isMeetPath || isLandingPage || isOnboardingPath || isPublicProposal) return;
+    if (isLoginPath || isMeetPath || isLandingPage || isOnboardingPath || isPublicProposal || isClientPortal) return;
 
     // Se não tem token e NÃO está em página pública, manda para login
     if (!token) {
@@ -137,7 +139,7 @@ const Layout = ({
     }
   }, [location.pathname, user, navigate, authLoading, selectedClientId]);
 
-  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site' || location.pathname.startsWith('/p/')) {
+  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site' || location.pathname.startsWith('/p/') || location.pathname.startsWith('/client-portal')) {
     return <>{children}</>;
   }
 
@@ -279,6 +281,7 @@ export default function App() {
           <Route path="/landing-demo" element={<LandingDemo />} />
           <Route path="/landing-editor" element={<LandingEditor />} />
           <Route path="/p/:slug" element={<PublicProposal />} />
+          <Route path="/client-portal" element={<ClientPortal />} />
 
           {/* Super Admin */}
           <Route path="/admin" element={<SuperAdmin />} />

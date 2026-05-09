@@ -285,7 +285,7 @@ export const Sidebar: React.FC<{
           ) : (
             <>
               {/* Menu da Agência (Mostrado para ORG_ADMIN ou para SUPER_ADMIN em modo impersonificação) */}
-              <SidebarGroup label="Visão Geral" collapsed={collapsed}>
+              <SidebarGroup label="Workspace" collapsed={collapsed}>
                 <SidebarItem 
                   icon={LayoutDashboard} 
                   label="Dashboard" 
@@ -302,37 +302,19 @@ export const Sidebar: React.FC<{
                 />
               </SidebarGroup>
 
-              <SidebarGroup label="Comercial" collapsed={collapsed}>
+              <SidebarGroup label="🚀 Growth Hub" collapsed={collapsed}>
                 <SidebarItem 
-                  icon={CalendarDays} 
-                  label="Agenda" 
-                  collapsed={collapsed}
-                >
-                  <SidebarItem 
-                    icon={ChevronRight} 
-                    label="Calendário" 
-                    path={getPath("/calendar")} 
-                    isActive={location.pathname === getPath('/calendar')}
-                  />
-                  <SidebarItem 
-                    icon={ChevronRight} 
-                    label="Tarefas" 
-                    path={getPath("/tasks")} 
-                    isActive={location.pathname === getPath('/tasks')}
-                  />
-                </SidebarItem>
-                <SidebarItem 
-                  icon={Users} 
-                  label="CRM Leads" 
-                  path={getPath("/crm")} 
-                  isActive={location.pathname === getPath('/crm')}
+                  icon={Search} 
+                  label="Captação de Leads" 
+                  path={getPath("/prospecting/capture")} 
+                  isActive={location.pathname === getPath('/prospecting/capture')}
                   collapsed={collapsed}
                 />
                 <SidebarItem 
-                  icon={UsersRound} 
-                  label="Gestão de Clientes" 
-                  path={getPath("/clients")} 
-                  isActive={location.pathname.startsWith(getPath('/clients'))}
+                  icon={Users} 
+                  label="CRM & Pipelines" 
+                  path={getPath("/crm")} 
+                  isActive={location.pathname === getPath('/crm')}
                   collapsed={collapsed}
                 />
                 <SidebarItem 
@@ -351,12 +333,19 @@ export const Sidebar: React.FC<{
                 />
               </SidebarGroup>
 
-              <SidebarGroup label="Aquisição" collapsed={collapsed}>
+              <SidebarGroup label="⚙️ Delivery Hub" collapsed={collapsed}>
                 <SidebarItem 
-                  icon={Megaphone} 
-                  label="Marketing Ops" 
-                  path={getPath("/marketing")} 
-                  isActive={location.pathname === getPath('/marketing')}
+                  icon={Monitor} 
+                  label="Tráfego (Ads)" 
+                  path={getPath("/ad-accounts")} 
+                  isActive={location.pathname === getPath('/ad-accounts')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={KanbanSquare} 
+                  label="Projetos & Demandas" 
+                  path={getPath("/projects")} 
+                  isActive={location.pathname === getPath('/projects')}
                   collapsed={collapsed}
                 />
                 <SidebarItem 
@@ -367,71 +356,57 @@ export const Sidebar: React.FC<{
                   collapsed={collapsed}
                 />
                 <SidebarItem 
-                  icon={ClipboardList} 
-                  label="Quiz" 
-                  path={getPath("/quiz")} 
-                  isActive={location.pathname === getPath('/quiz')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Monitor} 
-                  label="Contas de Anúncio" 
-                  path={getPath("/ad-accounts")} 
-                  isActive={location.pathname === getPath('/ad-accounts')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
                   icon={FolderKanban} 
-                  label="Assets" 
+                  label="Criativos & Assets" 
                   path={getPath("/assets")} 
                   isActive={location.pathname === getPath('/assets')}
                   collapsed={collapsed}
                 />
               </SidebarGroup>
 
-              <SidebarGroup label="Operação" collapsed={collapsed}>
+              <SidebarGroup label="🏢 Agency Hub" collapsed={collapsed}>
                 <SidebarItem 
-                  icon={ClipboardList} 
-                  label="Serviços Vendidos" 
-                  path={getPath("/sold-services")} 
-                  isActive={location.pathname === getPath('/sold-services')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Search} 
-                  label="Prospecção" 
-                  collapsed={collapsed}
-                >
-                  <SidebarItem 
-                    icon={Search} 
-                    label="Captação de Leads" 
-                    path={getPath("/prospecting/capture")} 
-                    isActive={location.pathname === getPath('/prospecting/capture')}
-                  />
-                  <SidebarItem 
-                    icon={ListFilter} 
-                    label="Listas Captadas" 
-                    path={getPath("/prospecting/lists")} 
-                    isActive={location.pathname === getPath('/prospecting/lists')}
-                  />
-                </SidebarItem>
-                <SidebarItem 
-                  icon={KanbanSquare} 
-                  label="Projetos" 
-                  path={getPath("/projects")} 
-                  isActive={location.pathname === getPath('/projects')}
+                  icon={UsersRound} 
+                  label="Meus Clientes" 
+                  path={getPath("/clients")} 
+                  isActive={location.pathname.startsWith(getPath('/clients'))}
                   collapsed={collapsed}
                 />
                 <SidebarItem 
                   icon={UsersRound} 
-                  label="Equipe" 
+                  label="Equipe e Acessos" 
                   path={getPath("/team")} 
                   isActive={location.pathname === getPath('/team')}
                   collapsed={collapsed}
                 />
+                <SidebarItem 
+                  icon={Wallet} 
+                  label="Financeiro" 
+                  path={getPath("/finance")} 
+                  isActive={location.pathname === getPath('/finance')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={CalendarDays} 
+                  label="Agenda" 
+                  collapsed={collapsed}
+                >
+                  <SidebarItem 
+                    icon={ChevronRight} 
+                    label="Calendário" 
+                    path={getPath("/calendar")} 
+                    isActive={location.pathname === getPath('/calendar')}
+                  />
+                  <SidebarItem 
+                    icon={ChevronRight} 
+                    label="Tarefas" 
+                    path={getPath("/tasks")} 
+                    isActive={location.pathname === getPath('/tasks')}
+                  />
+                </SidebarItem>
               </SidebarGroup>
 
-              <SidebarGroup label="Inteligência" collapsed={collapsed}>
+              <SidebarGroup label="🧠 Nexus AI" collapsed={collapsed}>
                 <SidebarItem 
                   icon={Sparkles} 
                   label="Central de Agentes" 
@@ -451,14 +426,7 @@ export const Sidebar: React.FC<{
                 />
               </SidebarGroup>
 
-              <SidebarGroup label="Administrativo" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={Wallet} 
-                  label="Financeiro" 
-                  path={getPath("/finance")} 
-                  isActive={location.pathname === getPath('/finance')}
-                  collapsed={collapsed}
-                />
+              <SidebarGroup label="Configurações" collapsed={collapsed}>
                 <SidebarItem 
                   icon={Settings} 
                   label="Configurações" 

@@ -55,6 +55,43 @@ export default function LeadCapture() {
   const [showDossierModal, setShowDossierModal] = useState(false);
   const [showScriptsModal, setShowScriptsModal] = useState(false);
   const [activeScripts, setActiveScripts] = useState<{ coldCallScript: string, whatsappMessage: string } | null>(null);
+  const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+  const [boards, setBoards] = useState<any[]>([]);
+  const [selectedBoardId, setSelectedBoardId] = useState<string>('');
+
+  const fetchBoards = async () => {
+    try {
+      const res = await apiFetch('/api/crm/boards');
+      const data = await res.json();
+      setBoards(data);
+      if (data.length > 0) setSelectedBoardId(data[0].id);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const setupDefaultBoards = async () => {
+    try {
+      await apiFetch('/api/crm/boards/setup', { method: 'POST' });
+      fetchBoards();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSuperIntelligence = async () => {
+    if (selectedLeads.length === 0) return;
+    setLoading(true);
+    try {
+      for (const id of selectedLeads) {
+        await handleEnrich(id);
+        await handleAnalyze(id);
+      }
+    } finally {
+      setLoading(false);
+      setSelectedLeads([]);
+    }
+  };
 
   const handleDossier = async (id: string) => {
     setAnalyzingIds(prev => [...prev, id]);
@@ -120,6 +157,7 @@ export default function LeadCapture() {
   useEffect(() => {
     fetchSources();
     fetchLeads();
+    fetchBoards();
   }, []);
 
   const fetchSources = async () => {
@@ -138,6 +176,7 @@ export default function LeadCapture() {
       const res = await apiFetch(url);
       const data = await res.json();
       setLeads(Array.isArray(data) ? data : []);
+      setActiveSourceId(sourceId || null);
     } catch (err) {
       console.error(err);
       setLeads([]);
@@ -241,7 +280,10 @@ export default function LeadCapture() {
 
   const handleSendToCrm = async (leadId: string) => {
     try {
-      const res = await apiFetch(`/api/lead-capture/leads/${leadId}/send-to-crm`, { method: 'POST' });
+      const res = await apiFetch(`/api/lead-capture/leads/${leadId}/send-to-crm`, { 
+        method: 'POST',
+        body: JSON.stringify({ boardId: selectedBoardId })
+      });
       if (res.ok) {
         const updatedLead = await res.json();
         setLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
@@ -271,6 +313,26 @@ export default function LeadCapture() {
             className="flex items-center gap-3 p-2 bg-primary/5 border border-primary/20 rounded-2xl shadow-sm"
           >
             <span className="text-xs font-bold text-primary ml-2">{selectedLeads.length} selecionados</span>
+            
+            {boards.length > 0 ? (
+              <select 
+                value={selectedBoardId}
+                onChange={(e) => setSelectedBoardId(e.target.value)}
+                className="bg-white border border-gray-200 text-[11px] font-bold py-2 px-3 rounded-xl outline-none focus:ring-2 focus:ring-primary/10 transition-all"
+              >
+                {boards.map(b => (
+                  <option key={b.id} value={b.id}>Enviar p/ {b.name}</option>
+                ))}
+              </select>
+            ) : (
+              <button 
+                onClick={setupDefaultBoards}
+                className="px-3 py-2 bg-orange-100 text-orange-600 text-[10px] font-black rounded-xl hover:bg-orange-200 transition-all uppercase tracking-widest"
+              >
+                Inicializar Operação
+              </button>
+            )}
+
             <button 
               onClick={handleBulkValidate}
               disabled={loading}
@@ -286,6 +348,14 @@ export default function LeadCapture() {
             >
               {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               Enviar para o CRM
+            </button>
+            <button 
+              onClick={handleSuperIntelligence}
+              disabled={loading}
+              className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold rounded-xl hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-purple-600/20"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+              Super Inteligência
             </button>
           </motion.div>
         )}
@@ -564,20 +634,42 @@ export default function LeadCapture() {
               <History size={16} className="text-primary" />
               Buscas Recentes
             </h3>
+            <button 
+              onClick={() => fetchLeads()}
+              className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest"
+            >
+              Ver Tudo
+            </button>
           </div>
           
           <div className="space-y-3">
-            {sources.slice(0, 5).map((source) => (
-              <div key={source.id} className="bg-white p-4 rounded-2xl border border-gray-100 hover:border-primary/20 transition-all cursor-pointer shadow-sm">
+            {sources.slice(0, 10).map((source) => (
+              <div 
+                key={source.id} 
+                onClick={() => fetchLeads(source.id)}
+                className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-sm group ${
+                  activeSourceId === source.id 
+                  ? 'bg-primary/5 border-primary shadow-primary/10' 
+                  : 'bg-white border-gray-100 hover:border-primary/20'
+                }`}
+              >
                 <div className="flex justify-between items-start mb-2">
-                  <span className="px-2 py-0.5 bg-gray-100 text-gray-500 text-[8px] font-black rounded uppercase tracking-wider">{source.provider}</span>
+                  <span className={`px-2 py-0.5 text-[8px] font-black rounded uppercase tracking-wider ${
+                    activeSourceId === source.id ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'
+                  }`}>
+                    {source.provider}
+                  </span>
                   <span className="text-[9px] text-gray-400">{new Date(source.createdAt).toLocaleDateString()}</span>
                 </div>
-                <p className="text-xs font-bold text-gray-800 truncate">{source.keyword}</p>
+                <p className={`text-xs font-bold truncate ${activeSourceId === source.id ? 'text-primary' : 'text-gray-800'}`}>
+                  {source.keyword}
+                </p>
                 <p className="text-[10px] text-gray-400 mt-1">{source.city}, {source.state}</p>
                 <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between">
-                   <span className="text-[10px] font-black text-primary">{source.totalImported} leads</span>
-                   <CheckCircle2 size={12} className="text-green-500" />
+                   <span className={`text-[10px] font-black ${activeSourceId === source.id ? 'text-primary' : 'text-gray-500'}`}>
+                     {source.totalImported} leads
+                   </span>
+                   <CheckCircle2 size={12} className={activeSourceId === source.id ? 'text-primary' : 'text-green-500'} />
                 </div>
               </div>
             ))}

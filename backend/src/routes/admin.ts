@@ -132,7 +132,7 @@ export function adminRoutes(prisma: PrismaClient) {
   router.patch("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { id } = req.params;
-    const { name, domain, plan, slug, adminEmail, password, isTestAccount, betaAccess } = req.body;
+    const { name, domain, plan, planId, slug, adminEmail, password, isTestAccount, betaAccess } = req.body;
     
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -147,6 +147,7 @@ export function adminRoutes(prisma: PrismaClient) {
             ...(name && { name }),
             ...(domain !== undefined && { domain }),
             ...(plan && { plan }),
+            ...(planId && { planId }),
             ...(slug && { slug }),
             ...(isTestAccount !== undefined && { isTestAccount }),
             ...(betaAccess !== undefined && { betaAccess })
@@ -323,6 +324,45 @@ export function adminRoutes(prisma: PrismaClient) {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete user" });
+    }
+  });
+  
+  // --- Plan Management ---
+  router.get("/plans", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    try {
+      const plans = await prisma.plan.findMany({
+        orderBy: { name: 'asc' }
+      });
+      res.json(plans);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch plans" });
+    }
+  });
+
+  router.post("/plans", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { name, description, leadsLimit, clientsLimit, aiLimit, features } = req.body;
+    try {
+      const plan = await prisma.plan.create({
+        data: { name, description, leadsLimit, clientsLimit, aiLimit, features }
+      });
+      res.json(plan);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create plan" });
+    }
+  });
+
+  router.patch("/plans/:id", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    try {
+      const plan = await prisma.plan.update({
+        where: { id: req.params.id },
+        data: req.body
+      });
+      res.json(plan);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update plan" });
     }
   });
 

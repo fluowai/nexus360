@@ -35,7 +35,17 @@ export function authRoutes(prisma: PrismaClient) {
 
       const user = await prisma.user.findUnique({
         where: { email },
-        include: { organization: true, accessProfile: true }
+        include: { 
+          organization: {
+            include: {
+              planObj: true,
+              _count: {
+                select: { leads: true }
+              }
+            }
+          }, 
+          accessProfile: true 
+        }
       });
 
       if (!user) {
@@ -110,7 +120,11 @@ export function authRoutes(prisma: PrismaClient) {
           orgName,
           orgSlug,
           betaAccess: user.organization?.betaAccess || false,
-          isTestAccount: user.organization?.isTestAccount || false
+          isTestAccount: user.organization?.isTestAccount || false,
+          plan: user.organization?.planObj || { name: user.organization?.plan || 'Free', leadsLimit: 100 },
+          usage: {
+            leads: user.organization?._count?.leads || 0
+          }
         }
       });
     } catch (error) {
@@ -183,7 +197,17 @@ export function authRoutes(prisma: PrismaClient) {
       const decoded: any = jwt.verify(token, getJwtSecret());
       const user = await prisma.user.findUnique({
         where: { id: decoded.id },
-        include: { organization: true, accessProfile: true }
+        include: { 
+          organization: {
+            include: {
+              planObj: true,
+              _count: {
+                select: { leads: true }
+              }
+            }
+          }, 
+          accessProfile: true 
+        }
       });
 
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -212,7 +236,11 @@ export function authRoutes(prisma: PrismaClient) {
         orgName,
         orgSlug,
         betaAccess: user.organization?.betaAccess || false,
-        isTestAccount: user.organization?.isTestAccount || false
+        isTestAccount: user.organization?.isTestAccount || false,
+        plan: user.organization?.planObj || { name: user.organization?.plan || 'Free', leadsLimit: 100 },
+        usage: {
+          leads: user.organization?._count?.leads || 0
+        }
       });
     } catch (error) {
       res.status(401).json({ error: "Invalid token" });

@@ -39,6 +39,7 @@ export default function AdminAgencies() {
   const [registeringDomain, setRegisteringDomain] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<any>(null);
+  const [availablePlans, setAvailablePlans] = useState<any[]>([]);
 
   const generatePassword = () => {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*";
@@ -79,8 +80,12 @@ export default function AdminAgencies() {
 
   const fetchAgencies = async () => {
     try {
-      const res = await apiFetch('/api/admin/orgs');
-      if (res.ok) setAgencies(await res.json());
+      const [orgsRes, plansRes] = await Promise.all([
+        apiFetch('/api/admin/orgs'),
+        apiFetch('/api/admin/plans')
+      ]);
+      if (orgsRes.ok) setAgencies(await orgsRes.json());
+      if (plansRes.ok) setAvailablePlans(await plansRes.json());
     } catch (err) {
       console.error(err);
     } finally {
@@ -188,10 +193,10 @@ export default function AdminAgencies() {
                   </td>
                   <td className="px-4 py-5">
                     <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase ${
-                      org.plan === 'Enterprise' ? 'bg-purple-100 text-purple-600' : 
-                      org.plan === 'Pro' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
+                      org.plan === 'Enterprise' || org.planObj?.name === 'Enterprise' ? 'bg-purple-100 text-purple-600' : 
+                      org.plan === 'Pro' || org.planObj?.name === 'Pro' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
                     }`}>
-                      {org.plan}
+                      {org.planObj?.name || org.plan}
                     </span>
                   </td>
                   <td className="px-4 py-5 font-medium text-gray-600">
@@ -353,11 +358,28 @@ export default function AdminAgencies() {
                 <select 
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
                   value={newOrg.plan}
-                  onChange={e => setNewOrg({...newOrg, plan: e.target.value})}
+                  onChange={e => {
+                    const selectedPlan = availablePlans.find(p => p.name === e.target.value || p.id === e.target.value);
+                    setNewOrg({
+                      ...newOrg, 
+                      plan: selectedPlan?.name || e.target.value,
+                      //@ts-ignore
+                      planId: selectedPlan?.id || null
+                    });
+                  }}
                 >
-                  <option value="Free">Gratuito</option>
-                  <option value="Pro">Pro</option>
-                  <option value="Enterprise">Enterprise</option>
+                  <option value="">Selecione um Plano</option>
+                  {availablePlans.length > 0 ? (
+                    availablePlans.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Free">Gratuito</option>
+                      <option value="Pro">Pro</option>
+                      <option value="Enterprise">Enterprise</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -519,12 +541,28 @@ export default function AdminAgencies() {
                 <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Plano</label>
                 <select 
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl border-none outline-none focus:ring-2 focus:ring-primary"
-                  value={editData.plan}
-                  onChange={e => setEditData({...editData, plan: e.target.value})}
+                  value={editData.planId || editData.plan}
+                  onChange={e => {
+                    const selectedPlan = availablePlans.find(p => p.id === e.target.value || p.name === e.target.value);
+                    setEditData({
+                      ...editData, 
+                      plan: selectedPlan?.name || e.target.value,
+                      planId: selectedPlan?.id || null
+                    });
+                  }}
                 >
-                  <option value="Free">Gratuito</option>
-                  <option value="Pro">Pro</option>
-                  <option value="Enterprise">Enterprise</option>
+                  <option value="">Selecione um Plano</option>
+                  {availablePlans.length > 0 ? (
+                    availablePlans.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Free">Gratuito</option>
+                      <option value="Pro">Pro</option>
+                      <option value="Enterprise">Enterprise</option>
+                    </>
+                  )}
                 </select>
               </div>
 

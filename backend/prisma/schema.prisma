@@ -17,6 +17,8 @@ model Organization {
   slug      String?  @unique // Opcional temporariamente para migração
   domain    String?
   plan      String   @default("Free")
+  planId    String?
+  planObj   Plan?    @relation(fields: [planId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -69,6 +71,21 @@ model Organization {
   saasSubscriptions SaaSSubscription[]
   saasInvoices      SaaSInvoice[]
   supportTickets    SupportTicket[]
+}
+
+model Plan {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  description  String?
+  leadsLimit   Int      @default(100)
+  clientsLimit Int      @default(10)
+  aiLimit      Int      @default(50)
+  features     Json?
+  
+  organizations Organization[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model SystemSettings {

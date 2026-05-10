@@ -7,7 +7,9 @@ import {
   FileText, 
   TrendingUp, 
   ArrowUpRight, 
-  ArrowDownRight 
+  ArrowDownRight,
+  AlertCircle,
+  Crown
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -71,6 +73,41 @@ export default function Dashboard() {
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-2">Bem-vindo, {data.orgName} 👋</h1>
         <p className="text-sm sm:text-base text-gray-500">Aqui está um resumo da performance do seu negócio hoje.</p>
       </div>
+      
+      {/* Plan Info */}
+      <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+        <div className="glass-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 border-l-4 border-primary bg-gradient-to-r from-white to-blue-50/30">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+              <Crown size={28} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Plano {data.plan?.name || 'Free'}</h2>
+              <p className="text-sm text-gray-500 max-w-md">Você está utilizando os recursos do plano {data.plan?.name}. Seu limite de leads é monitorado em tempo real.</p>
+            </div>
+          </div>
+          
+          <div className="w-full sm:w-72 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="font-semibold text-gray-700">Uso de Leads</span>
+              <span className="text-gray-500 font-medium">{data.usage?.leads || 0} / {data.plan?.leadsLimit || 100}</span>
+            </div>
+            <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(((data.usage?.leads || 0) / (data.plan?.leadsLimit || 100)) * 100, 100)}%` }}
+                className={`h-full transition-all duration-1000 ${(data.usage?.leads || 0) >= (data.plan?.leadsLimit || 100) ? 'bg-red-500' : 'bg-primary'}`}
+              />
+            </div>
+            {(data.usage?.leads || 0) >= (data.plan?.leadsLimit || 100) && (
+              <p className="text-xs text-red-500 font-bold flex items-center gap-1 animate-pulse">
+                <AlertCircle size={12} />
+                Limite atingido! Upgrade necessário.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -109,7 +146,7 @@ export default function Dashboard() {
               <span className="flex items-center gap-1 text-xs font-medium bg-green-50 text-green-600 px-2 py-1 rounded">Conversão</span>
             </div>
           </div>
-          <div className="w-full h-[300px] min-h-[300px] min-w-0">
+          <div className="w-full h-[300px] min-h-[300px] min-w-0 relative" style={{ minHeight: '300px' }}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data.chartData}>
               <defs>

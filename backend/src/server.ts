@@ -227,7 +227,12 @@ app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
       prisma.creative.count({ where }),
       prisma.organization.findUnique({
         where: { id: orgId as string },
-        select: { name: true }
+        select: { 
+          name: true,
+          plan: true,
+          planId: true,
+          planObj: true
+        }
       })
     ]);
 
@@ -235,6 +240,8 @@ app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
 
     res.json({
       orgName: org?.name || "Minha Agência",
+      plan: org?.planObj || { name: org?.plan || 'Free', leadsLimit: 100 },
+      usage: { leads },
       metrics: { 
         leads, 
         clients, 

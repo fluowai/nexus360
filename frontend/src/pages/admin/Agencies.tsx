@@ -97,7 +97,7 @@ export default function AdminAgencies() {
       });
       if (res.ok) {
         setShowModal(false);
-        setNewOrg({ name: '', domain: '', slug: '', plan: 'Pro', adminEmail: '', adminPassword: '', adminName: '' });
+        setNewOrg({ name: '', domain: '', slug: '', plan: 'Pro', adminEmail: '', adminPassword: '', adminName: '', isTestAccount: false, betaAccess: false });
         fetchAgencies();
       } else {
         const data = await res.json();
@@ -359,6 +359,34 @@ export default function AdminAgencies() {
                   <option value="Pro">Pro</option>
                   <option value="Enterprise">Enterprise</option>
                 </select>
+              </div>
+
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 mt-2">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 rounded-lg border-gray-300 text-primary focus:ring-primary"
+                    checked={newOrg.isTestAccount}
+                    onChange={e => setNewOrg({ ...newOrg, isTestAccount: e.target.checked })}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-gray-700">Conta de Teste</span>
+                    <span className="text-[10px] text-gray-400">Para validação interna</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    className="w-5 h-5 rounded-lg border-gray-300 text-orange-500 focus:ring-orange-500"
+                    checked={newOrg.betaAccess}
+                    onChange={e => setNewOrg({ ...newOrg, betaAccess: e.target.checked })}
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-gray-700">Acesso Beta</span>
+                    <span className="text-[10px] text-gray-400">Recursos em desenvolvimento</span>
+                  </div>
+                </label>
               </div>
 
               <div className="md:col-span-2 flex gap-4 mt-8">

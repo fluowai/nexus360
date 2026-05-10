@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 export function clientPortalRoutes(prisma: PrismaClient) {
@@ -74,19 +74,19 @@ export function clientPortalRoutes(prisma: PrismaClient) {
       res.json({
         metrics: {
           leadsGenerated: client.opportunities.length,
-          salesClosed: client.opportunities.filter(o => o.status === 'fechado').length,
+          salesClosed: client.opportunities.filter(o => o.stage === 'fechado_ganho').length,
           adsSpent: "R$ 0,00", // Isso viria do módulo de Ads futuramente
           conversionRate: "0%"
         },
         recentLeads: client.opportunities.map(o => ({
           id: o.id,
-          name: o.name || "Lead",
-          status: o.status,
+          name: o.title || "Lead",
+          status: o.stage,
           date: new Date(o.createdAt).toLocaleDateString('pt-BR')
         })),
         invoices: client.invoices.map(inv => ({
           id: inv.invoiceNumber || inv.id,
-          amount: inv.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+          amount: inv.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
           status: inv.status,
           dueDate: new Date(inv.dueDate).toLocaleDateString('pt-BR')
         }))

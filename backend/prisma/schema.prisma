@@ -71,6 +71,14 @@ model Organization {
   supportTickets    SupportTicket[]
 }
 
+model SystemSettings {
+  id                String   @id @default("global")
+  crmPublic         Boolean  @default(false)
+  salesMachinePublic Boolean @default(false)
+  agentBuilderPublic Boolean @default(false)
+  updatedAt         DateTime @updatedAt
+}
+
 model SaaSSubscription {
   id             String       @id @default(uuid())
   organizationId String

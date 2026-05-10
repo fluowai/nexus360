@@ -46,6 +46,7 @@ import AdminPlans from "./pages/admin/Plans";
 import AdminBilling from "./pages/admin/Billing";
 import AdminTickets from "./pages/admin/Tickets";
 import WhiteLabel from "./pages/admin/WhiteLabel";
+import ReleaseControl from "./pages/admin/ReleaseControl";
 
 import LandingPage from "./pages/LandingPage";
 import PromptArchitect from "./pages/PromptArchitect";
@@ -294,6 +295,7 @@ export default function App() {
           <Route path="/admin/billing" element={<AdminBilling />} />
           <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/whitelabel" element={<WhiteLabel />} />
+          <Route path="/admin/releases" element={<ReleaseControl />} />
 
           {/* Agências com Slug: nexus.woopanel.com.br/slug/dashboard */}
           <Route path="/:slug" element={<Dashboard />} /> 

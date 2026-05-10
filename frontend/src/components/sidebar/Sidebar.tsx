@@ -29,7 +29,8 @@ import {
   Monitor,
   Ticket,
   CreditCard,
-  Building2
+  Building2,
+  Rocket
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import './Sidebar.css';
@@ -278,6 +279,13 @@ export const Sidebar: React.FC<{
                   label="Domínios" 
                   path="/admin/domains" 
                   isActive={location.pathname === '/admin/domains'}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Rocket} 
+                  label="Controle de Lançamento" 
+                  path="/admin/releases" 
+                  isActive={location.pathname === '/admin/releases'}
                   collapsed={collapsed}
                 />
               </SidebarGroup>

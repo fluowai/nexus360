@@ -11,6 +11,16 @@ export function salesRoutes(prisma: PrismaClient) {
   router.get("/queue", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     try {
+      // Feature Flag Check
+      const [org, settings] = await Promise.all([
+        prisma.organization.findUnique({ where: { id: orgId }, select: { betaAccess: true } }),
+        prisma.systemSettings.findUnique({ where: { id: "global" } })
+      ]);
+
+      if (!settings?.salesMachinePublic && !org?.betaAccess) {
+        return res.status(403).json({ error: "O recurso Sales Machine está em fase de homologação. Contate o suporte para liberar acesso beta." });
+      }
+
       const queue = await prisma.lead.findMany({
         where: { 
           organizationId: orgId,

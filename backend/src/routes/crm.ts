@@ -14,6 +14,16 @@ export function crmRoutes(prisma: PrismaClient) {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
     try {
+      // Feature Flag Check
+      const [org, settings] = await Promise.all([
+        prisma.organization.findUnique({ where: { id: orgId }, select: { betaAccess: true } }),
+        prisma.systemSettings.findUnique({ where: { id: "global" } })
+      ]);
+
+      if (!settings?.crmPublic && !org?.betaAccess) {
+        return res.status(403).json({ error: "Este recurso está em fase de testes e ainda não foi liberado para sua conta." });
+      }
+
       const boards = await prisma.crmBoard.findMany({
         where: { organizationId: orgId },
         include: { stages: { orderBy: { order: 'asc' } } }

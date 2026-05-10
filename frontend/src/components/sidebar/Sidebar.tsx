@@ -30,7 +30,14 @@ import {
   Ticket,
   CreditCard,
   Building2,
-  Rocket
+  Rocket,
+  Bell,
+  Truck,
+  Package,
+  Clock,
+  BookOpen,
+  Activity,
+  GitBranch
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import './Sidebar.css';
@@ -59,8 +66,8 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
-  const isChildActive = children && React.Children.toArray(children).some((child: any) => 
-    child.props.path === location.pathname
+  const isChildActive = React.Children.toArray(children).some((child) => 
+    React.isValidElement(child) && (child.props as any)?.path === location.pathname
   );
 
   useEffect(() => {
@@ -412,6 +419,58 @@ export const Sidebar: React.FC<{
                     isActive={location.pathname === getPath('/tasks')}
                   />
                 </SidebarItem>
+              </SidebarGroup>
+
+              <SidebarGroup label="🤖 Automation Hub" collapsed={collapsed}>
+                <SidebarItem 
+                  icon={GitBranch} 
+                  label="Automações" 
+                  path={getPath("/automations")} 
+                  isActive={location.pathname === getPath('/automations')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Bell} 
+                  label="Notificações" 
+                  path={getPath("/notifications")} 
+                  isActive={location.pathname === getPath('/notifications')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Truck} 
+                  label="Entregas & Aprovações" 
+                  path={getPath("/delivery")} 
+                  isActive={location.pathname === getPath('/delivery')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Package} 
+                  label="Catálogo de Serviços" 
+                  path={getPath("/service-catalog")} 
+                  isActive={location.pathname === getPath('/service-catalog')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Clock} 
+                  label="Apontamento de Horas" 
+                  path={getPath("/time-tracking")} 
+                  isActive={location.pathname === getPath('/time-tracking')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={Activity} 
+                  label="Health Score" 
+                  path={getPath("/client-health")} 
+                  isActive={location.pathname === getPath('/client-health')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={BookOpen} 
+                  label="Base de Conhecimento" 
+                  path={getPath("/knowledge-base")} 
+                  isActive={location.pathname === getPath('/knowledge-base')}
+                  collapsed={collapsed}
+                />
               </SidebarGroup>
 
               <SidebarGroup label="🧠 Nexus AI" collapsed={collapsed}>

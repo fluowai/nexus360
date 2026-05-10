@@ -20,7 +20,7 @@ export default function PublicProposal() {
   const [proposal, setProposal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [accepted, setAccepted] = useState(false);
-  const [formData, setFormData] = useState({ corporateName: '', taxId: '', address: '', representative: '' });
+  const [formData, setFormData] = useState({ corporateName: '', cnpj: '', email: '', phone: '' });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function PublicProposal() {
       const res = await fetch(`${API_URL}/api/public/proposals/${slug}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData) // Usa o formData com corporateName, taxId, address, representative
+        body: JSON.stringify({ corporateName: formData.corporateName, cnpj: formData.cnpj, email: formData.email, phone: formData.phone })
       });
       
       if (!res.ok) throw new Error("Erro ao aceitar proposta");
@@ -147,13 +147,13 @@ export default function PublicProposal() {
                     </div>
                   </div>
                   
-                  <form onSubmit={handleAccept} className="bg-white/10 backdrop-blur-md rounded-[32px] p-8 border border-white/20 space-y-4">
-                     <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="Razão Social / Nome Completo" value={formData.corporateName} onChange={e => setFormData({...formData, corporateName: e.target.value})} />
-                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="CNPJ / CPF" value={formData.taxId} onChange={e => setFormData({...formData, taxId: e.target.value})} />
-                        <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="Responsável" value={formData.representative} onChange={e => setFormData({...formData, representative: e.target.value})} />
-                     </div>
-                     <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="Endereço Sede" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+                   <form onSubmit={handleAccept} className="bg-white/10 backdrop-blur-md rounded-[32px] p-8 border border-white/20 space-y-4">
+                      <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="Razão Social / Nome Completo" value={formData.corporateName} onChange={e => setFormData({...formData, corporateName: e.target.value})} />
+                      <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="CNPJ / CPF" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                         <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="E-mail" type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                         <input required className="w-full bg-white/10 border border-white/20 p-4 rounded-2xl outline-none focus:bg-white/20 transition-all placeholder:text-white/40 font-bold" placeholder="Telefone" type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                      </div>
                      
                      <button disabled={submitting} type="submit" className="w-full py-5 bg-white text-blue-600 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2 mt-4">
                         {submitting ? <Loader2 className="animate-spin" size={24} /> : 'Aceitar Proposta & Gerar Contrato'}

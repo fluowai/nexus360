@@ -28,6 +28,7 @@ import { Lead, LeadStatus } from "../types";
 import { apiFetch } from "../lib/api";
 import { WinLeadModal } from "../components/crm/WinLeadModal";
 import { NexusMeetScheduler } from "../components/crm/NexusMeetScheduler";
+import Pagination from "../components/Pagination";
 
 export default function CRM() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -37,18 +38,30 @@ export default function CRM() {
   const [winLead, setWinLead] = useState<any | null>(null);
   const [showMeetScheduler, setShowMeetScheduler] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  const fetchLeads = async () => {
+  const fetchLeads = async (p = page) => {
     try {
-      const res = await apiFetch(`/api/crm/leads`);
+      const res = await apiFetch(`/api/crm/leads?page=${p}&pageSize=50`);
       const data = await res.json();
       const leadsArray = data.leads || data;
       setLeads(Array.isArray(leadsArray) ? leadsArray : []);
+      if (data.total) {
+        setTotal(data.total);
+        setTotalPages(Math.ceil(data.total / 50));
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    fetchLeads(newPage);
   };
 
   useEffect(() => {
@@ -200,6 +213,8 @@ export default function CRM() {
           </div>
         ))}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} total={total} pageSize={50} onPageChange={handlePageChange} />
 
       <AnimatePresence>
         {isModalOpen && (

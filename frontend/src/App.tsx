@@ -12,53 +12,62 @@ import { Sidebar } from "./components/sidebar/Sidebar";
 import { apiFetch } from "./lib/api";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-// Pages
+// Only eagerly load Dashboard (most visited page)
 import Dashboard from "./pages/Dashboard";
-import CRM from "./pages/CRM";
-import Content from "./pages/Content";
-import Projects from "./pages/Projects";
-import Team from "./pages/Team";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import SuperAdmin from "./pages/SuperAdmin";
-import MarketingOps from "./pages/MarketingOps";
-import SalesMachine from "./pages/SalesMachine";
-import Proposals from "./pages/Proposals";
-import ClientsPage from "./pages/Clients";
-import ClientDetailPage from "./pages/ClientDetail";
-import SoldServicesPage from "./pages/SoldServices";
-import MeetingRoom from "./pages/MeetingRoom";
-import Onboarding from "./pages/Onboarding";
-import AgentsHub from "./pages/AgentsHub";
-import AISettings from "./pages/AISettings";
-import Finance from "./pages/Finance";
-import Tasks from "./pages/Tasks";
-import Calendar from "./pages/Calendar";
-import AdAccounts from "./pages/AdsAccounts";
-import AssetsLibrary from "./pages/AssetsLibrary";
-import LandingPages from "./pages/LandingPages";
-import QuizBuilder from "./pages/QuizBuilder";
-import AdminAgencies from "./pages/admin/Agencies";
-import SystemTeam from "./pages/admin/SystemTeam";
-import AdminDomains from "./pages/admin/Domains";
-import AdminMonitor from "./pages/admin/Monitor";
-import AdminAudit from "./pages/admin/AuditLog";
-import AdminPlans from "./pages/admin/Plans";
-import AdminBilling from "./pages/admin/Billing";
-import AdminTickets from "./pages/admin/Tickets";
-import WhiteLabel from "./pages/admin/WhiteLabel";
-import ReleaseControl from "./pages/admin/ReleaseControl";
 
-import LandingPage from "./pages/LandingPage";
-import PromptArchitect from "./pages/PromptArchitect";
-import LandingDemo from "./pages/LandingDemo";
-import LandingEditor from "./pages/LandingTemplates/LandingEditor";
-import PublicProposal from "./pages/PublicProposal";
-import LeadCapture from "./pages/prospecting/LeadCapture";
-import CapturedLists from "./pages/prospecting/CapturedLists";
-import ClientPortal from "./pages/ClientPortal";
-
+// Lazy load all other pages for code splitting
+const CRM = lazy(() => import("./pages/CRM"));
+const Content = lazy(() => import("./pages/Content"));
+const Projects = lazy(() => import("./pages/Projects"));
+const Team = lazy(() => import("./pages/Team"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Settings = lazy(() => import("./pages/Settings"));
+const SuperAdmin = lazy(() => import("./pages/SuperAdmin"));
+const MarketingOps = lazy(() => import("./pages/MarketingOps"));
+const SalesMachine = lazy(() => import("./pages/SalesMachine"));
+const Proposals = lazy(() => import("./pages/Proposals"));
+const ClientsPage = lazy(() => import("./pages/Clients"));
+const ClientDetailPage = lazy(() => import("./pages/ClientDetail"));
+const SoldServicesPage = lazy(() => import("./pages/SoldServices"));
+const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
+const Onboarding = lazy(() => import("./pages/Onboarding"));
+const AgentsHub = lazy(() => import("./pages/AgentsHub"));
+const AISettings = lazy(() => import("./pages/AISettings"));
+const Finance = lazy(() => import("./pages/Finance"));
+const Tasks = lazy(() => import("./pages/Tasks"));
+const Calendar = lazy(() => import("./pages/Calendar"));
+const AdAccounts = lazy(() => import("./pages/AdsAccounts"));
+const AssetsLibrary = lazy(() => import("./pages/AssetsLibrary"));
+const LandingPages = lazy(() => import("./pages/LandingPages"));
+const QuizBuilder = lazy(() => import("./pages/QuizBuilder"));
+const AdminAgencies = lazy(() => import("./pages/admin/Agencies"));
+const SystemTeam = lazy(() => import("./pages/admin/SystemTeam"));
+const AdminDomains = lazy(() => import("./pages/admin/Domains"));
+const AdminMonitor = lazy(() => import("./pages/admin/Monitor"));
+const AdminAudit = lazy(() => import("./pages/admin/AuditLog"));
+const AdminPlans = lazy(() => import("./pages/admin/Plans"));
+const AdminBilling = lazy(() => import("./pages/admin/Billing"));
+const AdminTickets = lazy(() => import("./pages/admin/Tickets"));
+const WhiteLabel = lazy(() => import("./pages/admin/WhiteLabel"));
+const ReleaseControl = lazy(() => import("./pages/admin/ReleaseControl"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const PromptArchitect = lazy(() => import("./pages/PromptArchitect"));
+const LandingDemo = lazy(() => import("./pages/LandingDemo"));
+const LandingEditor = lazy(() => import("./pages/LandingTemplates/LandingEditor"));
+const PublicProposal = lazy(() => import("./pages/PublicProposal"));
+const LeadCapture = lazy(() => import("./pages/prospecting/LeadCapture"));
+const CapturedLists = lazy(() => import("./pages/prospecting/CapturedLists"));
+const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const Login = lazy(() => import("./pages/Login"));
+
+// Novas páginas de automação de agência
+const AutomationBuilder = lazy(() => import("./pages/AutomationBuilder"));
+const NotificationsCenter = lazy(() => import("./pages/NotificationsCenter"));
+const DeliveryKanban = lazy(() => import("./pages/DeliveryKanban"));
+const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
+const TimeTracking = lazy(() => import("./pages/TimeTracking"));
+const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
+const ClientHealthDashboard = lazy(() => import("./pages/ClientHealthDashboard"));
 
 const Layout = ({ 
   children, 
@@ -328,6 +337,22 @@ export default function App() {
           <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
           <Route path="/:slug/ai-settings" element={<AISettings />} />
           <Route path="/:slug/prompt-architect" element={<PromptArchitect />} />
+
+          {/* Novas Rotas de Automação */}
+          <Route path="/:slug/automations" element={<AutomationBuilder />} />
+          <Route path="/:slug/notifications" element={<NotificationsCenter />} />
+          <Route path="/:slug/delivery" element={<DeliveryKanban />} />
+          <Route path="/:slug/service-catalog" element={<ServiceCatalog />} />
+          <Route path="/:slug/time-tracking" element={<TimeTracking />} />
+          <Route path="/:slug/knowledge-base" element={<KnowledgeBase />} />
+          <Route path="/:slug/client-health" element={<ClientHealthDashboard />} />
+          <Route path="/automations" element={<AutomationBuilder />} />
+          <Route path="/notifications" element={<NotificationsCenter />} />
+          <Route path="/delivery" element={<DeliveryKanban />} />
+          <Route path="/service-catalog" element={<ServiceCatalog />} />
+          <Route path="/time-tracking" element={<TimeTracking />} />
+          <Route path="/knowledge-base" element={<KnowledgeBase />} />
+          <Route path="/client-health" element={<ClientHealthDashboard />} />
 
           {/* Fallback Legacy Routes */}
           <Route path="/dashboard" element={<Dashboard />} />

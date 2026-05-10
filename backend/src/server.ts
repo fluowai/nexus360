@@ -33,6 +33,13 @@ import { extraRoutes } from "./routes/extras.js";
 import { teamRoutes } from "./routes/team.js";
 import { accessProfileRoutes } from "./routes/accessProfiles.js";
 import { clientPortalRoutes } from "./routes/clientPortal.js";
+import { automationRoutes } from "./routes/automation.js";
+import { notificationRoutes } from "./routes/notifications.js";
+import { deliveryRoutes } from "./routes/delivery.js";
+import { serviceCatalogRoutes } from "./routes/serviceCatalog.js";
+import { timeTrackingRoutes } from "./routes/timeTracking.js";
+import { healthScoreRoutes } from "./routes/healthScore.js";
+import { knowledgeBaseRoutes } from "./routes/knowledgeBase.js";
 
 const app = express();
 
@@ -210,13 +217,22 @@ app.use("/api/team", authenticateToken, teamRoutes(prisma));
 app.use("/api/access-profiles", authenticateToken, accessProfileRoutes(prisma));
 app.use("/api/client-portal", clientPortalRoutes(prisma));
 
+// Novas Rotas (Automação de Agência)
+app.use("/api/automation", authenticateToken, automationRoutes(prisma));
+app.use("/api/notifications", authenticateToken, notificationRoutes(prisma));
+app.use("/api/delivery", authenticateToken, deliveryRoutes(prisma));
+app.use("/api/service-catalog", authenticateToken, serviceCatalogRoutes(prisma));
+app.use("/api/time-tracking", authenticateToken, timeTrackingRoutes(prisma));
+app.use("/api/health-score", authenticateToken, healthScoreRoutes(prisma));
+app.use("/api/knowledge-base", authenticateToken, knowledgeBaseRoutes(prisma));
+
 // Dashboard Unificado (Dinâmico)
 app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
   try {
     const orgId = req.user.orgId;
     const where = orgId ? { organizationId: orgId } : {};
     
-    const [leads, clients, proposals, invoices, contentCount, org] = await Promise.all([
+    const [leads, clients, proposals, invoices, contentCount, org, weeklyLeads, weeklyClients] = await Promise.all([
       prisma.lead.count({ where }),
       prisma.client.count({ where }),
       prisma.proposal.count({ where }),
@@ -233,10 +249,36 @@ app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
           planId: true,
           planObj: true
         }
-      })
+      }),
+      // Real weekly data: leads created in last 7 days, grouped by day
+      prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+        SELECT TO_CHAR("createdAt", 'Dy') as day, COUNT(*)::int as count
+        FROM "Lead"
+        WHERE ${where.organizationId ? `"organizationId" = ${where.organizationId} AND` : ''}
+          "createdAt" >= NOW() - INTERVAL '7 days'
+        GROUP BY TO_CHAR("createdAt", 'Dy'), EXTRACT(DOW FROM "createdAt")
+        ORDER BY EXTRACT(DOW FROM "createdAt")
+      `,
+      // Real weekly data: clients created in last 7 days
+      prisma.$queryRaw<Array<{ day: string; count: bigint }>>`
+        SELECT TO_CHAR("createdAt", 'Dy') as day, COUNT(*)::int as count
+        FROM "Client"
+        WHERE ${where.organizationId ? `"organizationId" = ${where.organizationId} AND` : ''}
+          "createdAt" >= NOW() - INTERVAL '7 days'
+        GROUP BY TO_CHAR("createdAt", 'Dy'), EXTRACT(DOW FROM "createdAt")
+        ORDER BY EXTRACT(DOW FROM "createdAt")
+      `
     ]);
 
     const revenue = invoices._sum.total || 0;
+
+    // Build chart data from real weekly aggregations
+    const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+    const chartData = dayNames.map(day => ({
+      name: day,
+      leads: weeklyLeads?.find((r: any) => r.day === day)?.count || 0,
+      conv: weeklyClients?.find((r: any) => r.day === day)?.count || 0
+    }));
 
     res.json({
       orgName: org?.name || "Minha Agência",
@@ -250,15 +292,7 @@ app.get("/api/dashboard", authenticateToken, async (req: any, res) => {
         contentCount,
         conversions: leads > 0 ? ((clients / leads) * 100).toFixed(1) : 0 
       },
-      chartData: [
-        { name: "Seg", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.1) },
-        { name: "Ter", leads: Math.floor(leads * 0.15), conv: Math.floor(clients * 0.2) },
-        { name: "Qua", leads: Math.floor(leads * 0.2), conv: Math.floor(clients * 0.15) },
-        { name: "Qui", leads: Math.floor(leads * 0.25), conv: Math.floor(clients * 0.3) },
-        { name: "Sex", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.1) },
-        { name: "Sab", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.05) },
-        { name: "Dom", leads: Math.floor(leads * 0.1), conv: Math.floor(clients * 0.1) }
-      ]
+      chartData
     });
   } catch (error) {
     console.error("[DASHBOARD_ERROR]", error);

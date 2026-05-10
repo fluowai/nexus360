@@ -67,6 +67,13 @@ model Organization {
   capturedLeads         CapturedLead[]
   leadCaptureUsageLogs  LeadCaptureUsageLog[]
 
+  // Novos modelos para automação de agência
+  serviceCatalog     ServiceCatalog[]
+  deliverables       Deliverable[]
+  timeEntries        TimeEntry[]
+  knowledgeBase      KnowledgeBase[]
+  clientHealthScores ClientHealthScore[]
+
   // SaaS Control (Super Admin -> Agency)
   saasSubscriptions SaaSSubscription[]
   saasInvoices      SaaSInvoice[]
@@ -1307,4 +1314,140 @@ model Agenda {
   updatedAt      DateTime       @updatedAt
 
   @@index([organizationId])
+}
+
+// ==================== NOVOS MODELOS (Automação de Agência) ====================
+
+model ServiceCatalog {
+  id             String       @id @default(uuid())
+  name           String
+  description    String?
+  category       String?
+  type           String       @default("service")
+  setupValue     Float        @default(0)
+  monthlyValue   Float        @default(0)
+  commissionValue Float       @default(0)
+  estimatedHours Int?
+  deliveryDays   Int?
+  requiresApproval Boolean    @default(false)
+  isActive       Boolean      @default(true)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Deliverable {
+  id             String       @id @default(uuid())
+  title          String
+  description    String?
+  type           String
+  status         String       @default("pending")
+  priority       String       @default("medium")
+  dueDate        DateTime?
+  deliveredAt    DateTime?
+  fileUrl        String?
+  thumbnailUrl   String?
+  notes          String?
+  version        Int          @default(1)
+  isFinal        Boolean      @default(false)
+  projectId      String?
+  clientId       String?
+  approvedById   String?
+  createdById    String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model Approval {
+  id             String       @id @default(uuid())
+  status         String       @default("pending")
+  comment        String?
+  requestedChanges String?
+  requestedToId  String?
+  approvedById   String?
+  approvedAt     DateTime?
+  deliverableId  String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([deliverableId])
+  @@index([status])
+}
+
+model TimeEntry {
+  id             String       @id @default(uuid())
+  description    String?
+  date           DateTime     @default(now())
+  duration       Int
+  billable       Boolean      @default(true)
+  hourlyRate     Float        @default(0)
+  totalValue     Float        @default(0)
+  approvalStatus String       @default("pending")
+  userId         String
+  projectId      String?
+  clientId       String?
+  deliverableId  String?
+  taskId         String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([date])
+}
+
+model KnowledgeBase {
+  id             String       @id @default(uuid())
+  title          String
+  content        String       @db.Text
+  category       String?
+  tags           String?
+  isPublished    Boolean      @default(true)
+  views          Int          @default(0)
+  createdById    String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  attachments    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([category])
+}
+
+model ClientHealthScore {
+  id             String       @id @default(uuid())
+  score          Int
+  prevScore      Int          @default(0)
+  trend          String       @default("stable")
+  lastContactAt  DateTime?
+  paymentsInDay  Boolean      @default(true)
+  npsResponse    Int?
+  engagementRate Float        @default(0)
+  projectStatus  String       @default("good")
+  riskLevel      String       @default("low")
+  flags          String?
+  calculatedAt   DateTime     @default(now())
+  clientId       String       @unique
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([score])
+  @@index([riskLevel])
 }

@@ -29,7 +29,9 @@ export default function AdminAgencies() {
     plan: 'Pro', 
     adminEmail: '', 
     adminPassword: '', 
-    adminName: '' 
+    adminName: '',
+    isTestAccount: false,
+    betaAccess: false
   });
   const [selectedOrg, setSelectedOrg] = useState<any>(null);
   const [showDomainModal, setShowDomainModal] = useState(false);
@@ -170,9 +172,17 @@ export default function AdminAgencies() {
                       <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
                         {org.name[0]}
                       </div>
-                      <div>
-                        <p className="font-bold text-gray-900">{org.name}</p>
-                        <p className="text-[10px] text-blue-500 font-mono">nexus.woopanel.com.br/{org.slug}</p>
+                      <div className="flex flex-col">
+                        <h4 className="font-bold text-gray-900 flex items-center gap-2">
+                          {org.name}
+                          {org.isTestAccount && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-black uppercase rounded-full">Test Account</span>
+                          )}
+                          {org.betaAccess && (
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-black uppercase rounded-full">Beta Access</span>
+                          )}
+                        </h4>
+                        <p className="text-xs text-gray-500 font-medium">{org.domain || 'Sem domínio'}</p>
                       </div>
                     </div>
                   </td>

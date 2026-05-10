@@ -79,7 +79,7 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, domain, plan, adminEmail, adminPassword, adminName, slug } = req.body;
+    const { name, domain, plan, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess } = req.body;
     
     if (!adminEmail || !adminPassword) {
       return res.status(400).json({ error: "E-mail e Senha do administrador são obrigatórios" });
@@ -96,7 +96,9 @@ export function adminRoutes(prisma: PrismaClient) {
             name, 
             domain, 
             plan: plan || "Free",
-            slug: finalSlug
+            slug: finalSlug,
+            isTestAccount: isTestAccount || false,
+            betaAccess: betaAccess || false
           }
         });
 
@@ -130,7 +132,7 @@ export function adminRoutes(prisma: PrismaClient) {
   router.patch("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { id } = req.params;
-    const { name, domain, plan, slug, adminEmail, password } = req.body;
+    const { name, domain, plan, slug, adminEmail, password, isTestAccount, betaAccess } = req.body;
     
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -145,7 +147,9 @@ export function adminRoutes(prisma: PrismaClient) {
             ...(name && { name }),
             ...(domain !== undefined && { domain }),
             ...(plan && { plan }),
-            ...(slug && { slug })
+            ...(slug && { slug }),
+            ...(isTestAccount !== undefined && { isTestAccount }),
+            ...(betaAccess !== undefined && { betaAccess })
           }
         });
 

@@ -108,7 +108,9 @@ export function authRoutes(prisma: PrismaClient) {
           accessProfileId: user.accessProfileId,
           orgId,
           orgName,
-          orgSlug
+          orgSlug,
+          betaAccess: user.organization?.betaAccess || false,
+          isTestAccount: user.organization?.isTestAccount || false
         }
       });
     } catch (error) {
@@ -203,7 +205,9 @@ export function authRoutes(prisma: PrismaClient) {
         accessProfileId: user.accessProfileId,
         orgId, 
         orgName,
-        orgSlug 
+        orgSlug,
+        betaAccess: user.organization?.betaAccess || false,
+        isTestAccount: user.organization?.isTestAccount || false
       });
     } catch (error) {
       res.status(401).json({ error: "Invalid token" });

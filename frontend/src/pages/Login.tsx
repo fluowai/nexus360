@@ -42,6 +42,8 @@ export default function Login() {
       localStorage.setItem("nexus_user_name", data.user.name || "");
       localStorage.setItem("nexus_org_id", data.user.orgId);
       localStorage.setItem("nexus_org_slug", data.user.orgSlug || "");
+      localStorage.setItem("nexus_beta_access", String(data.user.betaAccess || false));
+      localStorage.setItem("nexus_is_test", String(data.user.isTestAccount || false));
       
       if (isRegister) {
         navigate("/onboarding");

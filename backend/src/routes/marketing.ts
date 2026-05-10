@@ -3,14 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 
 export function marketingRoutes(prisma: PrismaClient) {
-  console.log("Marketing routes function initialized");
   const router = Router();
 
-  // Wildcard request logger for debugging
-  router.use((req, res, next) => {
-    console.log(`[MARKETING_ROUTER] ${req.method} ${req.path}`);
-    next();
-  });
 
   // Landing Pages CRUD
   router.get("/landing-pages", async (req: any, res, next) => {

@@ -117,6 +117,10 @@ export function crmRoutes(prisma: PrismaClient) {
 
     const { name, email, phone, status, value, source, notes, tags } = req.body;
 
+    if (!name || !email) {
+      return res.status(400).json({ error: "Nome e e-mail são obrigatórios para criar um lead." });
+    }
+
     try {
       const lead = await prisma.lead.create({
         data: {

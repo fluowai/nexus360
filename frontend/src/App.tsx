@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "motion/react";
 // Components
 import { Sidebar } from "./components/sidebar/Sidebar";
 import { apiFetch } from "./lib/api";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -174,7 +175,8 @@ const Layout = ({
         </div>
 
         <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
-          <Suspense fallback={
+          <ErrorBoundary>
+            <Suspense fallback={
             <div className="flex items-center justify-center h-[60vh]">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
             </div>
@@ -190,7 +192,8 @@ const Layout = ({
                 {children}
               </motion.div>
             </AnimatePresence>
-          </Suspense>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
     </div>

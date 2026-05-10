@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
+
 export default function PublicProposal() {
   const { slug } = useParams();
   const [proposal, setProposal] = useState<any>(null);
@@ -22,7 +24,7 @@ export default function PublicProposal() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:10000'}/api/public/proposals/${slug}`)
+    fetch(`${API_URL}/api/public/proposals/${slug}`)
       .then(res => res.json())
       .then(data => {
         setProposal(data);
@@ -38,7 +40,7 @@ export default function PublicProposal() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:10000'}/api/public/proposals/${slug}/accept`, {
+      const res = await fetch(`${API_URL}/api/public/proposals/${slug}/accept`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData) // Usa o formData com corporateName, taxId, address, representative

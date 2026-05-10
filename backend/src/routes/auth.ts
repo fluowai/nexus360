@@ -125,6 +125,11 @@ export function authRoutes(prisma: PrismaClient) {
 
   router.post("/register", async (req, res) => {
     const { name, email, password, organizationName } = req.body;
+    
+    if (!name || !email || !password || !organizationName) {
+      return res.status(400).json({ error: "Todos os campos (nome, email, senha, nome da agência) são obrigatórios." });
+    }
+
     try {
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) return res.status(400).json({ error: "Este email já está em uso." });

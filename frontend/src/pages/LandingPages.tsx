@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
+
 interface LandingPage {
   id: string;
   name: string;
@@ -103,7 +105,6 @@ export default function LandingPages() {
 
   const fetchData = async () => {
     setLoading(true);
-    console.log("Fetching LP data.");
     try {
       const [pagesRes, formsRes] = await Promise.all([
         apiFetch(`/api/marketing/landing-pages`),
@@ -136,7 +137,6 @@ export default function LandingPages() {
       formId: formData.get('formId'),
       formProvider: formData.get('formProvider')
     };
-    console.log("Creating LP with payload:", payload);
     
     try {
       const res = await apiFetch('/api/marketing/landing-pages', {
@@ -436,7 +436,7 @@ export default function LandingPages() {
               <div className="p-4">
                 <h3 className="font-semibold text-gray-900 mb-1">{page.name}</h3>
                 <a 
-                  href={`http://localhost:10000/lp/${page.slug}`} 
+                  href={`${API_URL}/lp/${page.slug}`} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-sm text-primary hover:underline flex items-center gap-1 mb-3"
@@ -754,12 +754,12 @@ export default function LandingPages() {
                         <CheckCircle className="text-green-600 shrink-0" size={24} />
                         <div>
                           <p className="font-bold text-green-800 text-sm">Landing Page publicada!</p>
-                          <p className="text-xs text-green-600 font-mono break-all">{window.location.protocol}//{window.location.hostname}:10000{generatedIAContent.url}</p>
+                          <p className="text-xs text-green-600 font-mono break-all">{API_URL}{generatedIAContent.url}</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button onClick={() => { navigator.clipboard.writeText(`${window.location.protocol}//${window.location.hostname}:10000${generatedIAContent.url}`); alert('URL copiada!'); }} className="px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg"><Copy size={14} className="inline mr-1" />Copiar</button>
-                        <a href={`${window.location.protocol}//${window.location.hostname}:10000${generatedIAContent.url}`} target="_blank" className="px-3 py-1.5 bg-white border border-green-300 text-green-700 text-xs font-bold rounded-lg"><ExternalLink size={14} className="inline mr-1" />Abrir</a>
+                        <button onClick={() => { navigator.clipboard.writeText(`${API_URL}${generatedIAContent.url}`); alert('URL copiada!'); }} className="px-3 py-1.5 bg-green-600 text-white text-xs font-bold rounded-lg"><Copy size={14} className="inline mr-1" />Copiar</button>
+                        <a href={`${API_URL}${generatedIAContent.url}`} target="_blank" className="px-3 py-1.5 bg-white border border-green-300 text-green-700 text-xs font-bold rounded-lg"><ExternalLink size={14} className="inline mr-1" />Abrir</a>
                       </div>
                     </div>
                   )}

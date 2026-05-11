@@ -17,6 +17,7 @@ model Organization {
   slug      String?  @unique // Opcional temporariamente para migração
   domain    String?
   plan      String   @default("Free")
+  planId    String?
   planObj   Plan?    @relation(fields: [planId], references: [id])
   subscriptionStatus String   @default("TRIAL") // TRIAL, ACTIVE, PAST_DUE, SUSPENDED, CANCELED, EXPIRED
   trialEndsAt        DateTime?
@@ -89,7 +90,6 @@ model Organization {
   clientHealthScores ClientHealthScore[]
 
   // SaaS Control (Super Admin -> Agency)
-  saasSubscriptions SaaSSubscription[]
   saasInvoices      SaaSInvoice[]
   supportTickets    SupportTicket[]
 }

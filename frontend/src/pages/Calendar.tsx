@@ -63,11 +63,12 @@ export default function Calendar() {
 
   const fetchMembers = async () => {
     try {
-      const res = await apiFetch('/api/settings/team');
+      const res = await apiFetch('/api/org/team');
       const data = await res.json();
-      setMembers(data);
+      setMembers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
+      setMembers([]);
     }
   };
 

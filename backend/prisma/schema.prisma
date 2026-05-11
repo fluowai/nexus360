@@ -323,6 +323,10 @@ model User {
   accessProfileId      String?
   accessProfile        AccessProfile? @relation(fields: [accessProfileId], references: [id])
   
+  roleId               String?
+  roleObj              Role?          @relation(fields: [roleId], references: [id])
+  userPermissions      UserPermission[]
+  
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 

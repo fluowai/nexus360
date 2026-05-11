@@ -8,19 +8,28 @@ import {
   Crown,
   Trash2,
   Users,
-  Target
+  Target,
+  Layers,
+  ChevronRight,
+  Save,
+  X,
+  CreditCard,
+  Gauge
 } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../../lib/api";
 
 export default function AdminPlans() {
   const [plans, setPlans] = useState<any[]>([]);
+  const [modules, setModules] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'general' | 'limits' | 'features'>('general');
 
   useEffect(() => {
     fetchPlans();
+    fetchFeatures();
   }, []);
 
   const fetchPlans = async () => {
@@ -37,15 +46,33 @@ export default function AdminPlans() {
     }
   };
 
+  const fetchFeatures = async () => {
+    try {
+      const res = await apiFetch('/api/admin/plans/features-list');
+      if (res.ok) {
+        const data = await res.json();
+        setModules(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget as HTMLFormElement);
+    
     const planData = {
       name: data.get('name') as string,
+      slug: data.get('slug') as string,
       description: data.get('description') as string,
-      leadsLimit: parseInt(data.get('leadsLimit') as string),
-      clientsLimit: parseInt(data.get('clientsLimit') as string),
-      features: (data.get('features') as string).split(',').map(f => f.trim())
+      priceMonthly: parseInt(data.get('priceMonthly') as string) || 0,
+      priceYearly: parseInt(data.get('priceYearly') as string) || 0,
+      maxUsers: parseInt(data.get('maxUsers') as string) || 0,
+      maxClients: parseInt(data.get('maxClients') as string) || 0,
+      maxLeads: parseInt(data.get('maxLeads') as string) || 0,
+      maxAutomations: parseInt(data.get('maxAutomations') as string) || 0,
+      maxMessages: parseInt(data.get('maxMessages') as string) || 0,
     };
 
     try {
@@ -68,161 +95,297 @@ export default function AdminPlans() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center animate-pulse">Carregando planos...</div>;
+  const toggleFeature = async (planId: string, featureKey: string, isEnabled: boolean) => {
+    try {
+      await apiFetch(`/api/admin/plans/${planId}/features`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ featureKey, isEnabled })
+      });
+      fetchPlans(); // Refresh to show changes
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading) return (
+    <div className="min-h-[400px] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+    </div>
+  );
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex justify-between items-center">
+    <div className="flex flex-col gap-8 pb-20">
+      <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Planos</h1>
-          <p className="text-sm text-gray-500">Defina os limites e recursos para cada nível de assinatura.</p>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Gestão de Assinaturas</h1>
+          <p className="text-gray-500 mt-2">Configuração de tiers, limites e matriz de permissões SaaS.</p>
         </div>
         <button 
           onClick={() => {
             setEditingPlan(null);
+            setActiveTab('general');
             setIsModalOpen(true);
           }}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-100"
+          className="flex items-center gap-2 bg-gray-900 text-white px-6 py-3.5 rounded-2xl hover:bg-gray-800 transition-all shadow-xl shadow-gray-200 font-bold"
         >
           <Plus size={20} />
-          <span>Novo Plano</span>
+          <span>Criar Novo Plano</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      {/* Plans List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {plans.map((plan, i) => (
           <motion.div 
             key={plan.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col hover:shadow-xl transition-all border-b-4 border-b-primary"
+            className="group relative bg-white rounded-[40px] border border-gray-100 shadow-sm hover:shadow-2xl hover:shadow-blue-100/50 transition-all duration-500 overflow-hidden"
           >
-            <div className="p-8 pb-0">
-               <div className={`w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6`}>
-                 <Crown size={24} />
-               </div>
-               <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
-               <p className="text-sm text-gray-500 mt-1 mb-4">{plan.description || 'Sem descrição'}</p>
-               
-               <div className="flex flex-col gap-2 mb-6">
-                 <div className="flex items-center gap-2 text-sm text-gray-600 font-bold">
-                   <Target size={16} className="text-primary" />
-                   <span>{plan.leadsLimit} Leads</span>
-                 </div>
-                 <div className="flex items-center gap-2 text-sm text-gray-600 font-bold">
-                   <Users size={16} className="text-primary" />
-                   <span>{plan.clientsLimit} Clientes</span>
-                 </div>
-               </div>
-            </div>
+            <div className="p-8">
+              <div className="flex justify-between items-start mb-6">
+                <div className={`w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-500`}>
+                  <Crown size={28} />
+                </div>
+                <div className="flex flex-col items-end">
+                   <span className="text-2xl font-black text-gray-900">R$ {plan.priceMonthly || 0}</span>
+                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">por mês</span>
+                </div>
+              </div>
 
-            <div className="p-8 flex-1 bg-gray-50/50">
-               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Funcionalidades</p>
-               <ul className="space-y-3">
-                 {plan.features?.map((feat: string, idx: number) => (
-                   <li key={idx} className="flex items-center gap-2 text-sm text-gray-600 font-medium">
-                     <Check size={16} className="text-emerald-500" />
-                     <span>{feat}</span>
-                   </li>
-                 ))}
-               </ul>
-            </div>
+              <h3 className="text-xl font-black text-gray-900 mb-2">{plan.name}</h3>
+              <p className="text-sm text-gray-500 mb-6 line-clamp-2">{plan.description || 'Nenhuma descrição fornecida.'}</p>
 
-            <div className="p-6 border-t border-gray-100 flex gap-2">
-               <button 
-                onClick={() => {
-                  setEditingPlan(plan);
-                  setIsModalOpen(true);
-                }}
-                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-50 text-gray-600 rounded-xl font-bold text-xs hover:bg-gray-100 transition-all"
-               >
-                 <Settings2 size={14} />
-                 <span>Editar</span>
-               </button>
+              <div className="space-y-3 mb-8">
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-gray-400">
+                        <Users size={16} />
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">Usuários</span>
+                   </div>
+                   <span className="text-sm font-black text-primary">{plan.maxUsers}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
+                   <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-gray-400">
+                        <Target size={16} />
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">Leads</span>
+                   </div>
+                   <span className="text-sm font-black text-primary">{plan.maxLeads}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    setEditingPlan(plan);
+                    setActiveTab('general');
+                    setIsModalOpen(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 text-white rounded-2xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                >
+                  <Settings2 size={18} />
+                  <span>Configurar</span>
+                </button>
+              </div>
             </div>
           </motion.div>
         ))}
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-[32px] p-8 w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]"
-          >
-            <h2 className="text-xl font-bold text-gray-900 mb-6">{editingPlan ? 'Editar Plano' : 'Novo Plano'}</h2>
-            <form onSubmit={handleSave} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome do Plano</label>
-                <input 
-                  name="name"
-                  defaultValue={editingPlan?.name}
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                  placeholder="Ex: Pro, Enterprise..."
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Descrição</label>
-                <input 
-                  name="description"
-                  defaultValue={editingPlan?.description}
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                  placeholder="Ex: Ideal para agências em crescimento"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Limite de Leads</label>
-                <input 
-                  name="leadsLimit"
-                  type="number"
-                  defaultValue={editingPlan?.leadsLimit || 100}
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Limite de Clientes</label>
-                <input 
-                  name="clientsLimit"
-                  type="number"
-                  defaultValue={editingPlan?.clientsLimit || 10}
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Funcionalidades (separadas por vírgula)</label>
-                <textarea 
-                  name="features"
-                  defaultValue={editingPlan?.features?.join(', ')}
-                  required
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none h-24"
-                  placeholder="Marketing, CRM, Automação..."
-                />
-              </div>
-              <div className="md:col-span-2 flex gap-4 mt-4">
+      {/* Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-md"
+              onClick={() => setIsModalOpen(false)}
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative bg-white rounded-[48px] w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="px-10 py-8 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <div>
+                  <h2 className="text-2xl font-black text-gray-900">{editingPlan ? 'Editar Plano' : 'Criar Novo Plano'}</h2>
+                  <p className="text-sm text-gray-500 font-medium">Configure os parâmetros técnicos e comerciais.</p>
+                </div>
                 <button 
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-2 hover:bg-white hover:shadow-md rounded-2xl transition-all text-gray-400"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              {/* Tabs Nav */}
+              <div className="px-10 py-4 flex gap-8 border-b border-gray-100 overflow-x-auto no-scrollbar">
+                {[
+                  { id: 'general', label: 'Geral & Preço', icon: CreditCard },
+                  { id: 'limits', label: 'Limites de Uso', icon: Gauge },
+                  { id: 'features', label: 'Matriz de Features', icon: Layers },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2 pb-2 transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-b-2 border-primary text-primary' : 'text-gray-400'}`}
+                  >
+                    <tab.icon size={18} />
+                    <span className="font-bold text-sm">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+                <form id="plan-form" onSubmit={handleSave}>
+                  {activeTab === 'general' && (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="col-span-2">
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Nome Comercial</label>
+                        <input name="name" defaultValue={editingPlan?.name} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 border-none font-bold" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Slug ID</label>
+                        <input name="slug" defaultValue={editingPlan?.slug} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 border-none font-medium" placeholder="ex: starter-plan" />
+                      </div>
+                      <div>
+                         <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Status</label>
+                         <select name="isActive" className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none border-none font-bold">
+                            <option value="true">Ativo</option>
+                            <option value="false">Inativo</option>
+                         </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Preço Mensal (R$)</label>
+                        <input name="priceMonthly" type="number" defaultValue={editingPlan?.priceMonthly} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 border-none font-black text-blue-600" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Preço Anual (R$)</label>
+                        <input name="priceYearly" type="number" defaultValue={editingPlan?.priceYearly} className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 border-none font-black text-blue-600" />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Descrição (Marketing)</label>
+                        <textarea name="description" defaultValue={editingPlan?.description} className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-primary/20 border-none font-medium h-32" />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'limits' && (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="bg-blue-50/50 p-6 rounded-3xl col-span-2 flex items-center gap-4 border border-blue-100">
+                         <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center">
+                            <Zap size={24} />
+                         </div>
+                         <div>
+                            <h4 className="font-black text-blue-900">Limites Estruturais</h4>
+                            <p className="text-xs text-blue-700 font-medium">Defina os limites máximos de recursos por agência neste plano.</p>
+                         </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Máximo de Usuários</label>
+                        <input name="maxUsers" type="number" defaultValue={editingPlan?.maxUsers} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none font-bold" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Máximo de Clientes</label>
+                        <input name="maxClients" type="number" defaultValue={editingPlan?.maxClients} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none font-bold" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Máximo de Leads</label>
+                        <input name="maxLeads" type="number" defaultValue={editingPlan?.maxLeads} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none font-bold" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Máximo de Automações</label>
+                        <input name="maxAutomations" type="number" defaultValue={editingPlan?.maxAutomations} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none font-bold" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-black text-gray-400 uppercase tracking-widest mb-2 block">Mensagens/Mês</label>
+                        <input name="maxMessages" type="number" defaultValue={editingPlan?.maxMessages} required className="w-full px-6 py-4 bg-gray-50 rounded-2xl outline-none font-bold" />
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'features' && editingPlan && (
+                    <div className="space-y-8">
+                      {modules.map((mod: any) => (
+                        <div key={mod.id} className="border border-gray-100 rounded-[32px] overflow-hidden shadow-sm">
+                           <div className="bg-gray-50 px-8 py-4 flex items-center gap-3">
+                              <Layers size={18} className="text-gray-400" />
+                              <span className="font-black text-gray-900 text-sm">{mod.name}</span>
+                              <span className="ml-auto text-[10px] bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full font-bold uppercase">{mod.category}</span>
+                           </div>
+                           <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {mod.features.map((feat: any) => {
+                                const isEnabled = editingPlan.planFeatures?.some((f: any) => f.featureKey === feat.key && f.isEnabled);
+                                return (
+                                  <div 
+                                    key={feat.id} 
+                                    className={`flex items-center justify-between p-4 rounded-2xl transition-all ${isEnabled ? 'bg-blue-50/30' : 'opacity-60 hover:opacity-100'}`}
+                                  >
+                                    <div>
+                                       <div className="font-bold text-gray-800 text-sm">{feat.name}</div>
+                                       <div className="text-[10px] text-gray-400 font-medium">{feat.key}</div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleFeature(editingPlan.id, feat.key, !isEnabled)}
+                                      className={`w-12 h-6 rounded-full relative transition-all duration-300 ${isEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                                    >
+                                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all duration-300 ${isEnabled ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {activeTab === 'features' && !editingPlan && (
+                    <div className="text-center py-20 bg-gray-50 rounded-[40px] border-2 border-dashed border-gray-200">
+                        <Layers size={48} className="mx-auto text-gray-300 mb-4" />
+                        <h4 className="font-bold text-gray-500">Salve o plano primeiro para gerenciar features.</h4>
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-10 py-8 border-t border-gray-100 flex gap-4 bg-gray-50/50">
+                 <button 
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-3 font-bold text-gray-400 hover:bg-gray-100 rounded-xl transition-all"
-                >
-                  Cancelar
-                </button>
-                <button 
+                  className="flex-1 py-4 font-bold text-gray-400 hover:bg-white hover:shadow-md rounded-2xl transition-all"
+                 >
+                   Descartar Alterações
+                 </button>
+                 <button 
+                  form="plan-form"
                   type="submit"
-                  className="flex-1 py-3 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-100"
-                >
-                  Salvar Plano
-                </button>
+                  className="flex-1 py-4 bg-gray-900 text-white font-bold rounded-2xl hover:bg-gray-800 transition-all shadow-xl shadow-gray-200 flex items-center justify-center gap-2"
+                 >
+                   <Save size={20} />
+                   <span>Salvar Configurações</span>
+                 </button>
               </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
 

@@ -38,7 +38,9 @@ export function authRoutes(prisma: PrismaClient) {
         include: { 
           organization: {
             include: {
-              planObj: true,
+              planObj: {
+                include: { planFeatures: true }
+              },
               _count: {
                 select: { leads: true }
               }
@@ -119,6 +121,7 @@ export function authRoutes(prisma: PrismaClient) {
           orgId,
           orgName,
           orgSlug,
+          subscriptionStatus: user.organization?.subscriptionStatus || 'TRIAL',
           betaAccess: user.organization?.betaAccess || false,
           isTestAccount: user.organization?.isTestAccount || false,
           plan: user.organization?.planObj || { name: user.organization?.plan || 'Free', leadsLimit: 100 },
@@ -200,7 +203,9 @@ export function authRoutes(prisma: PrismaClient) {
         include: { 
           organization: {
             include: {
-              planObj: true,
+              planObj: {
+                include: { planFeatures: true }
+              },
               _count: {
                 select: { leads: true }
               }
@@ -235,6 +240,7 @@ export function authRoutes(prisma: PrismaClient) {
         orgId, 
         orgName,
         orgSlug,
+        subscriptionStatus: user.organization?.subscriptionStatus || 'TRIAL',
         betaAccess: user.organization?.betaAccess || false,
         isTestAccount: user.organization?.isTestAccount || false,
         plan: user.organization?.planObj || { name: user.organization?.plan || 'Free', leadsLimit: 100 },

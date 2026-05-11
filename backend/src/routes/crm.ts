@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getPagination } from "../utils/pagination.js";
-import { AuthRequest } from "../middleware/auth.js";
+import { AuthRequest, authenticateToken } from "../middleware/auth.js";
+import { requireAccess } from "../middleware/access.js";
 
 export function crmRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -9,21 +10,10 @@ export function crmRoutes(prisma: PrismaClient) {
   // Debug Ping
   router.get("/ping-crm", (req, res) => res.json({ message: "crm router is active", timestamp: new Date().toISOString() }));
 
-  // List Boards (Moved to top to ensure priority)
-  router.get("/boards", async (req: AuthRequest, res, next) => {
+  // List Boards
+  router.get("/boards", authenticateToken, requireAccess({ module: "crm", feature: "crm.view" }), async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
     try {
-      // Feature Flag Check
-      const [org, settings] = await Promise.all([
-        prisma.organization.findUnique({ where: { id: orgId }, select: { betaAccess: true } }),
-        prisma.systemSettings.findUnique({ where: { id: "global" } })
-      ]);
-
-      if (!settings?.crmPublic && !org?.betaAccess) {
-        return res.status(403).json({ error: "Este recurso está em fase de testes e ainda não foi liberado para sua conta." });
-      }
-
       const boards = await prisma.crmBoard.findMany({
         where: { organizationId: orgId },
         include: { stages: { orderBy: { order: 'asc' } } }
@@ -35,9 +25,8 @@ export function crmRoutes(prisma: PrismaClient) {
   });
 
   // Setup Default Boards
-  router.post("/boards/setup", async (req: AuthRequest, res, next) => {
+  router.post("/boards/setup", authenticateToken, requireAccess({ module: "crm", feature: "crm.manage_boards" }), async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
     try {
       const boards = [
         { name: 'BDR (Prospecção Fria)', stages: ['Novo', 'Primeiro Contato', 'Em Conversa', 'Interesse Detectado', 'Qualificado'] },
@@ -62,9 +51,8 @@ export function crmRoutes(prisma: PrismaClient) {
   });
 
   // Listar leads
-  router.get("/leads", async (req: AuthRequest, res, next) => {
+  router.get("/leads", authenticateToken, requireAccess({ module: "crm", feature: "crm.view" }), async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
     const { skip, take } = getPagination(req.query);
     try {
       const [leads, total] = await Promise.all([
@@ -87,11 +75,12 @@ export function crmRoutes(prisma: PrismaClient) {
   });
 
   // Buscar detalhes de um lead
-  router.get("/leads/:id", async (req: AuthRequest, res, next) => {
+  router.get("/leads/:id", authenticateToken, requireAccess({ module: "crm", feature: "crm.view" }), async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
     try {
-      const lead = await prisma.lead.findUnique({
-        where: { id: req.params.id },
+      // IDOR Protection: filter by organizationId
+      const lead = await prisma.lead.findFirst({
+        where: { id: req.params.id, organizationId: orgId },
         include: { 
           followUps: { 
             orderBy: { createdAt: 'desc' },
@@ -100,7 +89,7 @@ export function crmRoutes(prisma: PrismaClient) {
         }
       });
 
-      if (!lead || lead.organizationId !== orgId) {
+      if (!lead) {
         return res.status(404).json({ error: "Lead não encontrado" });
       }
 
@@ -111,9 +100,8 @@ export function crmRoutes(prisma: PrismaClient) {
   });
 
   // Criar lead
-  router.post("/leads", async (req: AuthRequest, res, next) => {
+  router.post("/leads", authenticateToken, requireAccess({ module: "crm", feature: "crm.create_lead", checkUsageLimit: "maxLeads" }), async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     const { name, email, phone, status, value, source, notes, tags } = req.body;
 
@@ -126,7 +114,7 @@ export function crmRoutes(prisma: PrismaClient) {
         data: {
           name, email, phone, status: status || 'novo', 
           value: parseFloat(value) || 0, source, notes, tags,
-          organizationId: orgId,
+          organizationId: orgId!,
           assignedToId: req.user?.id
         }
       });

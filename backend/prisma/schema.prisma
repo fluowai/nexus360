@@ -17,14 +17,28 @@ model Organization {
   slug      String?  @unique // Opcional temporariamente para migração
   domain    String?
   plan      String   @default("Free")
-  planId    String?
   planObj   Plan?    @relation(fields: [planId], references: [id])
+  subscriptionStatus String   @default("TRIAL") // TRIAL, ACTIVE, PAST_DUE, SUSPENDED, CANCELED, EXPIRED
+  trialEndsAt        DateTime?
+  currentPeriodEnd   DateTime?
+  isActive           Boolean  @default(true)
+
+  whiteLabelConfig   Json?
+  limitsUsage        Json?
+  settings           Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   // Controle de Versão e Lançamento
   isTestAccount Boolean @default(false)
   betaAccess    Boolean @default(false)
+
+  // SaaS Relations
+  saasSubscriptions SaaSSubscription[]
+  auditLogs         AuditLog[]
+  snapshots         Snapshot[]
 
   geminiKey  String?
   groqKey    String?
@@ -83,16 +97,147 @@ model Organization {
 model Plan {
   id           String   @id @default(uuid())
   name         String   @unique
+  slug         String   @unique @default("free")
   description  String?
-  leadsLimit   Int      @default(100)
-  clientsLimit Int      @default(10)
-  aiLimit      Int      @default(50)
-  features     Json?
+  priceMonthly Int?
+  priceYearly  Int?
+  isPublic     Boolean  @default(true)
+  isActive     Boolean  @default(true)
+  
+  // Limites Base
+  maxUsers        Int      @default(5)
+  maxClients      Int      @default(10)
+  maxLeads        Int      @default(100)
+  maxAutomations  Int      @default(5)
+  maxReports      Int      @default(10)
+  maxIntegrations Int      @default(3)
+  maxMessages     Int      @default(1000)
   
   organizations Organization[]
+  subscriptions SaaSSubscription[]
+  planFeatures  PlanFeature[]
   
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Module {
+  id          String    @id @default(uuid())
+  key         String    @unique // dashboard, crm, landing_pages, etc.
+  name        String
+  description String?
+  category    String?
+  isActive    Boolean   @default(true)
+  features    Feature[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Feature {
+  id          String        @id @default(uuid())
+  moduleKey   String
+  module      Module        @relation(fields: [moduleKey], references: [key])
+  key         String        @unique // crm.export, ai.sdr, etc.
+  name        String
+  description String?
+  isActive    Boolean       @default(true)
+  planFeatures PlanFeature[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model PlanFeature {
+  id         String  @id @default(uuid())
+  planId     String
+  plan       Plan    @relation(fields: [planId], references: [id])
+  featureKey String
+  feature    Feature @relation(fields: [featureKey], references: [key])
+  isEnabled  Boolean @default(true)
+  limit      Int?    // Limite específico para esta feature (ex: 2 agentes de IA)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planId, featureKey])
+}
+
+model Role {
+  id             String           @id @default(uuid())
+  organizationId String?          // Se null, é uma role global (sistema)
+  name           String
+  key            String           // owner, admin, manager, member, guest
+  scope          String           @default("AGENCY") // PLATFORM, AGENCY, CLIENT
+  isSystem       Boolean          @default(false)
+  permissions    RolePermission[]
+  users          User[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  
+  @@unique([organizationId, key])
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  key         String           @unique // leads.create, finance.view, etc.
+  name        String
+  description String?
+  moduleKey   String?
+  roles       RolePermission[]
+  users       UserPermission[]
+  createdAt   DateTime         @default(now())
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permissionKey String
+  permission   Permission @relation(fields: [permissionKey], references: [key])
+  isAllowed    Boolean    @default(true)
+
+  @@unique([roleId, permissionKey])
+}
+
+model UserPermission {
+  id             String     @id @default(uuid())
+  userId         String
+  user           User       @relation(fields: [userId], references: [id])
+  organizationId String
+  permissionKey  String
+  permission     Permission @relation(fields: [permissionKey], references: [key])
+  isAllowed      Boolean    @default(true)
+
+  @@unique([userId, organizationId, permissionKey])
+}
+
+model AuditLog {
+  id             String        @id @default(uuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  userId         String?
+  action         String        // CREATE, UPDATE, DELETE, LOGIN, EXPORT
+  resource       String        // Lead, Client, Campaign
+  resourceId     String?
+  metadata       Json?
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model Snapshot {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  description    String?
+  data           Json         // Objeto serializado com pipelines, etapas, etc.
+  isPublic       Boolean      @default(false)
+  createdBy      String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model SystemSettings {
@@ -104,15 +249,20 @@ model SystemSettings {
 }
 
 model SaaSSubscription {
-  id             String       @id @default(uuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  plan           String       @default("Free") // Free, Pro, Enterprise
-  status         String       @default("ACTIVE") // ACTIVE, TRIAL, PAST_DUE, CANCELED
-  startDate      DateTime     @default(now())
-  endDate        DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  planId          String?
+  plan            Plan?        @relation(fields: [planId], references: [id])
+  status          String       @default("TRIAL") // TRIAL, ACTIVE, PAST_DUE, SUSPENDED, CANCELED, EXPIRED
+  startDate       DateTime     @default(now())
+  endDate         DateTime?
+  trialEndsAt     DateTime?
+  currentPeriodEnd DateTime?
+  provider        String?      // Stripe, Asaas, etc.
+  providerSubId   String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
   @@index([organizationId])
 }

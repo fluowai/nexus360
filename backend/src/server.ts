@@ -16,6 +16,7 @@ import { marketingRoutes } from "./routes/marketing.js";
 import { financeRoutes } from "./routes/finance.js";
 import { opsRoutes } from "./routes/ops.js";
 import { adminRoutes } from "./routes/admin.js";
+import { adminPlansRoutes } from "./routes/admin/plans.js";
 import { adsRoutes } from "./routes/ads.js";
 import { clientRoutes } from "./routes/clients.js";
 import { aiRoutes } from "./routes/ai.js";
@@ -40,6 +41,9 @@ import { serviceCatalogRoutes } from "./routes/serviceCatalog.js";
 import { timeTrackingRoutes } from "./routes/timeTracking.js";
 import { healthScoreRoutes } from "./routes/healthScore.js";
 import { knowledgeBaseRoutes } from "./routes/knowledgeBase.js";
+import { billingRoutes } from "./routes/billing.js";
+import { snapshotRoutes } from "./routes/snapshots.js";
+import { usageRoutes } from "./routes/usage.js";
 
 const app = express();
 
@@ -190,8 +194,10 @@ app.get("/api/debug/routes", (req, res) => {
 
 // Registro de Rotas (ORDEM IMPORTANTE)
 app.use("/api/auth", authRoutes(prisma));
+app.use("/api/billing", billingRoutes(prisma)); // Adicionado billing (webhook público e rotas protegidas internos)
 
 // Rotas Protegidas
+app.use("/api/admin/plans", adminPlansRoutes(prisma));
 app.use("/api/admin", authenticateToken, adminRoutes(prisma));
 app.use("/api/org", authenticateToken, orgSettingsRoutes(prisma));
 app.use("/api/clients", authenticateToken, clientRoutes(prisma));
@@ -225,6 +231,8 @@ app.use("/api/service-catalog", authenticateToken, serviceCatalogRoutes(prisma))
 app.use("/api/time-tracking", authenticateToken, timeTrackingRoutes(prisma));
 app.use("/api/health-score", authenticateToken, healthScoreRoutes(prisma));
 app.use("/api/knowledge-base", authenticateToken, knowledgeBaseRoutes(prisma));
+app.use("/api/snapshots", authenticateToken, snapshotRoutes(prisma));
+app.use("/api/usage", authenticateToken, usageRoutes(prisma));
 
 // Dashboard Unificado (Dinâmico)
 app.get("/api/dashboard", authenticateToken, async (req: any, res) => {

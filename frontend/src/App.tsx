@@ -68,6 +68,7 @@ const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
 const TimeTracking = lazy(() => import("./pages/TimeTracking"));
 const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
 const ClientHealthDashboard = lazy(() => import("./pages/ClientHealthDashboard"));
+const Billing = lazy(() => import("./pages/Billing"));
 
 const Layout = ({ 
   children, 
@@ -337,6 +338,7 @@ export default function App() {
           <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
           <Route path="/:slug/ai-settings" element={<AISettings />} />
           <Route path="/:slug/prompt-architect" element={<PromptArchitect />} />
+          <Route path="/:slug/billing" element={<Billing />} />
 
           {/* Novas Rotas de Automação */}
           <Route path="/:slug/automations" element={<AutomationBuilder />} />
@@ -357,6 +359,7 @@ export default function App() {
           {/* Fallback Legacy Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/crm" element={<CRM />} />
+          <Route path="/billing" element={<Billing />} />
         </Routes>
       </Layout>
     </BrowserRouter>

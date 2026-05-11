@@ -327,44 +327,7 @@ export function adminRoutes(prisma: PrismaClient) {
     }
   });
   
-  // --- Plan Management ---
-  router.get("/plans", async (req: AuthRequest, res) => {
-    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    try {
-      const plans = await prisma.plan.findMany({
-        orderBy: { name: 'asc' }
-      });
-      res.json(plans);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch plans" });
-    }
-  });
-
-  router.post("/plans", async (req: AuthRequest, res) => {
-    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, description, leadsLimit, clientsLimit, aiLimit, features } = req.body;
-    try {
-      const plan = await prisma.plan.create({
-        data: { name, description, leadsLimit, clientsLimit, aiLimit, features }
-      });
-      res.json(plan);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to create plan" });
-    }
-  });
-
-  router.patch("/plans/:id", async (req: AuthRequest, res) => {
-    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    try {
-      const plan = await prisma.plan.update({
-        where: { id: req.params.id },
-        data: req.body
-      });
-      res.json(plan);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to update plan" });
-    }
-  });
-
+  // --- Modular Routes Handle elsewhere ---
+  
   return router;
 }

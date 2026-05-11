@@ -40,6 +40,7 @@ import {
   GitBranch
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
+import { useAccess } from '../../lib/access';
 import './Sidebar.css';
 
 interface SidebarItemProps {
@@ -162,6 +163,7 @@ export const Sidebar: React.FC<{
   };
 
   const currentSlug = getSlugFromPath();
+  const access = useAccess(user);
 
   // Função auxiliar para construir caminhos com slug
   const getPath = (basePath: string) => {
@@ -169,6 +171,8 @@ export const Sidebar: React.FC<{
     if (currentSlug) return `/${currentSlug}${basePath}`;
     return basePath;
   };
+
+  const isSuper = user?.role === 'SUPER_ADMIN';
 
   return (
     <>
@@ -317,36 +321,46 @@ export const Sidebar: React.FC<{
                 />
               </SidebarGroup>
 
-              <SidebarGroup label="🚀 Growth Hub" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={Search} 
-                  label="Captação de Leads" 
-                  path={getPath("/prospecting/capture")} 
-                  isActive={location.pathname === getPath('/prospecting/capture')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Users} 
-                  label="CRM & Pipelines" 
-                  path={getPath("/crm")} 
-                  isActive={location.pathname === getPath('/crm')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Zap} 
-                  label="Sales Machine" 
-                  path={getPath("/sales-machine")} 
-                  isActive={location.pathname === getPath('/sales-machine')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={FileText} 
-                  label="Propostas" 
-                  path={getPath("/proposals")} 
-                  isActive={location.pathname === getPath('/proposals')}
-                  collapsed={collapsed}
-                />
-              </SidebarGroup>
+              {(isSuper || access.hasModule('crm') || access.hasModule('prospecting')) && (
+                <SidebarGroup label="🚀 Growth Hub" collapsed={collapsed}>
+                  {(isSuper || access.hasModule('prospecting')) && (
+                    <SidebarItem 
+                      icon={Search} 
+                      label="Captação de Leads" 
+                      path={getPath("/prospecting/capture")} 
+                      isActive={location.pathname === getPath('/prospecting/capture')}
+                      collapsed={collapsed}
+                    />
+                  )}
+                  {(isSuper || access.hasModule('crm')) && (
+                    <SidebarItem 
+                      icon={Users} 
+                      label="CRM & Pipelines" 
+                      path={getPath("/crm")} 
+                      isActive={location.pathname === getPath('/crm')}
+                      collapsed={collapsed}
+                    />
+                  )}
+                  {(isSuper || access.hasModule('sales')) && (
+                    <SidebarItem 
+                      icon={Zap} 
+                      label="Sales Machine" 
+                      path={getPath("/sales-machine")} 
+                      isActive={location.pathname === getPath('/sales-machine')}
+                      collapsed={collapsed}
+                    />
+                  )}
+                  {(isSuper || access.hasModule('proposals')) && (
+                    <SidebarItem 
+                      icon={FileText} 
+                      label="Propostas" 
+                      path={getPath("/proposals")} 
+                      isActive={location.pathname === getPath('/proposals')}
+                      collapsed={collapsed}
+                    />
+                  )}
+                </SidebarGroup>
+              )}
 
               <SidebarGroup label="⚙️ Delivery Hub" collapsed={collapsed}>
                 <SidebarItem 
@@ -392,6 +406,13 @@ export const Sidebar: React.FC<{
                   label="Equipe e Acessos" 
                   path={getPath("/team")} 
                   isActive={location.pathname === getPath('/team')}
+                  collapsed={collapsed}
+                />
+                <SidebarItem 
+                  icon={CreditCard} 
+                  label="Assinatura e Uso" 
+                  path={getPath("/billing")} 
+                  isActive={location.pathname === getPath('/billing')}
                   collapsed={collapsed}
                 />
                 <SidebarItem 
@@ -473,25 +494,29 @@ export const Sidebar: React.FC<{
                 />
               </SidebarGroup>
 
-              <SidebarGroup label="🧠 Nexus AI" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={Sparkles} 
-                  label="Central de Agentes" 
-                  path={getPath("/agents-hub")} 
-                  isActive={location.pathname === getPath('/agents-hub')}
-                  isAi
-                  badge="AI"
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Zap} 
-                  label="Arquiteto de Prompts" 
-                  path={getPath("/prompt-architect")} 
-                  isActive={location.pathname === getPath('/prompt-architect')}
-                  isAi
-                  collapsed={collapsed}
-                />
-              </SidebarGroup>
+              {(isSuper || access.hasModule('ai')) && (
+                <SidebarGroup label="🧠 Nexus AI" collapsed={collapsed}>
+                  <SidebarItem 
+                    icon={Sparkles} 
+                    label="Central de Agentes" 
+                    path={getPath("/agents-hub")} 
+                    isActive={location.pathname === getPath('/agents-hub')}
+                    isAi
+                    badge="AI"
+                    collapsed={collapsed}
+                  />
+                  {(isSuper || access.hasFeature('ai.prompt_architect')) && (
+                    <SidebarItem 
+                      icon={Zap} 
+                      label="Arquiteto de Prompts" 
+                      path={getPath("/prompt-architect")} 
+                      isActive={location.pathname === getPath('/prompt-architect')}
+                      isAi
+                      collapsed={collapsed}
+                    />
+                  )}
+                </SidebarGroup>
+              )}
 
               <SidebarGroup label="Configurações" collapsed={collapsed}>
                 <SidebarItem 

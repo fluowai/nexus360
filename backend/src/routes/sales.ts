@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { proposalAI } from "../services/proposalAI.js";
 import { v4 as uuidv4 } from 'uuid';
+import { sanitizeBody } from "../utils/sanitizer.js";
+import { auditFromRequest } from "../utils/auditLogger.js";
 
 export function salesRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -10,6 +12,8 @@ export function salesRoutes(prisma: PrismaClient) {
   // Listar Fila de Vendas (Queue)
   router.get("/queue", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
     try {
       // Feature Flag Check
       const [org, settings] = await Promise.all([
@@ -38,6 +42,8 @@ export function salesRoutes(prisma: PrismaClient) {
   // Listar Propostas da Organização
   router.get("/proposals", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
     try {
       const proposals = await prisma.proposal.findMany({
         where: { organizationId: orgId },
@@ -53,6 +59,8 @@ export function salesRoutes(prisma: PrismaClient) {
   // Gerar Proposta com IA
   router.post("/proposals/generate", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
     const { niche, clientName, services } = req.body;
     
     if (!niche || !clientName) {
@@ -83,35 +91,47 @@ export function salesRoutes(prisma: PrismaClient) {
   // Salvar Proposta Final
   router.post("/proposals", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
-    const { title, clientId, leadId, content, logoUrl, footerText } = req.body;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const data = sanitizeBody(req.body, "proposal");
 
     try {
       const proposal = await prisma.proposal.create({
         data: {
-          title,
-          slug: uuidv4().substring(0, 8), // Gera um link único curto
-          organizationId: orgId!,
-          clientId,
-          leadId,
-          content,
-          logoUrl,
-          footerText,
+          title: data.title,
+          slug: uuidv4().substring(0, 8),
+          organizationId: orgId,
+          clientId: data.clientId,
+          leadId: data.leadId,
+          content: data.content,
+          logoUrl: data.logoUrl,
+          footerText: data.footerText,
           status: 'sent'
         }
       });
+
+      auditFromRequest(req, "PROPOSAL_SENT", "Proposal", proposal.id);
       res.json(proposal);
     } catch (error) {
       next(error);
     }
   });
 
-  // Buscar Detalhes
+  // Buscar Detalhes — IDOR FIXED: filtra por orgId
   router.get("/proposals/:id", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
     try {
-      const proposal = await prisma.proposal.findUnique({
-        where: { id: req.params.id },
+      const proposal = await prisma.proposal.findFirst({
+        where: { id: req.params.id, organizationId: orgId },
         include: { client: true, lead: true }
       });
+
+      if (!proposal) {
+        return res.status(404).json({ error: "Proposta não encontrada" });
+      }
+
       res.json(proposal);
     } catch (error) {
       next(error);

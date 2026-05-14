@@ -255,6 +255,14 @@ export default function App() {
   }, []);
 
   const handleLogout = () => {
+    const refreshToken = localStorage.getItem('nexus_refresh_token');
+    // Revogar refresh token no servidor (fire-and-forget)
+    if (refreshToken) {
+      apiFetch('/api/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken }),
+      }).catch(() => {});
+    }
     localStorage.clear();
     window.location.href = '/login';
   };

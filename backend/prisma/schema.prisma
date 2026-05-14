@@ -11,10 +11,32 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model Agency {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  domain        String?  @unique
+  logoUrl       String?
+  faviconUrl    String?
+  primaryColor  String?  @default("#3B82F6")
+  secondaryColor String? @default("#1E40AF")
+  
+  whiteLabelConfig Json? // Configurações específicas de marca, emails, etc.
+  settings         Json?
+
+  organizations    Organization[]
+  users            User[]
+  plans            AgencyPlan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isActive  Boolean  @default(true)
+}
+
 model Organization {
   id        String   @id @default(uuid())
   name      String
-  slug      String?  @unique // Opcional temporariamente para migração
+  slug      String?  @unique
   domain    String?
   plan      String   @default("Free")
   planId    String?
@@ -24,6 +46,10 @@ model Organization {
   currentPeriodEnd   DateTime?
   isActive           Boolean  @default(true)
 
+  // White Label e Agency Hierarchy
+  agencyId           String?
+  agency             Agency?  @relation(fields: [agencyId], references: [id])
+  
   whiteLabelConfig   Json?
   limitsUsage        Json?
   settings           Json?
@@ -49,6 +75,7 @@ model Organization {
   aiProvider String  @default("gemini")
 
   users             User[]
+  workspaces        Workspace[]
   accessProfiles    AccessProfile[]
   leads             Lead[]
   projects          Project[]
@@ -75,8 +102,10 @@ model Organization {
   promptTemplates   PromptTemplate[]
   generatedPrompts  GeneratedPrompt[]
   domains           Domain[]
-  crmBoards         CrmBoard[]
   agendas           Agenda[]
+  
+  inboxes           Inbox[]
+  usageEvents       UsageEvent[]
   
   leadCaptureSources    LeadCaptureSource[]
   capturedLeads         CapturedLead[]
@@ -94,24 +123,61 @@ model Organization {
   supportTickets    SupportTicket[]
 }
 
+model Workspace {
+  id             String       @id @default(uuid())
+  name           String
+  slug           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  settings       Json?
+  isActive       Boolean      @default(true)
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  users          User[]
+  leads          Lead[]
+
+  @@unique([organizationId, slug])
+}
+
+model AgencyPlan {
+  id        String   @id @default(uuid())
+  agencyId  String
+  agency    Agency   @relation(fields: [agencyId], references: [id])
+  name      String
+  price     Float
+  limits    Json
+  features  Json
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Plan {
   id           String   @id @default(uuid())
   name         String   @unique
   slug         String   @unique @default("free")
   description  String?
-  priceMonthly Int?
-  priceYearly  Int?
+  priceMonthly Float?
+  priceYearly  Float?
   isPublic     Boolean  @default(true)
   isActive     Boolean  @default(true)
   
   // Limites Base
-  maxUsers        Int      @default(5)
-  maxClients      Int      @default(10)
-  maxLeads        Int      @default(100)
-  maxAutomations  Int      @default(5)
-  maxReports      Int      @default(10)
-  maxIntegrations Int      @default(3)
-  maxMessages     Int      @default(1000)
+  maxUsers        Int      @default(1)
+  maxContacts     Int      @default(100)
+  maxDeals        Int      @default(50)
+  maxPipelines    Int      @default(1)
+  maxAutomations  Int      @default(2)
+  maxLandingPages Int      @default(1)
+  maxInboxes      Int      @default(1)
+  maxMessages     Int      @default(500)
+  maxAIRequests   Int      @default(10) // Créditos de IA
+  
+  // Features Disponíveis (JSON para flexibilidade ou booleanos)
+  features        Json?    // Ex: { "whiteLabel": false, "apiAccess": false }
   
   organizations Organization[]
   subscriptions SaaSSubscription[]
@@ -301,13 +367,19 @@ model User {
   email    String  @unique
   name     String?
   password String
-  role     String  @default("USER") // SUPER_ADMIN, ORG_ADMIN, USER
+  role     String  @default("USER") // SUPER_ADMIN, AGENCY_ADMIN, ORG_ADMIN, USER
   status   String  @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
 
   avatarUrl String?
 
+  agencyId       String?
+  agency         Agency?       @relation(fields: [agencyId], references: [id])
+
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
+
+  workspaceId    String?
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id])
 
   managedLeads         Lead[]
   assignedTasks        Task[]
@@ -327,10 +399,15 @@ model User {
   roleObj              Role?          @relation(fields: [roleId], references: [id])
   userPermissions      UserPermission[]
   
+  conversations        Conversation[]
+  refreshTokens        RefreshToken[]
+  
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
   @@index([organizationId])
+  @@index([agencyId])
+  @@index([workspaceId])
 }
 
 model AccessProfile {
@@ -355,31 +432,52 @@ model Lead {
   name   String
   email  String
   phone  String?
-  status String  @default("novo")
-  value  Float   @default(0)
-  tags   String?
-  source String?
-  notes  String?
+  whatsapp String?
+  cpf    String?
+  jobTitle String?
+  
+  birthDate DateTime?
+  status   String  @default("novo") // qualificado, desqualificado, etc.
+  value    Float   @default(0)
+  tags     String?
+  source   String?
+  channel  String?
+  notes    String?
+
+  temperature String  @default("COLD") // COLD, WARM, HOT
+  score       Int     @default(0)
+  
+  lgpdConsent Boolean @default(false)
+  lgpdDate    DateTime?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
 
+  workspaceId    String?
+  workspace      Workspace?    @relation(fields: [workspaceId], references: [id])
+
   assignedToId String?
   assignedTo   User?   @relation(fields: [assignedToId], references: [id])
 
-  boardId String?
-  board   CrmBoard? @relation(fields: [boardId], references: [id])
-  stageId String?
-  stage   CrmStage? @relation(fields: [stageId], references: [id])
+  clientId String? // Empresa vinculada
+  client   Client? @relation(fields: [clientId], references: [id])
+
+  pipelineId String?
+  pipeline   Pipeline? @relation(fields: [pipelineId], references: [id])
+  stageId    String?
+  stage      PipelineStage? @relation(fields: [stageId], references: [id])
 
   followUps       FollowUp[]
   quizSubmissions QuizSubmission[]
   proposals       Proposal[]
+  conversations   Conversation[]
+  
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
   @@index([organizationId])
   @@index([assignedToId])
+  @@index([workspaceId])
 }
 
 model FollowUp {
@@ -537,7 +635,13 @@ model Opportunity {
   title       String
   description String?
 
-  stage       String @default("qualificacao") // qualificacao, proposta, negociacao, fechado_ganho, fechado_perdido
+  // Pipeline context
+  pipelineId  String?
+  pipeline    Pipeline? @relation(fields: [pipelineId], references: [id])
+  stageId     String?
+  stageObj    PipelineStage? @relation(fields: [stageId], references: [id])
+  
+  stage       String @default("qualificacao") // Legacy / fallback
   probability Int    @default(10)
 
   value          Float  @default(0)
@@ -546,7 +650,11 @@ model Opportunity {
   expectedCloseDate DateTime?
   closedAt          DateTime?
 
-  lostReason String?
+  status      String  @default("OPEN") // OPEN, WON, LOST, FROZEN
+  lostReason  String?
+  
+  temperature String  @default("COLD") // COLD, WARM, HOT
+  score       Int     @default(0)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
@@ -557,12 +665,23 @@ model Opportunity {
   assignedToId String?
   assignedTo   User?   @relation(fields: [assignedToId], references: [id])
 
+  nextActionAt      DateTime?
+  lastInteractionAt DateTime?
+  
+  objections  Json?
+  customFields Json?
+
+  tasks       Task[]
+  proposals   Proposal[]
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([organizationId])
   @@index([clientId])
   @@index([assignedToId])
+  @@index([pipelineId])
+  @@index([stageId])
 }
 
 model Proposal {
@@ -1430,31 +1549,49 @@ model LeadCaptureUsageLog {
   @@index([organizationId])
 }
 
-model CrmBoard {
-  id             String      @id @default(uuid())
+model Pipeline {
+  id             String       @id @default(uuid())
   name           String
+  description    String?
+  type           String       @default("SALES") // SALES, SUCCESS, RETENTION
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
-  stages         CrmStage[]
-  leads          Lead[]
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  
+  stages         PipelineStage[]
+  opportunities  Opportunity[]
+  
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
 }
 
-model CrmStage {
-  id        String   @id @default(uuid())
-  name      String
-  order     Int      @default(0)
-  color     String?
-  boardId   String
-  board     CrmBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  leads     Lead[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model PipelineStage {
+  id             String       @id @default(uuid())
+  name           String
+  order          Int          @default(0)
+  color          String?
+  description    String?
+  
+  pipelineId     String
+  pipeline       Pipeline     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  
+  opportunities  Opportunity[]
+  
+  // Regras de Negócio
+  sla            Int?         // SLA em horas
+  probability    Int?         @default(0)
+  requiredFields Json?        // Array de nomes de campos obrigatórios
+  checklist      Json?        // Itens que o vendedor deve marcar
+  
+  // Automação (Simplificada aqui, integrada com o módulo de automação)
+  automationConfig Json?
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  @@index([boardId])
+  @@index([pipelineId])
 }
 
 model Agenda {
@@ -1605,3 +1742,267 @@ model ClientHealthScore {
   @@index([score])
   @@index([riskLevel])
 }
+
+// ==================== OMNICHANNEL ====================
+
+model Inbox {
+  id             String       @id @default(uuid())
+  name           String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  channels       Channel[]
+  conversations  Conversation[]
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model Channel {
+  id             String       @id @default(uuid())
+  type           String       // WHATSAPP, INSTAGRAM, MESSENGER, WEBCHAT, EMAIL
+  provider       String       // WOOAPI, META, SMTP
+  identifier     String       // Número de telefone, email, etc.
+  config         Json?
+  
+  inboxId        String
+  inbox          Inbox        @relation(fields: [inboxId], references: [id])
+  
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  conversations  Conversation[]
+}
+
+model Conversation {
+  id             String       @id @default(uuid())
+  subject        String?
+  status         String       @default("open") // open, pending, closed, snoozed
+  priority       String       @default("medium")
+  
+  inboxId        String
+  inbox          Inbox        @relation(fields: [inboxId], references: [id])
+  
+  channelId      String
+  channel        Channel      @relation(fields: [channelId], references: [id])
+  
+  contactId      String?      // Relacionado ao Lead ou Cliente (será unificado no futuro se necessário)
+  leadId         String?
+  lead           Lead?        @relation(fields: [leadId], references: [id])
+  
+  assignedToId   String?
+  assignedTo     User?        @relation(fields: [assignedToId], references: [id])
+  
+  messages       Message[]
+  
+  lastMessageAt  DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([inboxId])
+  @@index([channelId])
+  @@index([leadId])
+  @@index([status])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  
+  senderId       String?      // Se for usuário interno
+  senderType     String       // USER, CONTACT, SYSTEM, AI
+  
+  content        String?      @db.Text
+  type           String       @default("text") // text, image, audio, video, document, location
+  fileUrl        String?
+  
+  metadata       Json?
+  isPrivate      Boolean      @default(false) // Notas internas
+  
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+// ==================== SEGURANÇA E AUTH ====================
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ==================== TIMELINE E HISTÓRICO ====================
+
+model Activity {
+  id             String       @id @default(uuid())
+  organizationId String
+  type           String       // CALL, EMAIL, WHATSAPP, MEETING, NOTE, STAGE_CHANGE, TASK, SYSTEM
+  description    String
+  metadata       Json?
+  
+  userId         String?
+  contactId      String?      // Lead ID
+  companyId      String?      // Client ID
+  dealId         String?      // Opportunity ID
+  taskId         String?
+  
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([contactId])
+  @@index([companyId])
+  @@index([dealId])
+  @@index([userId])
+}
+
+model DealStageHistory {
+  id             String       @id @default(uuid())
+  dealId         String
+  fromStageId    String?
+  toStageId      String
+  fromStageName  String?
+  toStageName    String
+  movedById      String?
+  duration       Int?         // Tempo em minutos na etapa anterior
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([dealId])
+  @@index([toStageId])
+}
+
+model Note {
+  id             String       @id @default(uuid())
+  organizationId String
+  content        String       @db.Text
+  isPinned       Boolean      @default(false)
+  
+  userId         String?
+  contactId      String?
+  companyId      String?
+  dealId         String?
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([contactId])
+  @@index([companyId])
+  @@index([dealId])
+}
+
+// ==================== TAGS ====================
+
+model Tag {
+  id             String       @id @default(uuid())
+  name           String
+  color          String?
+  organizationId String
+  createdAt      DateTime     @default(now())
+
+  taggables      Taggable[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model Taggable {
+  id             String       @id @default(uuid())
+  tagId          String
+  tag            Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  taggableId     String
+  taggableType   String       // CONTACT, COMPANY, DEAL, CONVERSATION
+  
+  createdAt      DateTime     @default(now())
+
+  @@unique([tagId, taggableId, taggableType])
+  @@index([taggableId, taggableType])
+}
+
+// ==================== WEBHOOKS E API ====================
+
+model Webhook {
+  id             String         @id @default(uuid())
+  organizationId String
+  url            String
+  secret         String?
+  events         Json           // Array de eventos: ["contact.created", "deal.won", ...]
+  isActive       Boolean        @default(true)
+  failCount      Int            @default(0)
+  lastTriggeredAt DateTime?
+  
+  webhookEvents  WebhookEvent[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organizationId])
+}
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  webhookId   String
+  webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event       String   // contact.created, deal.won, etc.
+  payload     Json
+  statusCode  Int?
+  response    String?  @db.Text
+  attempts    Int      @default(1)
+  status      String   @default("pending") // pending, success, failed
+  
+  createdAt   DateTime @default(now())
+
+  @@index([webhookId])
+  @@index([event])
+}
+
+model ApiKey {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  key            String       @unique
+  prefix         String       // Primeiros 8 chars para identificação (ex: "nxk_abc1")
+  scopes         Json?        // ["contacts.read", "deals.write", ...]
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean      @default(true)
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([key])
+  @@index([prefix])
+}
+
+// ==================== MONITORAMENTO E USO ====================
+
+model UsageEvent {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  
+  feature        String       // leads.create, messages.sent, ai.tokens
+  quantity       Int          @default(1)
+  metadata       Json?
+  
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([feature])
+}
+

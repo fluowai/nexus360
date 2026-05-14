@@ -329,7 +329,10 @@ model SaaSSubscription {
   startDate       DateTime     @default(now())
   endDate         DateTime?
   trialEndsAt     DateTime?
+  currentPeriodStart DateTime?
   currentPeriodEnd DateTime?
+  price           Float?
+  billingCycle    String?      // MONTHLY, YEARLY
   provider        String?      // Stripe, Asaas, etc.
   providerSubId   String?
   createdAt       DateTime     @default(now())

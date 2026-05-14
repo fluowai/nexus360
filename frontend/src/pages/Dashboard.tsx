@@ -70,8 +70,12 @@ export default function Dashboard() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-2">Bem-vindo, {data.orgName} 👋</h1>
-        <p className="text-sm sm:text-base text-gray-500">Aqui está um resumo da performance do seu negócio hoje.</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 mb-1">
+          Bem-vindo, {data.userName || 'Usuário'} 👋
+        </h1>
+        <p className="text-sm sm:text-base text-gray-500 font-medium">
+          {data.orgName || 'Nexus360'} — Resumo da performance hoje.
+        </p>
       </div>
       
       {/* Plan Info */}
@@ -146,8 +150,8 @@ export default function Dashboard() {
               <span className="flex items-center gap-1 text-xs font-medium bg-green-50 text-green-600 px-2 py-1 rounded">Conversão</span>
             </div>
           </div>
-          <div className="w-full h-[300px] min-h-[300px] min-w-0 relative" style={{ minHeight: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div className="w-full h-[300px] min-h-[300px] relative" style={{ height: '300px', minHeight: '300px' }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300} debounce={50}>
               <AreaChart data={data.chartData}>
               <defs>
                 <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">

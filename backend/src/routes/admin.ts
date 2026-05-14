@@ -40,7 +40,20 @@ export function adminRoutes(prisma: PrismaClient) {
       const clientsCount = await prisma.client.count({ where: whereClause });
       const proposalsCount = await prisma.proposal.count({ where: whereClause });
       
+      let orgName = "Painel Global";
+      if (orgId) {
+        const org = await prisma.organization.findUnique({
+          where: { id: String(orgId) },
+          select: { name: true }
+        });
+        if (org) orgName = org.name;
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } });
+
       res.json({
+        orgName,
+        userName: user?.name || "Admin",
         metrics: {
           leads: leadsCount,
           clients: clientsCount,

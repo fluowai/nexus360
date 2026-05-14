@@ -193,20 +193,23 @@ app.use("/api/client-portal", clientPortalRoutes(prisma));
 app.get("/api/dashboard", authenticateToken, resolveTenant, async (req: any, res) => {
   try {
     const orgId = req.user.orgId;
-    const [leads, clients, proposals, invoices, contentCount, org] = await Promise.all([
+    const [leads, clients, proposals, invoices, contentCount, org, user, agency] = await Promise.all([
       prisma.lead.count({ where: { organizationId: orgId } }),
       prisma.client.count({ where: { organizationId: orgId } }),
       prisma.proposal.count({ where: { organizationId: orgId } }),
       prisma.invoice.aggregate({ where: { organizationId: orgId, status: 'paga' }, _sum: { total: true } }),
       prisma.creative.count({ where: { organizationId: orgId } }),
-      prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, planObj: true } }),
+      orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, planObj: true } }) : Promise.resolve(null),
+      prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } }),
+      req.user.agencyId ? prisma.agency.findUnique({ where: { id: req.user.agencyId }, select: { name: true } }) : Promise.resolve(null),
     ]);
 
     res.json({
-      orgName: org?.name || "Minha Agência",
+      orgName: org?.name || agency?.name || "Minha Agência",
+      userName: user?.name || "Usuário",
       plan: org?.planObj || { name: 'Free' },
       metrics: { leads, clients, proposals, revenue: invoices._sum.total || 0, contentCount },
-      chartData: [] // Mocked for brevity or implement real grouping here
+      chartData: [] 
     });
   } catch (error) {
     res.status(500).json({ error: "Dashboard failure" });

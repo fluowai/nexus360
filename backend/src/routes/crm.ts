@@ -12,7 +12,21 @@ export function crmRoutes(prisma: PrismaClient) {
   // Debug Ping
   router.get("/ping-crm", (req, res) => res.json({ message: "crm router is active", timestamp: new Date().toISOString() }));
 
-  // List Pipelines (Boards)
+  // List Pipelines (Boards Alias)
+  router.get("/boards", authenticateToken, requireAccess({ module: "crm", feature: "crm.view" }), async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    try {
+      const pipelines = await prisma.pipeline.findMany({
+        where: { organizationId: orgId },
+        include: { stages: { orderBy: { order: 'asc' } } }
+      });
+      res.json(pipelines);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // List Pipelines
   router.get("/pipelines", authenticateToken, requireAccess({ module: "crm", feature: "crm.view" }), async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
     try {

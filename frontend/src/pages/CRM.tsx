@@ -115,59 +115,74 @@ export default function CRM() {
   );
 
   return (
-    <div className="flex flex-col gap-8 h-full">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
-          <h1 className="text-4xl font-black tracking-tight text-gray-900 mb-2 flex items-center gap-4">
-            Pipeline de Vendas
-            {localStorage.getItem('nexus_beta_access') === 'true' && (
-              <span className="px-3 py-1 bg-orange-100 text-orange-600 text-[10px] font-black uppercase rounded-full border border-orange-200 animate-pulse">Beta</span>
-            )}
-          </h1>
-          <p className="text-gray-500 font-medium">Gestão de leads com rastreabilidade 360°.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" size={18} />
-            <input 
-              type="text" 
-              placeholder="Buscar lead..." 
-              className="pl-10 pr-4 py-2.5 bg-white border border-gray-100 rounded-2xl w-[250px] focus:ring-4 focus:ring-primary/10 outline-none transition-all text-sm shadow-sm"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-            />
+    <div className="flex flex-col h-full bg-[#f8f9fb] -m-4 p-4 md:-m-8 md:p-8">
+      {/* Top Bar Estilo Agendor */}
+      <div className="flex flex-col gap-6 mb-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <h1 className="text-2xl font-black text-gray-800 tracking-tight flex items-center gap-2">
+              <Target className="text-primary" size={24} />
+              Negócios
+            </h1>
+            <nav className="hidden lg:flex items-center gap-6">
+              {['FUNIL DE VENDAS', 'LISTAGEM', 'RELATÓRIOS', 'METAS'].map((tab) => (
+                <button 
+                  key={tab}
+                  className={`text-[11px] font-black tracking-widest pb-2 border-b-2 transition-all ${
+                    tab === 'FUNIL DE VENDAS' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </nav>
           </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-2xl hover:bg-slate-800 transition-all font-bold shadow-xl shadow-slate-200"
-          >
-            <Plus size={20} />
-            <span className="hidden sm:inline">Capturar Lead</span>
-          </button>
+          <div className="flex items-center gap-3">
+             <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+              <input 
+                type="text" 
+                placeholder="Buscar empresas, pessoas e negócios..." 
+                className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg w-[320px] focus:ring-2 focus:ring-primary/20 outline-none transition-all text-xs"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-all text-xs font-bold shadow-lg shadow-primary/20"
+            >
+              <Plus size={16} />
+              Adicionar negócio
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex gap-6 overflow-x-auto pb-10 custom-scrollbar select-none">
+      {/* Kanban Pipeline */}
+      <div className="flex gap-4 overflow-x-auto pb-6 custom-scrollbar select-none">
         {COLUMNS.map((col) => (
           <div 
             key={col.id} 
-            className="flex-shrink-0 w-[320px] flex flex-col gap-4"
+            className="flex-shrink-0 w-[280px] flex flex-col gap-4"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, col.id as LeadStatus)}
           >
-            <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${col.color} shadow-sm shadow-current/20`} />
-                <h3 className="font-black text-xs uppercase tracking-[0.2em] text-gray-400 flex items-center gap-2">
-                  {col.icon} {col.title}
-                </h3>
-                <span className="bg-gray-100 text-gray-500 text-[10px] px-2 py-0.5 rounded-full font-black">
-                  {filteredLeads.filter(l => l.status === col.id).length}
+            <div className="flex flex-col gap-1 border-b-4 border-gray-200 pb-2">
+              <h3 className="font-bold text-[11px] uppercase tracking-wider text-gray-500">
+                {col.title}
+              </h3>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-gray-400">
+                  {filteredLeads.filter(l => l.status === col.id).length} negócios
+                </span>
+                <span className="text-[10px] font-black text-gray-600">
+                  R$ {filteredLeads.filter(l => l.status === col.id).reduce((acc, curr) => acc + (curr.value || 0), 0).toLocaleString()}
                 </span>
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 min-h-[600px] p-2 rounded-[32px] bg-gray-50/30">
+            <div className="flex flex-col gap-3 min-h-[calc(100vh-300px)] py-2">
               {filteredLeads
                 .filter(l => l.status === col.id)
                 .map((lead) => (
@@ -176,36 +191,24 @@ export default function CRM() {
                     key={lead.id} 
                     draggable
                     onDragStart={(e: any) => handleDragStart(e, lead.id)}
-                    className="bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-grab active:cursor-grabbing group relative"
+                    className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-grab active:cursor-grabbing group relative"
                     onClick={() => setSelectedLeadId(lead.id)}
                   >
-                    <div className="flex justify-between items-start mb-3">
-                      <h4 className="font-bold text-gray-900 group-hover:text-primary transition-colors">{lead.name}</h4>
-                      <div className="w-6 h-6 rounded-lg bg-gray-50 flex items-center justify-center text-gray-300 group-hover:text-primary transition-colors">
-                        <ChevronRight size={14} />
-                      </div>
+                    <div className="flex flex-col gap-1 mb-3">
+                      <h4 className="font-bold text-sm text-gray-800 leading-tight group-hover:text-primary transition-colors">{lead.name}</h4>
+                      <p className="text-[10px] text-gray-400 font-medium truncate">{lead.email}</p>
                     </div>
                     
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                        <Mail size={12} className="text-gray-300" />
-                        <span className="truncate">{lead.email}</span>
+                    <div className="flex items-center justify-between mt-auto">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-700">
+                        <span>R$ {lead.value?.toLocaleString()}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                          <DollarSign size={12} />
-                          <span>{lead.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      <div className="flex items-center gap-2">
+                        {lead.phone && <Phone size={12} className="text-gray-300 group-hover:text-green-500 transition-colors" />}
+                        <div className="w-5 h-5 rounded bg-gray-50 flex items-center justify-center text-gray-300 group-hover:text-primary">
+                          <ChevronRight size={12} />
                         </div>
-                        {lead.source && (
-                          <span className="text-[9px] font-black uppercase text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-100">{lead.source}</span>
-                        )}
                       </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-1.5 pt-3 border-t border-gray-50">
-                      {(Array.isArray(lead.tags) ? lead.tags : (lead.tags as string)?.split(',') || []).slice(0, 2).map((tag, i) => (
-                        <span key={i} className="text-[9px] font-black uppercase tracking-widest text-blue-500">#{tag}</span>
-                      ))}
                     </div>
                   </motion.div>
                 ))}
@@ -259,54 +262,31 @@ function NewLeadModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: 
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-md" />
-      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="bg-white rounded-[40px] shadow-2xl w-full max-w-xl overflow-hidden relative z-10">
-        <div className="p-8 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Nova Oportunidade</h2>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Sincronização de Lead Nexus360</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-full"><X size={24} className="text-gray-300" /></button>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden relative z-10">
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+          <h2 className="text-lg font-black text-gray-900 uppercase tracking-tighter">Novo Negócio</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-400"><X size={20} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-8 flex flex-col gap-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nome Completo</label>
-              <input required className="modal-input font-bold" placeholder="Ex: João Silva" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+        <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nome do Negócio</label>
+              <input required className="modal-input text-sm" placeholder="Ex: Contrato Alpha" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Potencial (R$)</label>
-              <input type="number" className="modal-input font-bold" placeholder="0.00" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">E-mail</label>
-            <input required type="email" className="modal-input" placeholder="exemplo@email.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">WhatsApp</label>
-              <input className="modal-input" placeholder="(00) 00000-0000" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Canal de Origem</label>
-              <select className="modal-input font-bold" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})}>
-                <option value="">Selecione...</option>
-                <option value="Instagram">Instagram</option>
-                <option value="Google">Google Search</option>
-                <option value="Indicacao">Indicação</option>
-                <option value="Organico">Orgânico</option>
-              </select>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Valor Estimado</label>
+              <input type="number" className="modal-input text-sm" placeholder="R$ 0,00" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} />
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Notas de Qualificação</label>
-            <textarea className="modal-input min-h-[100px] resize-none" placeholder="Descreva o primeiro contato..." value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">E-mail de Contato</label>
+            <input required type="email" className="modal-input text-sm" placeholder="contato@empresa.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
           </div>
-          <div className="pt-6 flex gap-4">
-            <button type="button" onClick={onClose} className="flex-1 py-4 text-[10px] font-black uppercase text-gray-400">Cancelar</button>
-            <button disabled={submitting} type="submit" className="flex-[2] py-4 bg-primary text-white font-black uppercase rounded-2xl shadow-xl shadow-blue-100">
-              {submitting ? 'Cadastrando...' : 'Ativar Lead'}
+          <div className="pt-4 flex gap-3">
+            <button type="button" onClick={onClose} className="flex-1 py-3 text-xs font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-all">Cancelar</button>
+            <button disabled={submitting} type="submit" className="flex-1 py-3 bg-primary text-white text-xs font-bold rounded-xl shadow-lg shadow-primary/20">
+              {submitting ? 'Criando...' : 'Adicionar Negócio'}
             </button>
           </div>
         </form>
@@ -320,6 +300,7 @@ function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete }: {
   const [newFollowUp, setNewFollowUp] = useState({ type: 'note', content: '', scheduledAt: '' });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState('note');
 
   const fetchDetails = async () => {
     setLoading(true);
@@ -344,7 +325,7 @@ function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete }: {
     try {
       await apiFetch(`/api/crm/leads/${leadId}/followups`, {
         method: 'POST',
-        body: JSON.stringify(newFollowUp)
+        body: JSON.stringify({ ...newFollowUp, type: activeTab })
       });
       setNewFollowUp({ type: 'note', content: '', scheduledAt: '' });
       fetchDetails();
@@ -355,125 +336,120 @@ function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete }: {
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm("Tem certeza que deseja excluir permanentemente este lead? Esta ação é irreversível.")) return;
-    try {
-      await apiFetch(`/api/crm/leads/${leadId}`, { method: 'DELETE' });
-      onDelete();
-    } catch (err) {
-      alert("Erro ao excluir lead.");
-    }
-  };
+  const TABS = [
+    { id: 'note', label: 'ANOTAÇÃO', icon: <MessageSquare size={14} /> },
+    { id: 'call', label: 'LIGAÇÃO', icon: <Phone size={14} /> },
+    { id: 'meeting', label: 'REUNIÃO', icon: <Video size={14} /> },
+    { id: 'proposal', label: 'PROPOSTA', icon: <Send size={14} /> },
+    { id: 'email', label: 'E-MAIL', icon: <Mail size={14} /> },
+  ];
 
   if (loading && !lead) return null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-end">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" />
-      <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="bg-white w-full max-w-2xl h-screen relative z-10 flex flex-col shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.1)]">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm" />
+      <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} className="bg-white w-full max-w-2xl h-screen relative z-10 flex flex-col shadow-2xl">
         
-        {/* Header Profissional */}
-        <div className="p-8 border-b border-gray-100 flex justify-between items-start bg-slate-50/50">
-          <div className="space-y-3">
-             <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black text-primary bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">{lead.status}</span>
-                <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">R$ {lead.value?.toLocaleString()}</span>
+        {/* Header Agendor Style */}
+        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
+          <div className="flex items-center gap-4">
+             <div className="p-3 bg-gray-50 rounded-xl text-primary border border-gray-100">
+                <User size={24} />
              </div>
-             <h2 className="text-3xl font-black text-gray-900 tracking-tight">{lead.name}</h2>
-             <div className="flex items-center gap-4 text-xs font-bold text-gray-400">
-               <a href={`mailto:${lead.email}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"><Mail size={14} className="text-gray-400" /> {lead.email}</a>
-               {lead.phone && <a href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-100 rounded-lg hover:bg-green-100 transition-colors"><Phone size={14} className="rotate-90" /> WhatsApp</a>}
+             <div>
+               <h2 className="text-xl font-bold text-gray-800 tracking-tight">{lead.name}</h2>
+               <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">R$ {lead.value?.toLocaleString()}</span>
+                  <span className="text-[10px] font-black text-gray-400 bg-gray-50 px-2 py-0.5 rounded border border-gray-200 uppercase">{lead.status}</span>
+               </div>
              </div>
           </div>
           <div className="flex items-center gap-2">
-             <button onClick={handleDelete} className="p-2 text-red-400 hover:bg-red-50 rounded-xl transition-all" title="Excluir Lead">
-                <Trash2 size={22} />
-             </button>
-             <button onClick={onClose} className="p-2 text-gray-300 hover:bg-gray-100 rounded-xl"><X size={28} /></button>
+             <button onClick={() => onWin(lead)} className="px-4 py-2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg shadow-lg shadow-emerald-100">Ganhar Negócio</button>
+             <button onClick={onClose} className="p-2 text-gray-300 hover:bg-gray-100 rounded-lg"><X size={24} /></button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8 custom-scrollbar">
-          {/* Ações Rápidas */}
-          <div className="grid grid-cols-2 gap-4">
-             <button onClick={() => onWin(lead)} className="py-4 bg-emerald-500 text-white rounded-3xl font-black uppercase text-xs shadow-xl shadow-emerald-100 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2">
-                <CheckCircle2 size={18} /> Fechar Negócio
-             </button>
-             <button onClick={() => onScheduleMeet(lead)} className="py-4 bg-primary text-white rounded-3xl font-black uppercase text-xs shadow-xl shadow-blue-100 hover:bg-blue-600 transition-all flex items-center justify-center gap-2">
-                <Video size={18} /> Agendar Nexus Meet
-             </button>
-          </div>
-
-          {/* Dossiê (Raio-X) */}
-          <div className="space-y-6">
-             <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                <Target size={16} className="text-primary" /> Dossiê 360° do Lead
-             </h3>
-             <div className="grid grid-cols-2 gap-4">
-                <div className="p-5 rounded-3xl bg-gray-50 border border-gray-100">
-                   <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Origem do Contato</p>
-                   <p className="font-bold text-gray-700">{lead.source || 'Indireto'}</p>
-                </div>
-                <div className="p-5 rounded-3xl bg-gray-50 border border-gray-100">
-                   <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Data de Entrada</p>
-                   <p className="font-bold text-gray-700">{new Date(lead.createdAt).toLocaleDateString('pt-BR')}</p>
-                </div>
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-8 bg-[#f8f9fb] custom-scrollbar">
+          {/* Activity Entry Box (ESTILO AGENDOR) */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+             <div className="flex items-center bg-gray-50 border-b border-gray-100">
+                {TABS.map(tab => (
+                  <button 
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 px-6 py-4 text-[10px] font-black tracking-widest transition-all border-b-2 ${
+                      activeTab === tab.id ? 'bg-white border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {tab.icon} {tab.label}
+                  </button>
+                ))}
              </div>
-             {lead.notes && (
-               <div className="p-6 rounded-3xl bg-blue-50/50 border border-blue-100">
-                  <p className="text-[10px] font-black text-blue-400 uppercase mb-2">Notas de Qualificação</p>
-                  <p className="text-sm text-blue-900 font-medium leading-relaxed">{lead.notes}</p>
-               </div>
-             )}
+             <div className="p-6">
+                <form onSubmit={handleAddFollowUp} className="space-y-4">
+                  <textarea 
+                    required 
+                    className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/10 outline-none min-h-[120px] resize-none transition-all"
+                    placeholder={`O que aconteceu nesta ${activeTab === 'call' ? 'ligação' : activeTab === 'meeting' ? 'reunião' : 'atividade'}?`}
+                    value={newFollowUp.content}
+                    onChange={e => setNewFollowUp({...newFollowUp, content: e.target.value})}
+                  />
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase">Próxima Etapa:</label>
+                        <input type="date" className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold outline-none" value={newFollowUp.scheduledAt} onChange={e => setNewFollowUp({...newFollowUp, scheduledAt: e.target.value})} />
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <button type="button" className="text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase px-4 py-2 transition-all">Cancelar</button>
+                        <button disabled={submitting} className="bg-emerald-500 text-white px-8 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 transition-all hover:scale-105 active:scale-95 disabled:opacity-50">
+                          {submitting ? 'Salvando...' : 'Salvar Atividade'}
+                        </button>
+                     </div>
+                  </div>
+                </form>
+             </div>
           </div>
 
-          {/* Timeline de Atividades */}
-          <div className="space-y-6">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
-               <History size={16} className="text-primary" /> Rastreamento de Atividades
-            </h3>
-            <div className="flex flex-col gap-6 pl-4 border-l-2 border-gray-100 relative">
+          {/* Timeline */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 px-2">
+               <History size={16} className="text-gray-400" />
+               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Histórico de Atividades</h3>
+            </div>
+            <div className="flex flex-col gap-4">
               {lead.followUps?.map((fu: any) => (
-                <div key={fu.id} className="relative">
-                  <div className="absolute -left-[25px] top-0 w-4 h-4 bg-white border-2 border-primary rounded-full shadow-sm" />
-                  <div className="bg-white border border-gray-100 p-5 rounded-3xl shadow-sm hover:shadow-md transition-all">
-                    <div className="flex justify-between items-center mb-3">
-                       <span className="text-[10px] font-black text-primary uppercase bg-blue-50 px-2 py-1 rounded">{fu.type}</span>
-                       <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
-                          <User size={12} /> {fu.user?.name || 'Sistema'} • {new Date(fu.createdAt).toLocaleDateString('pt-BR')}
-                       </div>
-                    </div>
-                    <p className="text-sm text-gray-700 font-medium leading-relaxed">{fu.content}</p>
-                    {fu.scheduledAt && (
-                      <div className="mt-4 flex items-center gap-2 text-[10px] font-black text-orange-600 bg-orange-50 px-3 py-2 rounded-xl w-fit border border-orange-100">
-                         <Calendar size={12} /> PRÓXIMA ETAPA: {new Date(fu.scheduledAt).toLocaleDateString('pt-BR')}
-                      </div>
-                    )}
+                <div key={fu.id} className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm relative group">
+                  <div className="flex justify-between items-start mb-4">
+                     <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400">
+                           {fu.type === 'call' ? <Phone size={14} /> : fu.type === 'meeting' ? <Video size={14} /> : <MessageSquare size={14} />}
+                        </div>
+                        <div>
+                           <span className="text-[10px] font-black text-primary uppercase block tracking-widest">{fu.type}</span>
+                           <span className="text-[10px] font-bold text-gray-400 uppercase">{new Date(fu.createdAt).toLocaleString('pt-BR')}</span>
+                        </div>
+                     </div>
+                     <div className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+                        <User size={10} /> {fu.user?.name || 'Sistema'}
+                     </div>
                   </div>
+                  <p className="text-sm text-gray-700 font-medium leading-relaxed">{fu.content}</p>
+                  {fu.scheduledAt && (
+                    <div className="mt-4 pt-4 border-t border-gray-50 flex items-center gap-2 text-[10px] font-black text-orange-600">
+                       <Clock size={12} /> PRÓXIMA TAREFA: {new Date(fu.scheduledAt).toLocaleDateString('pt-BR')}
+                    </div>
+                  )}
                 </div>
               ))}
-              {lead.followUps?.length === 0 && <p className="text-sm text-gray-300 italic font-medium">Nenhuma atividade registrada ainda.</p>}
+              {lead.followUps?.length === 0 && (
+                <div className="p-12 text-center border-2 border-dashed border-gray-200 rounded-[32px]">
+                   <p className="text-sm text-gray-400 font-medium italic">Nenhuma atividade registrada ainda.</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-
-        {/* Input de Atividade */}
-        <div className="p-8 border-t border-gray-100 bg-slate-50/80">
-          <form onSubmit={handleAddFollowUp} className="space-y-4">
-             <div className="grid grid-cols-2 gap-3">
-               <select className="modal-input font-bold" value={newFollowUp.type} onChange={e => setNewFollowUp({...newFollowUp, type: e.target.value})}>
-                 <option value="note">Anotação Interna</option>
-                 <option value="meeting">Reunião Realizada</option>
-                 <option value="call">Ligação Efetuada</option>
-                 <option value="message">WhatsApp Enviado</option>
-               </select>
-               <input type="date" className="modal-input font-bold" value={newFollowUp.scheduledAt} onChange={e => setNewFollowUp({...newFollowUp, scheduledAt: e.target.value})} title="Agendar Próxima Etapa" />
-             </div>
-             <div className="flex gap-3">
-               <textarea required className="modal-input flex-1 resize-none font-medium text-sm" placeholder="O que aconteceu nesta atividade? Quem participou?" rows={2} value={newFollowUp.content} onChange={e => setNewFollowUp({...newFollowUp, content: e.target.value})} />
-               <button disabled={submitting} className="bg-primary text-white p-4 rounded-2xl hover:bg-blue-600 shadow-xl shadow-blue-100 transition-all self-end"><Send size={24} /></button>
-             </div>
-          </form>
         </div>
       </motion.div>
     </div>

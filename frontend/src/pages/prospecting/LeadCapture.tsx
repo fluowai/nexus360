@@ -502,21 +502,42 @@ export default function LeadCapture() {
                             <span className="flex items-center gap-1 text-[11px] font-bold text-gray-400">
                               <MapPin size={12} /> {lead.address || `${lead.city}, ${lead.state}` || 'Endereço não informado'}
                             </span>
-                            <div className="flex flex-wrap gap-2 mt-1">
+                            
+                            <div className="flex flex-wrap gap-2 mt-2">
                               <span className="w-fit px-2 py-0.5 bg-gray-100 text-gray-500 text-[9px] font-black rounded-md uppercase tracking-wider">
                                 {lead.category || 'N/A'}
                               </span>
-                              {lead.cnpj && (
-                                <span className="w-fit px-2 py-0.5 bg-orange-50 text-orange-600 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1">
-                                  <Database size={10} /> {lead.cnpj}
-                                </span>
-                              )}
-                              {lead.owners && (
-                                <span className="w-fit px-2 py-0.5 bg-blue-50 text-blue-600 text-[9px] font-black rounded-md uppercase tracking-wider flex items-center gap-1">
-                                  <Star size={10} /> {lead.owners}
-                                </span>
-                              )}
                             </div>
+
+                            {(lead.cnpj || lead.owners) && (
+                              <div className="mt-3 p-3 bg-gray-50/50 border border-gray-100 rounded-xl space-y-3">
+                                {lead.cnpj && (
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CNPJ da Empresa</label>
+                                    <div className="flex items-center gap-2">
+                                      <Database size={12} className="text-orange-500" />
+                                      <span className="text-[11px] font-bold text-gray-700 tracking-wider">
+                                        {lead.cnpj}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {lead.owners && (
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sócios Identificados</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {lead.owners.split(',').map((owner, idx) => (
+                                        <span key={idx} className="px-2 py-0.5 bg-blue-100/50 text-blue-700 text-[10px] font-bold rounded-md border border-blue-200/50 flex items-center gap-1">
+                                          <Star size={8} className="fill-blue-500" />
+                                          {owner.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
 

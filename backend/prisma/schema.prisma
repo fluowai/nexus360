@@ -176,6 +176,10 @@ model Plan {
   maxInboxes      Int      @default(1)
   maxMessages     Int      @default(500)
   maxAIRequests   Int      @default(10) // Créditos de IA
+  maxLeads        Int      @default(100)
+  maxClients      Int      @default(10)
+  maxReports      Int      @default(5)
+  maxIntegrations Int      @default(2)
   
   // Features Disponíveis (JSON para flexibilidade ou booleanos)
   features        Json?    // Ex: { "whiteLabel": false, "apiAccess": false }

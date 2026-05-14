@@ -103,7 +103,7 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
           phone: capturedLead.phoneNormalized || capturedLead.phone,
           status: "novo",
           organizationId: orgId!,
-          boardId,
+          pipelineId: boardId,
           stageId,
           cnpj: capturedLead.cnpj,
           owners: capturedLead.owners,

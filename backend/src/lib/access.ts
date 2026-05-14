@@ -57,8 +57,8 @@ export async function getTenantAccess(organizationId: string, userId: string) {
       return plan.planFeatures.some(f => f.featureKey === featureKey && f.isEnabled);
     },
     // Helper para verificar limite
-    isUnderLimit: async (limitKey: keyof typeof plan) => {
-      if (!plan) return false;
+    isUnderLimit: async (limitKey: string) => {
+      if (!plan) return true;
       const limit = (plan as any)[limitKey] || 0;
       
       let currentCount = 0;

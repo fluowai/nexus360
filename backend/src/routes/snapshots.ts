@@ -28,13 +28,13 @@ export function snapshotRoutes(prisma: PrismaClient) {
     try {
       // Buscar dados para o snapshot (pipelines, etapas, etc.)
       const [boards, stages] = await Promise.all([
-        prisma.crmBoard.findMany({ where: { organizationId: orgId } }),
-        prisma.crmStage.findMany({ where: { board: { organizationId: orgId } } })
+        prisma.pipeline.findMany({ where: { organizationId: orgId } }),
+        prisma.pipelineStage.findMany({ where: { pipeline: { organizationId: orgId } } })
       ]);
 
       const snapshotData = {
         boards: boards.map(b => ({ name: b.name })),
-        stages: stages.map(s => ({ name: s.name, order: s.order, boardName: boards.find(b => b.id === s.boardId)?.name }))
+        stages: stages.map(s => ({ name: s.name, order: s.order, boardName: boards.find(b => b.id === s.pipelineId)?.name }))
       };
 
       const snapshot = await prisma.snapshot.create({
@@ -69,14 +69,14 @@ export function snapshotRoutes(prisma: PrismaClient) {
 
       await prisma.$transaction(async (tx) => {
         for (const boardData of data.boards) {
-          const board = await tx.crmBoard.create({
+          const board = await tx.pipeline.create({
             data: { name: boardData.name, organizationId: orgId }
           });
 
           const boardStages = data.stages.filter((s: any) => s.boardName === boardData.name);
           for (const stageData of boardStages) {
-            await tx.crmStage.create({
-              data: { name: stageData.name, order: stageData.order, boardId: board.id }
+            await tx.pipelineStage.create({
+              data: { name: stageData.name, order: stageData.order, pipelineId: board.id }
             });
           }
         }

@@ -49,6 +49,11 @@ import { proposalRoutes } from "./routes/proposals.js";
 
 const app = express();
 
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100
+});
+
 // Middlewares Globais de Segurança e Utilidade
 app.use(limiter);
 app.use(cors({
@@ -118,7 +123,7 @@ app.post("/api/public/proposals/:slug/accept", async (req, res) => {
     const proposal = await prisma.proposal.findUnique({ where: { slug: req.params.slug } });
     if (!proposal) return res.status(404).json({ error: "Proposta não encontrada" });
 
-    await tx.proposal.update({ where: { id: proposal.id }, data: { status: 'accepted' } });
+    await prisma.proposal.update({ where: { id: proposal.id }, data: { status: 'accepted' } });
 
     if (proposal.leadId) {
       await prisma.$transaction(async (tx) => {

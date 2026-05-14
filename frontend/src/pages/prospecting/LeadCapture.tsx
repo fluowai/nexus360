@@ -182,7 +182,7 @@ export default function LeadCapture() {
     try {
       const res = await apiFetch('/api/lead-capture/sources');
       const data = await res.json();
-      setSources(data);
+      setSources(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
     }
@@ -193,7 +193,7 @@ export default function LeadCapture() {
       const url = sourceId ? `/api/lead-capture/leads?sourceId=${sourceId}` : '/api/lead-capture/leads';
       const res = await apiFetch(url);
       const data = await res.json();
-      setLeads(Array.isArray(data) ? data : []);
+      setLeads(Array.isArray(data) ? data : (data.leads && Array.isArray(data.leads) ? data.leads : []));
       setActiveSourceId(sourceId || null);
     } catch (err) {
       console.error(err);
@@ -705,7 +705,7 @@ export default function LeadCapture() {
           </div>
           
           <div className="space-y-3">
-            {sources.slice(0, 10).map((source) => (
+            {Array.isArray(sources) && sources.slice(0, 10).map((source) => (
               <div 
                 key={source.id} 
                 onClick={() => fetchLeads(source.id)}

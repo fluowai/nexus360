@@ -82,6 +82,7 @@ model Organization {
   clients           Client[]
   opportunities     Opportunity[]
   proposals         Proposal[]
+  pipelines         Pipeline[]
   campaigns         Campaign[]
   tasks             Task[]
   invoices          Invoice[]
@@ -589,6 +590,7 @@ model Client {
   soldProducts  SoldProduct[]
   demands       Demand[]
   projects      Project[]
+  leads         Lead[]
 
   notes String?
   tags  String?
@@ -693,8 +695,10 @@ model Proposal {
   clientId        String?
   client          Client?  @relation(fields: [clientId], references: [id])
   
-  leadId          String?
   lead            Lead?    @relation(fields: [leadId], references: [id])
+  
+  opportunityId   String?
+  opportunity     Opportunity? @relation(fields: [opportunityId], references: [id])
   
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id])
@@ -776,6 +780,7 @@ model Task {
 
   leadId        String?
   opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id])
   proposalId    String?
   projectId     String?
   project       Project? @relation(fields: [projectId], references: [id])
@@ -1559,6 +1564,7 @@ model Pipeline {
   
   stages         PipelineStage[]
   opportunities  Opportunity[]
+  leads          Lead[]
   
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
@@ -1578,6 +1584,7 @@ model PipelineStage {
   pipeline       Pipeline     @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   
   opportunities  Opportunity[]
+  leads          Lead[]
   
   // Regras de Negócio
   sla            Int?         // SLA em horas

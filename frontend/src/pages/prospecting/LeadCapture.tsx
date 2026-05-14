@@ -42,6 +42,7 @@ interface Lead {
   notes?: string;
   cnpj?: string;
   owners?: string;
+  managementTeam?: string;
 }
 
 export default function LeadCapture() {
@@ -86,6 +87,7 @@ export default function LeadCapture() {
     try {
       for (const id of selectedLeads) {
         await handleEnrich(id);
+        await handleResearchManagement(id);
         await handleAnalyze(id);
       }
     } finally {
@@ -120,6 +122,21 @@ export default function LeadCapture() {
         setLeads(prev => prev.map(l => l.id === id ? data : l));
         setActiveScripts({ coldCallScript: data.coldCallScript, whatsappMessage: data.whatsappMessage });
         setShowScriptsModal(true);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAnalyzingIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleResearchManagement = async (id: string) => {
+    setAnalyzingIds(prev => [...prev, id]);
+    try {
+      const res = await apiFetch(`/api/lead-capture/leads/${id}/research-management`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setLeads(prev => prev.map(l => l.id === id ? data : l));
       }
     } catch (err) {
       console.error(err);
@@ -536,6 +553,20 @@ export default function LeadCapture() {
                                     </div>
                                   </div>
                                 )}
+                                {lead.managementTeam && (
+                                  <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1">
+                                      <Globe size={10} /> Decisores (LinkedIn)
+                                    </label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {lead.managementTeam.split(',').map((person, idx) => (
+                                        <span key={idx} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-100 flex items-center gap-1">
+                                          {person.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -602,6 +633,15 @@ export default function LeadCapture() {
                           >
                             {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
                             Enriquecer
+                          </button>
+                          <button 
+                            onClick={() => handleResearchManagement(lead.id)}
+                            disabled={analyzingIds.includes(lead.id)}
+                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold disabled:opacity-50"
+                            title="Pesquisar Decisores no LinkedIn"
+                          >
+                            {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Globe size={16} />}
+                            Pesquisar Decisores
                           </button>
                           <button 
                             onClick={() => handleDossier(lead.id)}

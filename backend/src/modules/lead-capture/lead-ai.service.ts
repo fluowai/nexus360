@@ -255,4 +255,66 @@ export class LeadAiService {
       throw err;
     }
   }
+
+  async researchManagement(leadId: string, orgId: string) {
+    const groq = await this.getGroqClient(orgId);
+    const lead = await this.prisma.capturedLead.findFirst({
+      where: { id: leadId, organizationId: orgId }
+    });
+
+    if (!lead) throw new Error("Lead not found");
+
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { serperApiKey: true }
+    });
+
+    if (!org?.serperApiKey) throw new Error("Serper API Key not configured.");
+
+    const searchQuery = `site:linkedin.com/in "${lead.businessName}" (CEO OR Diretor OR Gerente OR Proprietário OR Founder)`;
+    
+    try {
+      const searchRes = await axios.post('https://google.serper.dev/search', {
+        q: searchQuery,
+        gl: 'br',
+        hl: 'pt-br'
+      }, {
+        headers: { 'X-API-KEY': org.serperApiKey }
+      });
+
+      const searchData = JSON.stringify(searchRes.data);
+
+      const prompt = `
+        Abaixo estão resultados de busca do LinkedIn para a empresa "${lead.businessName}".
+        Extraia nomes de pessoas e seus respectivos cargos de gestão (CEO, Diretor, Gerente, etc).
+        Ignore resultados que não pareçam ser perfis individuais claros.
+
+        Resultados da Busca:
+        ${searchData.substring(0, 5000)}
+
+        Responda EXCLUSIVAMENTE em JSON:
+        {
+          "management": "string com nomes e cargos separados por vírgula ou null"
+        }
+      `;
+
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "llama-3.3-70b-versatile",
+        response_format: { type: "json_object" }
+      });
+
+      const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+
+      return await this.prisma.capturedLead.update({
+        where: { id: leadId },
+        data: {
+          managementTeam: result.management
+        }
+      });
+    } catch (err: any) {
+      console.error("[RESEARCH_MANAGEMENT_ERROR]", err.message);
+      throw err;
+    }
+  }
 }

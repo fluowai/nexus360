@@ -75,6 +75,17 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
     }
   });
 
+  // Research Management (LinkedIn)
+  router.post("/leads/:id/research-management", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    try {
+      const result = await aiService.researchManagement(req.params.id, orgId!);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Send to CRM
   router.post("/leads/:id/send-to-crm", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
@@ -94,7 +105,11 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
           organizationId: orgId!,
           boardId,
           stageId,
-          notes: `[Captação de Leads - ${capturedLead.provider}]\nDiagnóstico: ${capturedLead.aiDiagnosis}\nSite: ${capturedLead.website}`
+          cnpj: capturedLead.cnpj,
+          owners: capturedLead.owners,
+          managementTeam: capturedLead.managementTeam,
+          aiDiagnosis: capturedLead.aiDiagnosis,
+          notes: `[Captação Elite - ${capturedLead.provider}]\n\nSITE: ${capturedLead.website || 'Não informado'}\n\nDIAGNÓSTICO IA:\n${capturedLead.aiDiagnosis || 'Não realizado'}\n\nEQUIPE DE GESTÃO (LINKEDIN):\n${capturedLead.managementTeam || 'Não pesquisado'}\n\nNOTAS ADICIONAIS:\n${capturedLead.notes || ''}`
         }
       });
 

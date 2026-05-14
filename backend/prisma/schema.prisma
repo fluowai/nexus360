@@ -443,7 +443,11 @@ model Lead {
   tags     String?
   source   String?
   channel  String?
-  notes    String?
+  notes    String? @db.Text
+  cnpj     String?
+  owners   String? @db.Text
+  managementTeam String? @db.Text
+  aiDiagnosis    String? @db.Text
 
   temperature String  @default("COLD") // COLD, WARM, HOT
   score       Int     @default(0)
@@ -1520,8 +1524,9 @@ model CapturedLead {
 
   notes         String? @db.Text
   cnpj          String?
-  owners        String? @db.Text
-  rawData       Json?
+  owners         String? @db.Text
+  managementTeam String? @db.Text
+  rawData        Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

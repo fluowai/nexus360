@@ -36,8 +36,8 @@ export function authRoutes(prisma: PrismaClient) {
 
   // ==================== LOGIN ====================
   router.post("/login", loginLimiter, async (req, res) => {
+    const { email, password } = req.body;
     try {
-      const { email, password } = req.body;
 
       if (!email || !password) {
         return res.status(400).json({
@@ -192,16 +192,14 @@ export function authRoutes(prisma: PrismaClient) {
       });
     } catch (error: any) {
       console.error("[LOGIN_ERROR] Full Context:", {
-        email,
+        email: req.body?.email,
         errorMessage: error.message,
-        errorStack: error.stack,
         prismaCode: error.code
       });
       return res.status(500).json({
         success: false,
         error: "Erro interno no servidor",
-        details: error.message, // Liberado temporariamente para debug
-        stack: error.stack
+        details: error.message
       });
     }
   });

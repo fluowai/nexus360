@@ -623,11 +623,14 @@ export default function LeadCapture() {
 
                         {/* Dossiê Inline — aparece no card após ser gerado */}
                         {lead.aiDiagnosis && (
-                          <div className="w-full mt-3 p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl">
-                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                              <Database size={10} /> Dossiê Estratégico IA
-                            </p>
-                            <div className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap font-medium max-h-40 overflow-y-auto pr-1">
+                          <div className="w-full mt-3 border border-indigo-200 rounded-2xl overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600">
+                              <p className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-1.5">
+                                <Database size={11} /> Dossiê Estratégico IA
+                              </p>
+                              <span className="text-[9px] text-indigo-200 font-bold">Gerado automaticamente</span>
+                            </div>
+                            <div className="p-4 bg-indigo-50/40 text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap font-medium max-h-48 overflow-y-auto">
                               {lead.aiDiagnosis}
                             </div>
                           </div>

@@ -40,11 +40,11 @@ export class LeadCaptureService {
       let apiKey: string | undefined;
       
       if (providerName === 'serper') {
-        apiKey = organization.serperApiKey || undefined;
+        apiKey = organization.serperApiKey || process.env.SERPER_API_KEY || undefined;
       } else if (providerName === 'serpapi') {
-        apiKey = organization.serpApiKey || undefined;
+        apiKey = organization.serpApiKey || process.env.SERPAPI_API_KEY || process.env.SERP_API_KEY || undefined;
       } else {
-        apiKey = organization.outscraperKey || undefined;
+        apiKey = organization.outscraperKey || process.env.OUTSCRAPER_API_KEY || process.env.OUTSCRAPER_KEY || undefined;
       }
       
       console.log(`[LEAD_CAPTURE] Provedor: ${providerName}, Chave (mascarada): ${apiKey ? (apiKey.substring(0, 5) + '...' + apiKey.slice(-4)) : 'NÃO ENCONTRADA'}`);

@@ -11,12 +11,14 @@ export class LeadAiService {
       select: { groqKey: true }
     });
 
-    if (!org?.groqKey) {
+    const apiKey = org?.groqKey || process.env.GROQ_API_KEY;
+
+    if (!apiKey) {
       throw new Error("Chave do Groq não configurada para esta organização.");
     }
 
     return new Groq({
-      apiKey: org.groqKey
+      apiKey
     });
   }
 
@@ -204,7 +206,9 @@ export class LeadAiService {
       select: { serperApiKey: true }
     });
 
-    if (!org?.serperApiKey) throw new Error("Serper API Key not configured.");
+    const serperApiKey = org?.serperApiKey || process.env.SERPER_API_KEY;
+
+    if (!serperApiKey) throw new Error("Serper API Key not configured for this organization or environment.");
 
     // 2. Perform a deep search for CNPJ and Owners
     const searchQuery = `${lead.businessName} ${lead.city} ${lead.state} CNPJ socios quadro societario`;
@@ -215,7 +219,7 @@ export class LeadAiService {
         gl: 'br',
         hl: 'pt-br'
       }, {
-        headers: { 'X-API-KEY': org.serperApiKey }
+        headers: { 'X-API-KEY': serperApiKey }
       });
 
       const searchData = JSON.stringify(searchRes.data);
@@ -269,7 +273,9 @@ export class LeadAiService {
       select: { serperApiKey: true }
     });
 
-    if (!org?.serperApiKey) throw new Error("Serper API Key not configured.");
+    const serperApiKey = org?.serperApiKey || process.env.SERPER_API_KEY;
+
+    if (!serperApiKey) throw new Error("Serper API Key not configured for this organization or environment.");
 
     const searchQuery = `site:linkedin.com/in "${lead.businessName}" (CEO OR Diretor OR Gerente OR Proprietário OR Founder)`;
     
@@ -279,7 +285,7 @@ export class LeadAiService {
         gl: 'br',
         hl: 'pt-br'
       }, {
-        headers: { 'X-API-KEY': org.serperApiKey }
+        headers: { 'X-API-KEY': serperApiKey }
       });
 
       const searchData = JSON.stringify(searchRes.data);

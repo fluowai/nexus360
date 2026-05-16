@@ -49,6 +49,9 @@ import { proposalRoutes } from "./routes/proposals.js";
 
 const app = express();
 
+// Necessário para Railway/Heroku/Vercel — eles ficam atrás de um reverse proxy
+app.set('trust proxy', 1);
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100

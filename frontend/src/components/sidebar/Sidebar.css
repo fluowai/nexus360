@@ -4,14 +4,14 @@
   --sidebar-width: 280px;
   --sidebar-collapsed-width: 80px;
   --sidebar-bg: #ffffff;
-  --sidebar-border: #f1f5f9;
-  --sidebar-item-hover: #f8fafc;
-  --sidebar-item-active: #eff6ff;
-  --sidebar-text: #64748b;
-  --sidebar-text-active: #2563eb;
-  --sidebar-text-header: #94a3b8;
-  --sidebar-accent: #2563eb;
-  --sidebar-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --sidebar-border: var(--nexus-card-border);
+  --sidebar-item-hover: var(--nexus-background-soft);
+  --sidebar-item-active: var(--nexus-background-light);
+  --sidebar-text: var(--nexus-text-secondary);
+  --sidebar-text-active: var(--nexus-primary);
+  --sidebar-text-header: var(--nexus-text-muted);
+  --sidebar-accent: var(--nexus-primary);
+  --sidebar-shadow: var(--nexus-shadow-card);
 }
 
 .sidebar-container {
@@ -48,7 +48,7 @@
 .logo-icon {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  background: var(--nexus-primary);
   border-radius: 8px;
   display: flex;
   align-items: center;

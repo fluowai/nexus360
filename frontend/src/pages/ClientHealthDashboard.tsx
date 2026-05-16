@@ -134,15 +134,15 @@ export default function ClientHealthDashboard() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleRecalculate(client.id);
+                      handleRecalculate(client.clientId);
                     }}
-                    disabled={recalculating === client.id}
+                    disabled={recalculating === client.clientId}
                     className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                     title="Recalcular"
                   >
                     <RefreshCw
                       size={14}
-                      className={recalculating === client.id ? "animate-spin" : ""}
+                      className={recalculating === client.clientId ? "animate-spin" : ""}
                     />
                   </button>
                 </div>
@@ -171,6 +171,23 @@ export default function ClientHealthDashboard() {
                     {client.trend === "up" ? "Melhorando" : client.trend === "down" ? "Piorando" : "Estável"}
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-2 mt-4">
+                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-100">
+                    <p className="text-[10px] font-black text-blue-500 uppercase">Expansao</p>
+                    <p className="font-black text-blue-700">{client.expansionScore ?? 0}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                    <p className="text-[10px] font-black text-emerald-500 uppercase">MRR</p>
+                    <p className="font-black text-emerald-700">{Number(client.monthlyRecurring || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>
+                  </div>
+                </div>
+                {client.flags?.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {client.flags.slice(0, 3).map((flag: string) => (
+                      <span key={flag} className="px-2 py-1 rounded-full bg-gray-100 text-[10px] font-bold text-gray-600">{flag}</span>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -206,6 +223,8 @@ function ClientDetailModal({ client, onClose }: { client: any; onClose: () => vo
     { label: "Pagamentos (dias)", value: client.paymentsInDay ?? "N/A" },
     { label: "Engajamento", value: client.engagementRate != null ? `${client.engagementRate}%` : "N/A" },
     { label: "Status Projeto", value: client.projectStatus || "N/A" },
+    { label: "Score Expansao", value: client.expansionScore ?? 0 },
+    { label: "Receita Mensal", value: Number(client.monthlyRecurring || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) },
   ];
 
   return (
@@ -242,6 +261,22 @@ function ClientDetailModal({ client, onClose }: { client: any; onClose: () => vo
               </div>
             ))}
           </div>
+          {client.flags?.length > 0 && (
+            <div className="mt-5">
+              <p className="text-[10px] font-black text-gray-400 uppercase mb-2">Alertas</p>
+              <div className="flex flex-wrap gap-2">
+                {client.flags.map((flag: string) => (
+                  <span key={flag} className="px-3 py-1 rounded-full bg-red-50 text-red-600 text-xs font-bold">{flag}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {client.recommendation && (
+            <div className="mt-5 p-4 rounded-2xl bg-blue-50 border border-blue-100">
+              <p className="text-[10px] font-black text-blue-500 uppercase mb-1">Recomendacao Nexus</p>
+              <p className="text-sm font-semibold text-blue-900">{client.recommendation}</p>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

@@ -347,6 +347,138 @@ export function crmRoutes(prisma: PrismaClient) {
   });
 
   // Fallback para rotas não encontradas DENTRO do /api/crm
+  router.get("/growth-intelligence", async (req: AuthRequest, res, next) => {
+    const orgId = req.user!.orgId;
+    const stageWeights: Record<string, number> = {
+      novo: 0.1,
+      contato: 0.25,
+      qualificado: 0.45,
+      proposta: 0.7,
+      fechado: 1,
+    };
+
+    try {
+      const [leads, clients, soldProducts, healthScores, tasks] = await Promise.all([
+        prisma.lead.findMany({
+          where: { organizationId: orgId },
+          include: { followUps: { orderBy: { createdAt: "desc" }, take: 1 } },
+          orderBy: { updatedAt: "desc" },
+        }),
+        prisma.client.findMany({
+          where: { organizationId: orgId },
+          select: { id: true, corporateName: true, tradeName: true, segment: true, status: true, updatedAt: true, createdAt: true },
+        }),
+        prisma.soldProduct.findMany({
+          where: { client: { organizationId: orgId } },
+          include: { client: { select: { id: true, corporateName: true, tradeName: true, status: true, segment: true } } },
+        }),
+        prisma.clientHealthScore.findMany({ where: { organizationId: orgId } }),
+        prisma.task.findMany({
+          where: { organizationId: orgId, status: { not: "concluida" } },
+          orderBy: { dueDate: "asc" },
+          take: 8,
+        }),
+      ]);
+
+      const openLeads = leads.filter((lead) => lead.status !== "fechado");
+      const wonLeads = leads.filter((lead) => lead.status === "fechado");
+      const openValue = openLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+      const wonValue = wonLeads.reduce((sum, lead) => sum + (lead.value || 0), 0);
+      const weightedForecast = openLeads.reduce((sum, lead) => sum + ((lead.value || 0) * (stageWeights[lead.status] ?? 0.2)), 0);
+      const monthlyRecurring = soldProducts
+        .filter((product) => !["cancelado", "churned", "inativo"].includes(product.status))
+        .reduce((sum, product) => sum + (product.monthlyValue || 0), 0);
+      const averageTicket = leads.length ? (openValue + wonValue) / leads.length : 0;
+      const conversionRate = leads.length ? Math.round((wonLeads.length / leads.length) * 100) : 0;
+      const criticalClients = healthScores.filter((score) => score.riskLevel === "critical" || score.riskLevel === "high").length;
+      const staleLeadLimit = new Date(Date.now() - 1000 * 60 * 60 * 24 * 3);
+      const staleLeads = openLeads
+        .filter((lead) => (lead.followUps[0]?.createdAt || lead.updatedAt) < staleLeadLimit)
+        .slice(0, 8);
+      const topOpportunities = [...openLeads]
+        .sort((a, b) => (b.value || 0) - (a.value || 0))
+        .slice(0, 8)
+        .map((lead) => ({
+          id: lead.id,
+          name: lead.name,
+          status: lead.status,
+          value: lead.value,
+          score: lead.score,
+          recommendedAction: lead.status === "proposta" ? "Enviar follow-up de proposta" : lead.status === "qualificado" ? "Agendar diagnostico consultivo" : "Iniciar abordagem no WhatsApp",
+        }));
+
+      res.json({
+        forecast: { openValue, wonValue, weightedForecast, averageTicket, conversionRate, monthlyRecurring },
+        benchmark: {
+          leads: leads.length,
+          clients: clients.length,
+          wonDeals: wonLeads.length,
+          activeClients: clients.filter((client) => client.status === "ativo" || client.status === "onboarding").length,
+          criticalClients,
+          revenuePerClient: clients.length ? monthlyRecurring / clients.length : 0,
+        },
+        sellerAssistant: {
+          staleLeads: staleLeads.map((lead) => ({
+            id: lead.id,
+            name: lead.name,
+            status: lead.status,
+            value: lead.value,
+            lastTouchAt: lead.followUps[0]?.createdAt || lead.updatedAt,
+            action: "Retomar contato com mensagem curta e pergunta de proximo passo",
+          })),
+          topOpportunities,
+          pendingTasks: tasks.map((task) => ({ id: task.id, title: task.title, priority: task.priority, dueDate: task.dueDate })),
+        },
+        playbooks: [
+          {
+            niche: "Agencia de marketing",
+            pipeline: "Diagnostico > Auditoria > Plano de crescimento > Proposta > Onboarding",
+            offer: "Pacote de growth com midia, conteudo, CRM e automacao",
+            firstMessage: "Vi oportunidades no seu funil de aquisicao. Posso te mandar 3 pontos rapidos para melhorar volume e qualidade dos leads?",
+            proposalAngle: "ROI, previsibilidade comercial e reducao de retrabalho entre marketing e vendas.",
+          },
+          {
+            niche: "Clinicas e saude",
+            pipeline: "Captacao > Triagem > Consulta > Plano > Recorrencia",
+            offer: "Gestao de agenda, campanhas locais e nutricao de pacientes",
+            firstMessage: "Percebi espaco para aumentar agendamentos qualificados sem depender so de indicacao. Faz sentido avaliarmos?",
+            proposalAngle: "Agenda cheia, menor no-show e jornadas de relacionamento.",
+          },
+          {
+            niche: "B2B consultivo",
+            pipeline: "ICP > Dor > Diagnostico > Business case > Fechamento",
+            offer: "Maquina comercial consultiva com prospeccao, proposta e cadencia",
+            firstMessage: "Tenho uma hipotese de melhoria no seu processo comercial B2B. Posso compartilhar uma leitura objetiva?",
+            proposalAngle: "Pipeline previsivel, ciclo menor e melhor taxa de proposta ganha.",
+          },
+          {
+            niche: "E-commerce",
+            pipeline: "Auditoria > Oferta > Midia > Retencao > Upsell",
+            offer: "Crescimento de receita com performance, CRM e criativos",
+            firstMessage: "Notei sinais de potencial em conversao e recompra. Quer que eu te mostre onde pode estar o ganho mais rapido?",
+            proposalAngle: "CAC, LTV, margem e velocidade de testes criativos.",
+          },
+        ],
+        whatsappTemplates: [
+          { name: "Primeiro contato", text: "Oi, {{nome}}. Aqui e da Nexus. Analisei rapidamente o crescimento digital de voces e encontrei oportunidades praticas. Posso te mandar um resumo em 3 pontos?" },
+          { name: "Follow-up proposta", text: "Oi, {{nome}}. Passando para saber se a proposta ficou clara e se faz sentido marcarmos 15 minutos para ajustar escopo, prazo e proximos passos." },
+          { name: "Reativacao", text: "Oi, {{nome}}. Faz um tempo que nao falamos. Tenho uma ideia simples para destravar mais oportunidades este mes. Quer que eu compartilhe?" },
+          { name: "Upsell cliente", text: "Oi, {{nome}}. Pelos resultados recentes, vejo espaco para evoluir o plano com {{servico}}. Posso preparar um cenario de impacto?" },
+        ],
+        customFields: ["ICP", "Servico de interesse", "Urgencia", "Orcamento estimado", "Canal de origem", "Principal objecao", "Proxima acao"],
+        automationRecipes: [
+          "Lead sem interacao por 3 dias: criar tarefa e sugerir mensagem de retomada.",
+          "Proposta parada por 48h: disparar lembrete no WhatsApp e notificar vendedor.",
+          "Venda ganha: criar cliente, contrato, onboarding e checklist de entrega.",
+          "Health score abaixo de 60: abrir plano de retencao para o CS.",
+          "Cliente com expansao acima de 75: sugerir oferta complementar para a agencia.",
+        ],
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.use((req, res) => {
     res.status(404).json({ 
       success: false, 

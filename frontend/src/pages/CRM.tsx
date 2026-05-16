@@ -48,6 +48,7 @@ export default function CRM() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [growthIntel, setGrowthIntel] = useState<any>(null);
 
   const fetchLeads = async (p = page) => {
     try {
@@ -58,6 +59,12 @@ export default function CRM() {
       if (data.total) {
         setTotal(data.total);
         setTotalPages(Math.ceil(data.total / 50));
+      }
+      try {
+        const intelRes = await apiFetch('/api/crm/growth-intelligence');
+        setGrowthIntel(await intelRes.json());
+      } catch (intelErr) {
+        console.error(intelErr);
       }
     } catch (err) {
       console.error(err);
@@ -180,6 +187,7 @@ export default function CRM() {
                   { id: 'LISTAGEM', label: 'Listagem', icon: List },
                   { id: 'RELATÓRIOS', label: 'Relatórios', icon: BarChart3 },
                   { id: 'METAS', label: 'Metas', icon: Trophy },
+                  { id: 'INTELIGENCIA', label: 'Inteligencia', icon: Sparkles },
                 ].map((tab) => (
                   <button 
                     key={tab.id}
@@ -320,6 +328,113 @@ export default function CRM() {
                 <p className="text-[10px] font-black text-[var(--nexus-text-muted)] uppercase tracking-widest">Gap para meta</p>
                 <p className="text-3xl font-black text-[var(--nexus-text-primary)] mt-4">{Math.max(0, monthlyGoal - wonValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                 <p className="text-sm text-[var(--nexus-text-muted)] mt-3">Pipeline aberto disponível: {openValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'INTELIGENCIA' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                {[
+                  ['Forecast ponderado', growthIntel?.forecast?.weightedForecast, 'money'],
+                  ['Pipeline aberto', growthIntel?.forecast?.openValue, 'money'],
+                  ['Receita ganha', growthIntel?.forecast?.wonValue, 'money'],
+                  ['MRR atual', growthIntel?.forecast?.monthlyRecurring, 'money'],
+                  ['Conversao', growthIntel?.forecast?.conversionRate, 'percent'],
+                  ['Clientes em risco', growthIntel?.benchmark?.criticalClients, 'number']
+                ].map(([label, value, type]) => (
+                  <div key={label as string} className="bg-white p-5 rounded-2xl border border-[var(--nexus-card-border)] shadow-sm">
+                    <p className="text-[10px] font-black text-[var(--nexus-text-muted)] uppercase tracking-widest">{label}</p>
+                    <p className="text-xl font-black text-[var(--nexus-text-primary)] mt-3">
+                      {type === 'money' ? Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : type === 'percent' ? `${value || 0}%` : value || 0}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="xl:col-span-2 bg-white p-6 rounded-2xl border border-[var(--nexus-card-border)] shadow-sm">
+                  <div className="flex items-center gap-2 mb-5">
+                    <Sparkles size={18} className="text-[var(--nexus-primary)]" />
+                    <h3 className="font-black text-[var(--nexus-text-primary)]">Assistente do vendedor</h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(growthIntel?.sellerAssistant?.topOpportunities || []).map((item: any) => (
+                      <button key={item.id} onClick={() => setSelectedLeadId(item.id)} className="text-left p-4 rounded-xl border border-[var(--nexus-card-border)] hover:border-[var(--nexus-primary)] transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-black text-[var(--nexus-text-primary)]">{item.name}</p>
+                            <p className="text-xs text-[var(--nexus-text-muted)] mt-1">{item.recommendedAction}</p>
+                          </div>
+                          <span className="text-xs font-black text-[var(--nexus-primary)]">{Number(item.value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                        </div>
+                      </button>
+                    ))}
+                    {(growthIntel?.sellerAssistant?.topOpportunities || []).length === 0 && (
+                      <div className="md:col-span-2 text-sm text-[var(--nexus-text-muted)]">Sem oportunidades abertas para priorizar agora.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-2xl border border-[var(--nexus-card-border)] shadow-sm">
+                  <h3 className="font-black text-[var(--nexus-text-primary)] mb-4">Leads sem toque</h3>
+                  <div className="space-y-3">
+                    {(growthIntel?.sellerAssistant?.staleLeads || []).map((lead: any) => (
+                      <button key={lead.id} onClick={() => setSelectedLeadId(lead.id)} className="w-full text-left p-3 rounded-xl bg-[var(--nexus-background-soft)]">
+                        <p className="font-bold text-sm text-[var(--nexus-text-primary)]">{lead.name}</p>
+                        <p className="text-xs text-[var(--nexus-text-muted)]">{lead.action}</p>
+                      </button>
+                    ))}
+                    {(growthIntel?.sellerAssistant?.staleLeads || []).length === 0 && <p className="text-sm text-[var(--nexus-text-muted)]">Nenhum lead parado ha mais de 3 dias.</p>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-2xl border border-[var(--nexus-card-border)] shadow-sm">
+                  <h3 className="font-black text-[var(--nexus-text-primary)] mb-4">Playbooks por nicho</h3>
+                  <div className="space-y-4">
+                    {(growthIntel?.playbooks || []).map((playbook: any) => (
+                      <div key={playbook.niche} className="p-4 rounded-xl border border-[var(--nexus-card-border)]">
+                        <p className="font-black text-[var(--nexus-text-primary)]">{playbook.niche}</p>
+                        <p className="text-xs text-[var(--nexus-text-muted)] mt-2">{playbook.pipeline}</p>
+                        <p className="text-sm font-semibold text-[var(--nexus-text-secondary)] mt-3">{playbook.offer}</p>
+                        <p className="text-xs text-[var(--nexus-primary)] mt-3">{playbook.proposalAngle}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-white p-6 rounded-2xl border border-[var(--nexus-card-border)] shadow-sm">
+                    <h3 className="font-black text-[var(--nexus-text-primary)] mb-4">Templates de WhatsApp</h3>
+                    <div className="space-y-3">
+                      {(growthIntel?.whatsappTemplates || []).map((template: any) => (
+                        <div key={template.name} className="p-4 rounded-xl bg-[var(--nexus-background-soft)]">
+                          <p className="font-black text-sm text-[var(--nexus-text-primary)]">{template.name}</p>
+                          <p className="text-xs text-[var(--nexus-text-secondary)] mt-2">{template.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-2xl border border-[var(--nexus-card-border)] shadow-sm">
+                    <h3 className="font-black text-[var(--nexus-text-primary)] mb-4">Automacoes e campos recomendados</h3>
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {(growthIntel?.customFields || []).map((field: string) => (
+                        <span key={field} className="px-3 py-1 rounded-full bg-[var(--nexus-background-soft)] text-xs font-bold text-[var(--nexus-text-secondary)]">{field}</span>
+                      ))}
+                    </div>
+                    <div className="space-y-2">
+                      {(growthIntel?.automationRecipes || []).map((recipe: string) => (
+                        <div key={recipe} className="flex gap-2 text-sm text-[var(--nexus-text-secondary)]">
+                          <CheckCircle2 size={15} className="text-[var(--nexus-success)] mt-0.5 flex-shrink-0" />
+                          <span>{recipe}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

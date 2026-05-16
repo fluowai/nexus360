@@ -206,5 +206,70 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     }
   });
 
+  router.post("/templates", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { name, content, category, isActive } = req.body;
+    if (!name || !content) return res.status(400).json({ error: "Nome e conteúdo são obrigatórios." });
+
+    try {
+      const template = await prisma.contractTemplate.create({
+        data: {
+          name,
+          content,
+          category,
+          isActive: isActive ?? true,
+          organizationId: orgId
+        }
+      });
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  router.patch("/templates/:id", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const existing = await prisma.contractTemplate.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!existing) return res.status(404).json({ error: "Template não encontrado" });
+
+      const template = await prisma.contractTemplate.update({
+        where: { id: req.params.id },
+        data: {
+          name: req.body.name,
+          content: req.body.content,
+          category: req.body.category,
+          isActive: req.body.isActive
+        }
+      });
+      res.json(template);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  });
+
+  router.delete("/templates/:id", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const existing = await prisma.contractTemplate.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!existing) return res.status(404).json({ error: "Template não encontrado" });
+
+      await prisma.contractTemplate.delete({ where: { id: req.params.id } });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete template" });
+    }
+  });
+
   return router;
 }

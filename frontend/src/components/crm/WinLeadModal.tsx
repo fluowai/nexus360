@@ -69,7 +69,7 @@ export const WinLeadModal: React.FC<WinLeadModalProps> = ({ lead, onClose, onSuc
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      const response = await apiFetch(`/api/leads/${lead.id}/win`, {
+      const response = await apiFetch(`/api/crm/leads/${lead.id}/win`, {
         method: 'POST',
         body: JSON.stringify(formData)
       });

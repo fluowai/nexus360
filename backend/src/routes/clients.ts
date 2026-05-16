@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
+import { sanitizeBody } from "../utils/sanitizer.js";
 
 export function clientRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -48,11 +49,12 @@ export function clientRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
+      const data = sanitizeBody(req.body, "client") as any;
       const client = await prisma.client.create({
         data: {
-          ...req.body,
+          ...data,
           organizationId: orgId,
-          status: req.body.status || 'prospect'
+          status: data.status || 'prospect'
         }
       });
       res.json(client);
@@ -64,15 +66,36 @@ export function clientRoutes(prisma: PrismaClient) {
   // Update client
   router.patch("/:id", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
     try {
+      const existing = await prisma.client.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!existing) return res.status(404).json({ error: "Cliente não encontrado" });
+
       const client = await prisma.client.update({
-        where: { 
-          id: req.params.id,
-          organizationId: orgId
-        },
-        data: req.body
+        where: { id: req.params.id },
+        data: sanitizeBody(req.body, "client")
       });
       res.json(client);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/:id", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const existing = await prisma.client.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!existing) return res.status(404).json({ error: "Cliente não encontrado" });
+
+      await prisma.client.delete({ where: { id: req.params.id } });
+      res.json({ success: true });
     } catch (error) {
       next(error);
     }

@@ -1,48 +1,156 @@
-@import "tailwindcss";
+:root {
+  --nexus-primary: #6054F8;
+  --nexus-primary-hover: #5146E8;
+  --nexus-primary-light: #9B97FC;
+
+  --nexus-nav-dark: #212040;
+  --nexus-nav-dark-2: #1B1A38;
+
+  --nexus-background: #F0F0F7;
+  --nexus-background-soft: #F6F7F8;
+  --nexus-background-light: #FAFAFB;
+
+  --nexus-card-bg: #FFFFFF;
+  --nexus-card-border: #EDECF0;
+
+  --nexus-text-primary: #212040;
+  --nexus-text-secondary: #657098;
+  --nexus-text-muted: #9F90B8;
+
+  --nexus-success: #5AE7AC;
+  --nexus-success-soft: #DFF5EA;
+  --nexus-success-dark: #2F7D68;
+
+  --nexus-warning: #D89A2B;
+  --nexus-warning-soft: #F5DDB5;
+  --nexus-warning-dark: #8B5A18;
+
+  --nexus-danger: #D5665F;
+  --nexus-danger-soft: #F8DEDC;
+  --nexus-danger-dark: #B43B36;
+
+  --nexus-radius-card: 10px;
+  --nexus-radius-button: 8px;
+
+  --nexus-shadow-card: 0 4px 14px rgba(33, 32, 64, 0.08);
+  --nexus-shadow-floating: 0 10px 30px rgba(33, 32, 64, 0.16);
+}
 
 @theme {
-  --color-primary: #3b82f6;
-  --color-secondary: #8b5cf6;
-  --color-background: #f7f9fc;
-  --color-surface: #ffffff;
-  --color-text-main: #1f2937;
-  --color-text-muted: #6b7280;
-  --color-border-light: #e5e7eb;
+  --color-primary: var(--nexus-primary);
+  --color-primary-hover: var(--nexus-primary-hover);
+  --color-primary-light: var(--nexus-primary-light);
+  
+  --color-nexus-dark: var(--nexus-nav-dark);
+  --color-nexus-dark-2: var(--nexus-nav-dark-2);
+  
+  --color-background: var(--nexus-background);
+  --color-background-soft: var(--nexus-background-soft);
+  --color-background-light: var(--nexus-background-light);
 
-  --radius-custom: 12px;
+  --color-surface: var(--nexus-card-bg);
+  --color-border: var(--nexus-card-border);
 
-  --shadow-soft:
-    0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --color-text-main: var(--nexus-text-primary);
+  --color-text-secondary: var(--nexus-text-secondary);
+  --color-text-muted: var(--nexus-text-muted);
+
+  --color-success: var(--nexus-success);
+  --color-warning: var(--nexus-warning);
+  --color-danger: var(--nexus-danger);
+
+  --radius-card: var(--nexus-radius-card);
+  --radius-button: var(--nexus-radius-button);
+
+  --shadow-card: var(--nexus-shadow-card);
+  --shadow-floating: var(--nexus-shadow-floating);
 }
 
 @layer base {
   body {
-    @apply bg-[var(--color-background)] text-[var(--color-text-main)] font-sans antialiased;
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-text-main);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 }
 
 .glass-card {
-  @apply bg-white border border-[var(--color-border-light)] rounded-[var(--radius-custom)] shadow-[var(--shadow-soft)] p-6;
+  background: #fff;
+  border: 1px solid var(--nexus-card-border);
+  border-radius: var(--nexus-radius-card);
+  box-shadow: var(--nexus-shadow-card);
+  padding: 1.5rem;
 }
 
 .sidebar-link {
-  @apply flex items-center gap-3 px-4 py-3 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] hover:bg-blue-50 rounded-xl transition-all duration-200;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: var(--color-text-muted);
+  border-radius: 0.75rem;
+  transition: all 200ms ease;
+}
+
+.sidebar-link:hover {
+  color: var(--color-primary);
+  background: #eff6ff;
 }
 
 .sidebar-link.active {
-  @apply text-[var(--color-primary)] bg-blue-50 font-semibold shadow-sm;
+  color: var(--color-primary);
+  background: #eff6ff;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .kanban-column {
-  @apply bg-gray-100/50 p-4 rounded-2xl min-w-[320px] max-w-[320px] flex flex-col gap-4;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 320px;
+  max-width: 320px;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: rgba(243, 244, 246, 0.5);
 }
 
 .kanban-card {
-  @apply bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #f3f4f6;
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  cursor: grab;
+  transition: box-shadow 160ms ease;
+}
+
+.kanban-card:hover {
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.kanban-card:active {
+  cursor: grabbing;
 }
 
 .modal-input {
-  @apply w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:bg-white outline-none transition-all text-sm;
+  width: 100%;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  outline: none;
+  font-size: 0.875rem;
+  transition: all 160ms ease;
+}
+
+.modal-input:focus {
+  background: #fff;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
 /* Custom transitions */

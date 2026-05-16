@@ -39,6 +39,27 @@ export function salesRoutes(prisma: PrismaClient) {
     }
   });
 
+  router.get("/sold-services", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const services = await prisma.soldProduct.findMany({
+        where: {
+          client: { organizationId: orgId }
+        },
+        include: {
+          client: { select: { id: true, corporateName: true, tradeName: true, status: true } },
+          contracts: { select: { id: true, status: true, createdAt: true } }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+      res.json(services);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Listar Propostas da Organização
   router.get("/proposals", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;

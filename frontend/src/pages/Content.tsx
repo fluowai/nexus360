@@ -122,21 +122,14 @@ export default function Content() {
       const titulo = lines[0].replace(/[#*]/g, '').trim();
       const conteudos = lines.slice(1, 6).map(l => l.replace(/^[-*]\s*/, '').replace(/[#*]/g, '').trim());
 
-      const res = await apiFetch("/api/content/generate-art", {
+      const res = await apiFetch("/api/ops/generate-image", {
         method: "POST",
         body: JSON.stringify({
-          tipo: conteudos.length > 0 ? "carrossel" : "post",
-          titulo,
-          conteudos,
-          cores: {
-            fundo: "#FFFFFF",
-            primaria: "#3B82F6",
-            texto: "#1F2937"
-          }
+          prompt: `${type} profissional sobre "${titulo}". Pontos principais: ${conteudos.join("; ")}`
         })
       });
       const data = await res.json();
-      setGeneratedArts(data.paths);
+      setGeneratedArts(data.paths || (data.imageUrl ? [data.imageUrl] : []));
     } catch (error) {
       console.error("Art Generation Error:", error);
       alert("Erro ao gerar arte para Instagram.");

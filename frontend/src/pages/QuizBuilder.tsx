@@ -174,7 +174,7 @@ export default function QuizBuilder() {
 
   const duplicateQuiz = async (quiz: Quiz) => {
     try {
-      await apiFetch('/api/quizzes', {
+      await apiFetch('/api/extras/quizzes', {
         method: 'POST',
         body: JSON.stringify({
           name: quiz.name + ' (Cópia)',

@@ -141,5 +141,46 @@ ${transcript}
     }
   });
 
+  router.post("/agent", async (req: AuthRequest, res) => {
+    try {
+      const { prompt, input, model = "gemini-1.5-flash" } = req.body;
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { geminiKey } = await getOrgAIKeys(prisma, orgId);
+
+      if (!prompt || !input) {
+        return res.status(400).json({ error: "Prompt e entrada são obrigatórios." });
+      }
+
+      if (!geminiKey) {
+        return res.status(500).json({ error: "Gemini API Key não configurada no servidor ou organização" });
+      }
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: `${prompt}\n\nEntrada do usuário:\n${input}\n\nResponda em português do Brasil com estrutura clara e acionável.` }]
+          }],
+          generationConfig: { temperature: 0.6, maxOutputTokens: 4096 }
+        })
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        return res.status(response.status).json({ error: "Falha ao executar agente", details });
+      }
+
+      const data = await response.json();
+      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "Não foi possível gerar uma resposta.";
+      res.json({ result });
+    } catch (error) {
+      console.error("[AI_AGENT_ERROR]", error);
+      res.status(500).json({ error: "Erro interno ao executar agente" });
+    }
+  });
+
   return router;
 }

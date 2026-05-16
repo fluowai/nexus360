@@ -22,18 +22,65 @@ export function adsRoutes(prisma: PrismaClient) {
   // Cadastrar Conta de Anúncios
   router.post("/ad-accounts", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
-    const { name, platform, accountId, status } = req.body;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { name, accountName, platform, accountId, status, accountStatus, accessToken } = req.body;
     try {
       const account = await prisma.adAccount.create({
         data: {
-          accountName: name, // Corrigido
+          accountName: accountName || name,
           platform,
-          accountId: accountId, // Corrigido
-          accountStatus: status || 'active',
-          organizationId: orgId as string
+          accountId,
+          accountStatus: accountStatus || status || 'active',
+          accessToken,
+          organizationId: orgId
         }
       });
       res.json(account);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/ad-accounts/:id", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { accountName, platform, accountStatus, accessToken, dailySpendLimit } = req.body;
+    try {
+      const existing = await prisma.adAccount.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!existing) return res.status(404).json({ error: "Conta de anúncio não encontrada" });
+
+      const account = await prisma.adAccount.update({
+        where: { id: req.params.id },
+        data: {
+          accountName,
+          platform,
+          accountStatus,
+          accessToken,
+          dailySpendLimit: dailySpendLimit !== undefined ? Number(dailySpendLimit) || 0 : undefined
+        }
+      });
+      res.json(account);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/ad-accounts/:id", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const existing = await prisma.adAccount.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!existing) return res.status(404).json({ error: "Conta de anúncio não encontrada" });
+
+      await prisma.adAccount.delete({ where: { id: req.params.id } });
+      res.json({ success: true });
     } catch (error) {
       next(error);
     }
@@ -48,7 +95,45 @@ export function adsRoutes(prisma: PrismaClient) {
         include: { creatives: true },
         orderBy: { createdAt: 'desc' }
       });
-      res.json(campaigns);
+      res.json(campaigns.map((campaign) => ({
+        ...campaign,
+        platform: campaign.utmSource || campaign.type || "manual",
+        objective: campaign.type,
+        budgetType: "total",
+        budgetAmount: campaign.budget,
+        spendAmount: campaign.spent
+      })));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/campaigns-ads/:id", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const existing = await prisma.campaign.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!existing) return res.status(404).json({ error: "Campanha não encontrada" });
+
+      const campaign = await prisma.campaign.update({
+        where: { id: req.params.id },
+        data: {
+          status: req.body.status,
+          budget: req.body.budgetAmount !== undefined ? Number(req.body.budgetAmount) || 0 : undefined,
+          spent: req.body.spendAmount !== undefined ? Number(req.body.spendAmount) || 0 : undefined
+        }
+      });
+      res.json({
+        ...campaign,
+        platform: campaign.utmSource || campaign.type || "manual",
+        objective: campaign.type,
+        budgetType: "total",
+        budgetAmount: campaign.budget,
+        spendAmount: campaign.spent
+      });
     } catch (error) {
       next(error);
     }

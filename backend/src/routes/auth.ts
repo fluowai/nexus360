@@ -190,11 +190,17 @@ export function authRoutes(prisma: PrismaClient) {
           },
         },
       });
-    } catch (error) {
-      console.error("[LOGIN_ERROR]", error);
+    } catch (error: any) {
+      console.error("[LOGIN_ERROR] Full Context:", {
+        email,
+        errorMessage: error.message,
+        errorStack: error.stack,
+        prismaCode: error.code
+      });
       return res.status(500).json({
         success: false,
         error: "Erro interno no servidor",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
       });
     }
   });

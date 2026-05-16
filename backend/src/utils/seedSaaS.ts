@@ -1,6 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "../lib/prisma.js";
 
 export async function seedSaaSCore() {
   console.log("🌱 Seeding SaaS Core Modules and Features...");

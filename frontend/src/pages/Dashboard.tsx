@@ -151,8 +151,14 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="w-full h-[300px] min-h-[300px] relative" style={{ height: '300px', minHeight: '300px' }}>
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300} debounce={50}>
-              <AreaChart data={data.chartData}>
+            <ResponsiveContainer width="100%" height={300} minWidth={0} debounce={50}>
+              <AreaChart data={data.chartData?.length > 0 ? data.chartData : [
+                { name: 'Seg', leads: 0, conv: 0 },
+                { name: 'Ter', leads: 0, conv: 0 },
+                { name: 'Qua', leads: 0, conv: 0 },
+                { name: 'Qui', leads: 0, conv: 0 },
+                { name: 'Sex', leads: 0, conv: 0 },
+              ]}>
               <defs>
                 <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.1}/>

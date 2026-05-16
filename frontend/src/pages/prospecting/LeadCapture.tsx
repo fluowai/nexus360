@@ -102,9 +102,8 @@ export default function LeadCapture() {
       const res = await apiFetch(`/api/lead-capture/leads/${id}/dossier`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
+        // Apenas atualiza o card — sem abrir popup
         setLeads(prev => prev.map(l => l.id === id ? data : l));
-        setActiveDossier(data);
-        setShowDossierModal(true);
       }
     } catch (err) {
       console.error(err);
@@ -622,6 +621,18 @@ export default function LeadCapture() {
                           />
                         </div>
 
+                        {/* Dossiê Inline — aparece no card após ser gerado */}
+                        {lead.aiDiagnosis && (
+                          <div className="w-full mt-3 p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl">
+                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                              <Database size={10} /> Dossiê Estratégico IA
+                            </p>
+                            <div className="text-[11px] text-gray-700 leading-relaxed whitespace-pre-wrap font-medium max-h-40 overflow-y-auto pr-1">
+                              {lead.aiDiagnosis}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex-1" />
 
                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -739,56 +750,6 @@ export default function LeadCapture() {
         </div>
       </div>
 
-      {/* Dossier Modal */}
-      <AnimatePresence>
-        {showDossierModal && activeDossier && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col"
-            >
-              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-2xl text-primary">
-                    <Database size={24} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-gray-900 tracking-tight">Dossiê Estratégico</h2>
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">{activeDossier.businessName}</p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setShowDossierModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-400 hover:text-gray-900"
-                >
-                  <Search className="rotate-45" size={24} />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-8 prose prose-slate max-w-none prose-headings:font-black prose-headings:tracking-tight prose-p:text-gray-600 prose-p:leading-relaxed">
-                <div className="whitespace-pre-wrap text-gray-700 font-medium">
-                  {activeDossier.aiDiagnosis || 'Gerando conteúdo...'}
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-gray-100 bg-white flex justify-end gap-3">
-                <button 
-                  onClick={() => setShowDossierModal(false)}
-                  className="px-6 py-3 border border-gray-200 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition-all"
-                >
-                  Fechar
-                </button>
-                <button className="px-6 py-3 bg-primary text-white font-bold rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-all flex items-center gap-2">
-                  <Download size={20} />
-                  Baixar PDF
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Scripts Modal */}
       <AnimatePresence>

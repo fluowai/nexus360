@@ -23,8 +23,11 @@ export function requireAccess(config: AccessConfig) {
         return res.status(403).json({ error: "TENANT_SUSPENDED", message: "Esta conta está suspensa. Entre em contato com o suporte." });
       }
 
-      // 2. Verificar Assinatura (se exigido)
-      if (config.requireActiveSubscription) {
+      // Admins têm acesso total — sem checar plano ou features
+      const isAdmin = req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'ORG_ADMIN' || req.user?.role === 'AGENCY_ADMIN';
+
+      // 2. Verificar Assinatura (se exigido) — skip para admins
+      if (config.requireActiveSubscription && !isAdmin) {
         if (!access.subscription || (access.subscription.status !== 'ACTIVE' && access.subscription.status !== 'TRIAL')) {
           return res.status(402).json({ 
             error: "PAYMENT_REQUIRED", 
@@ -34,8 +37,8 @@ export function requireAccess(config: AccessConfig) {
         }
       }
 
-      // 3. Verificar Feature no Plano
-      if (config.feature) {
+      // 3. Verificar Feature no Plano — skip para admins
+      if (config.feature && !isAdmin) {
         if (!access.hasFeature(config.feature)) {
           return res.status(402).json({ 
             error: "FEATURE_NOT_IN_PLAN", 

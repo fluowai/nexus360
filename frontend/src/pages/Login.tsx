@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../lib/api";
+import { apiFetch, setAccessToken } from "../lib/api";
 import { Shield, Mail, Lock, ArrowRight, Zap } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -37,10 +37,7 @@ export default function Login() {
         throw new Error(data.error || data.details || "Erro no login");
       }
 
-      localStorage.setItem("nexus_token", data.token);
-      if (data.refreshToken) {
-        localStorage.setItem("nexus_refresh_token", data.refreshToken);
-      }
+      setAccessToken(data.token);
       localStorage.setItem("nexus_user_role", data.user.role);
       localStorage.setItem("nexus_user_name", data.user.name || "");
       localStorage.setItem("nexus_org_id", data.user.orgId);

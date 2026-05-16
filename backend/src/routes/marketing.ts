@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
+import { sanitizeStoredHtml } from "../utils/security.js";
 
 export function marketingRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -418,7 +419,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
           slug,
           headline: aiContent.headline,
           subheadline: aiContent.subheadline,
-          content: fullHtml,
+          content: sanitizeStoredHtml(fullHtml),
           status: 'published',
           metaTitle: aiContent.metaTitle || companyName,
           metaDescription: aiContent.metaDescription || description,

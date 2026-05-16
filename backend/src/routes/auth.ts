@@ -12,6 +12,12 @@ import {
   AuthRequest,
 } from "../middleware/auth.js";
 import { logAudit, getClientIp, getClientUA } from "../utils/auditLogger.js";
+import {
+  assertStrongPassword,
+  clearRefreshTokenCookie,
+  getRefreshTokenFromRequest,
+  setRefreshTokenCookie,
+} from "../utils/security.js";
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -121,6 +127,7 @@ export function authRoutes(prisma: PrismaClient) {
 
       const accessToken = generateAccessToken(tokenPayload);
       const refreshToken = generateRefreshToken({ id: user.id, orgId });
+      setRefreshTokenCookie(res, refreshToken);
 
       // Salvar refresh token no banco
       const refreshTokenHash = crypto
@@ -162,7 +169,6 @@ export function authRoutes(prisma: PrismaClient) {
       return res.json({
         success: true,
         token: accessToken,
-        refreshToken,
         user: {
           id: user.id,
           name: user.name,
@@ -198,8 +204,7 @@ export function authRoutes(prisma: PrismaClient) {
       });
       return res.status(500).json({
         success: false,
-        error: "Erro interno no servidor",
-        details: error.message
+        error: "Erro interno no servidor"
       });
     }
   });
@@ -207,7 +212,7 @@ export function authRoutes(prisma: PrismaClient) {
   // ==================== REFRESH TOKEN ====================
   router.post("/refresh", async (req, res) => {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = getRefreshTokenFromRequest(req);
 
       if (!refreshToken) {
         return res.status(400).json({ error: "Refresh token obrigatório." });
@@ -248,6 +253,7 @@ export function authRoutes(prisma: PrismaClient) {
       });
 
       if (!storedToken || storedToken.revokedAt) {
+        clearRefreshTokenCookie(res);
         return res.status(401).json({
           error: "REFRESH_TOKEN_REVOKED",
           message: "Token já foi revogado. Faça login novamente.",
@@ -255,6 +261,7 @@ export function authRoutes(prisma: PrismaClient) {
       }
 
       if (storedToken.expiresAt < new Date()) {
+        clearRefreshTokenCookie(res);
         return res.status(401).json({
           error: "REFRESH_TOKEN_EXPIRED",
           message: "Refresh token expirado. Faça login novamente.",
@@ -285,6 +292,29 @@ export function authRoutes(prisma: PrismaClient) {
           : user.permissions,
       });
 
+      const newRefreshToken = generateRefreshToken({ id: user.id, orgId });
+      const newRefreshTokenHash = crypto
+        .createHash("sha256")
+        .update(newRefreshToken)
+        .digest("hex");
+
+      await prisma.$transaction([
+        prisma.refreshToken.update({
+          where: { id: storedToken.id },
+          data: { revokedAt: new Date() },
+        }),
+        prisma.refreshToken.create({
+          data: {
+            token: newRefreshTokenHash,
+            userId: user.id,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            ip: getClientIp(req),
+            userAgent: getClientUA(req),
+          },
+        }),
+      ]);
+      setRefreshTokenCookie(res, newRefreshToken);
+
       return res.json({
         success: true,
         token: newAccessToken,
@@ -312,7 +342,7 @@ export function authRoutes(prisma: PrismaClient) {
   // ==================== LOGOUT ====================
   router.post("/logout", async (req, res) => {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = getRefreshTokenFromRequest(req);
 
       if (refreshToken) {
         const tokenHash = crypto
@@ -326,6 +356,7 @@ export function authRoutes(prisma: PrismaClient) {
         });
       }
 
+      clearRefreshTokenCookie(res);
       return res.json({ success: true, message: "Logout realizado." });
     } catch (error) {
       console.error("[LOGOUT_ERROR]", error);
@@ -342,6 +373,11 @@ export function authRoutes(prisma: PrismaClient) {
         error:
           "Todos os campos (nome, email, senha, nome da agência) são obrigatórios.",
       });
+    }
+
+    const passwordError = assertStrongPassword(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
     }
 
     try {
@@ -386,6 +422,7 @@ export function authRoutes(prisma: PrismaClient) {
         id: result.user.id,
         orgId: result.org.id,
       });
+      setRefreshTokenCookie(res, refreshToken);
 
       const refreshTokenHash = crypto
         .createHash("sha256")
@@ -415,7 +452,6 @@ export function authRoutes(prisma: PrismaClient) {
 
       res.status(201).json({
         token: accessToken,
-        refreshToken,
         user: {
           id: result.user.id,
           name: result.user.name,
@@ -504,6 +540,14 @@ export function authRoutes(prisma: PrismaClient) {
         message: error.message,
         authHeader: req.headers["authorization"] ? "Present" : "Missing"
       });
+
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({
+          error: "TOKEN_EXPIRED",
+          message: "Token expirado. Use o refresh token para obter um novo.",
+        });
+      }
+
       res.status(401).json({ error: "Invalid token" });
     }
   });

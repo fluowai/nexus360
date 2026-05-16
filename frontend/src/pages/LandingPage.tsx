@@ -1,472 +1,392 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Monitor, 
-  ChevronRight, 
-  Zap, 
-  Users, 
-  BarChart3, 
-  Shield, 
-  Globe, 
-  FileText, 
-  Sparkles, 
-  Check, 
+import { useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import {
   ArrowRight,
-  Menu,
-  X,
-  Play,
-  Mail,
-  Instagram,
-  Linkedin,
-  Twitter,
-  Plus,
-  Minus,
-  LayoutDashboard,
+  BarChart3,
+  Bell,
+  BookOpen,
+  Bot,
+  CalendarDays,
+  Check,
+  ChevronDown,
   ClipboardList,
-  KanbanSquare,
-  RefreshCw
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+  FileText,
+  GitBranch,
+  Globe2,
+  LayoutDashboard,
+  Menu,
+  MessageCircle,
+  Monitor,
+  PieChart,
+  Play,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Users,
+  X,
+  Zap
+} from "lucide-react";
+import { Link } from "react-router-dom";
 
-const Navbar = () => {
-  const [isOpen, setIsOpen] = useState(false);
+const agendorInspiredFeatures = [
+  {
+    title: "Funis e negociações",
+    description: "Kanban, listagem, metas e relatórios para acompanhar oportunidades do primeiro contato ao fechamento.",
+    icon: Target
+  },
+  {
+    title: "Tarefas e follow-ups",
+    description: "Rotina comercial com lembretes, reuniões, atividades e histórico de interação por lead ou cliente.",
+    icon: CalendarDays
+  },
+  {
+    title: "Histórico consultivo",
+    description: "Contexto completo para vender com mais segurança: notas, propostas, contratos, reuniões e próximos passos.",
+    icon: BookOpen
+  },
+  {
+    title: "Relatórios de performance",
+    description: "Indicadores de pipeline, ticket médio, conversão, receita prevista, metas e gargalos por etapa.",
+    icon: BarChart3
+  },
+  {
+    title: "Campos e processos flexíveis",
+    description: "Estruture sua operação por canal, nicho, serviço, equipe, etapa e perfil de cliente ideal.",
+    icon: GitBranch
+  },
+  {
+    title: "WhatsApp e comunicação",
+    description: "Atalhos de contato, histórico e base pronta para transformar conversas em dados comerciais.",
+    icon: MessageCircle
+  }
+];
+
+const nexusOnlyFeatures = [
+  {
+    title: "Captação ativa para agências",
+    description: "Busque empresas por nicho, cidade e oportunidade. Envie leads prontos para o CRM com análise de IA.",
+    icon: Search
+  },
+  {
+    title: "Propostas e contratos",
+    description: "Gere propostas comerciais, aceite público, onboarding de cliente e contrato com dados do negócio.",
+    icon: FileText
+  },
+  {
+    title: "Operação de delivery",
+    description: "Controle entregáveis, aprovações, catálogo de serviços, horas apontadas e saúde do cliente.",
+    icon: ClipboardList
+  },
+  {
+    title: "Agentes de IA comerciais",
+    description: "Use IA para diagnóstico, conteúdo, follow-up, reuniões, prompts e recomendações de crescimento.",
+    icon: Bot
+  }
+];
+
+const journey = [
+  "Planejamento",
+  "Prospecção",
+  "Qualificação",
+  "Follow-up",
+  "Proposta",
+  "Fechamento",
+  "Onboarding",
+  "Entrega",
+  "Retenção"
+];
+
+const comparison = [
+  {
+    item: "CRM consultivo",
+    agendor: "Forte para vendas B2B consultivas",
+    nexus: "CRM consultivo com camada de agência"
+  },
+  {
+    item: "WhatsApp e atividades",
+    agendor: "Comunicação integrada e rotinas comerciais",
+    nexus: "Atalhos, agenda, Nexus Meet e base para omnichannel"
+  },
+  {
+    item: "Produtos e propostas",
+    agendor: "Portfólio, propostas e histórico comercial",
+    nexus: "Propostas, contrato, serviço vendido e onboarding"
+  },
+  {
+    item: "Operação pós-venda",
+    agendor: "Pós-venda e gestão comercial",
+    nexus: "Delivery, aprovações, horas, health score e cliente 360"
+  },
+  {
+    item: "IA",
+    agendor: "Ecossistema com IA e automação",
+    nexus: "Agentes de IA focados em agência, conteúdo e growth"
+  }
+];
+
+const productCards = [
+  { label: "Leads captados", value: "1.250", icon: Search, accent: "bg-emerald-50 text-emerald-700" },
+  { label: "Pipeline aberto", value: "R$ 284k", icon: TrendingUp, accent: "bg-blue-50 text-blue-700" },
+  { label: "Contratos", value: "38", icon: FileText, accent: "bg-violet-50 text-violet-700" },
+  { label: "Health score", value: "87%", icon: PieChart, accent: "bg-amber-50 text-amber-700" }
+];
+
+function Navbar() {
+  const [open, setOpen] = useState(false);
+
+  const links = [
+    ["Recursos", "#recursos"],
+    ["Comparativo", "#comparativo"],
+    ["Operação 360", "#operacao"],
+    ["FAQ", "#faq"]
+  ];
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
-      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-            <Monitor size={22} />
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200/70 bg-white/90 backdrop-blur-xl">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
+        <Link to="/site" className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#155EEF] text-white shadow-lg shadow-blue-200">
+            <Monitor size={21} />
           </div>
-          <span className="text-xl font-black text-gray-900 tracking-tight">Nexus360</span>
-        </div>
+          <div>
+            <div className="text-lg font-black tracking-tight text-slate-950">Nexus360</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-slate-400">Agency CRM</div>
+          </div>
+        </Link>
 
-        {/* Desktop Menu */}
-        <div className="hidden md:flex items-center gap-8">
-          <a href="#recursos" className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors">Recursos</a>
-          <a href="#solucoes" className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors">Soluções</a>
-          <a href="#planos" className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors">Planos</a>
-          <a href="#faq" className="text-sm font-semibold text-gray-600 hover:text-blue-600 transition-colors">FAQ</a>
-        </div>
+        <nav className="hidden items-center gap-8 md:flex">
+          {links.map(([label, href]) => (
+            <a key={href} href={href} className="text-sm font-bold text-slate-600 transition hover:text-[#155EEF]">
+              {label}
+            </a>
+          ))}
+        </nav>
 
-        <div className="hidden md:flex items-center gap-4">
-          <Link to="/login" className="px-6 py-2.5 text-sm font-bold text-gray-700 hover:text-blue-600 transition-colors">
+        <div className="hidden items-center gap-3 md:flex">
+          <Link to="/login" className="px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:text-[#155EEF]">
             Entrar
           </Link>
-          <button className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200">
-            Solicitar Demonstração
-          </button>
+          <a href="#demo" className="rounded-xl bg-[#00B87A] px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-100 transition hover:bg-[#009F6A]">
+            Criar conta grátis
+          </a>
         </div>
 
-        {/* Mobile Toggle */}
-        <button className="md:hidden p-2" onClick={() => setIsOpen(!isOpen)}>
-          {isOpen ? <X /> : <Menu />}
+        <button onClick={() => setOpen(!open)} className="rounded-xl p-2 text-slate-700 md:hidden">
+          {open ? <X /> : <Menu />}
         </button>
       </div>
 
-      {/* Mobile Menu */}
       <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden bg-white border-b border-gray-100 px-6 py-8 flex flex-col gap-6"
+        {open && (
+          <motion.nav
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-t border-slate-100 bg-white px-5 py-5 md:hidden"
           >
-            <a href="#recursos" onClick={() => setIsOpen(false)} className="text-lg font-bold text-gray-900">Recursos</a>
-            <a href="#solucoes" onClick={() => setIsOpen(false)} className="text-lg font-bold text-gray-900">Soluções</a>
-            <a href="#planos" onClick={() => setIsOpen(false)} className="text-lg font-bold text-gray-900">Planos</a>
-            <a href="#faq" onClick={() => setIsOpen(false)} className="text-lg font-bold text-gray-900">FAQ</a>
-            <hr className="border-gray-50" />
             <div className="flex flex-col gap-4">
-              <Link to="/login" className="text-center font-bold text-gray-700 py-3">Entrar</Link>
-              <button className="bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg shadow-blue-200">
-                Solicitar Demonstração
-              </button>
+              {links.map(([label, href]) => (
+                <a key={href} href={href} onClick={() => setOpen(false)} className="text-base font-bold text-slate-800">
+                  {label}
+                </a>
+              ))}
+              <Link to="/login" className="rounded-xl border border-slate-200 px-4 py-3 text-center font-bold text-slate-700">
+                Entrar
+              </Link>
+              <a href="#demo" className="rounded-xl bg-[#00B87A] px-4 py-3 text-center font-black text-white">
+                Criar conta grátis
+              </a>
             </div>
-          </motion.div>
+          </motion.nav>
         )}
       </AnimatePresence>
-    </nav>
+    </header>
   );
-};
+}
 
-const FAQItem = ({ question, answer }: { question: string; answer: string }) => {
-  const [isOpen, setIsOpen] = useState(false);
+function MiniPipeline() {
+  const columns = [
+    ["Novo", "Clínica Odonto", "R$ 4.800"],
+    ["Qualificação", "E-commerce Fit", "R$ 9.200"],
+    ["Proposta", "Advocacia Lima", "R$ 6.500"],
+    ["Ganho", "Imobiliária Max", "R$ 12.000"]
+  ];
+
   return (
-    <div className="border-b border-gray-100 last:border-0">
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full py-6 flex items-center justify-between text-left hover:text-blue-600 transition-colors"
-      >
-        <span className="text-lg font-bold text-gray-900">{question}</span>
-        {isOpen ? <Minus size={20} className="text-blue-600" /> : <Plus size={20} className="text-gray-400" />}
+    <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-200/70">
+      <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">Pipeline comercial</div>
+          <div className="text-lg font-black text-slate-950">Funil de vendas consultivas</div>
+        </div>
+        <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">+24%</div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        {columns.map(([stage, name, value], index) => (
+          <div key={stage} className="rounded-2xl bg-slate-50 p-3">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{stage}</span>
+              <span className="rounded-md bg-white px-2 py-0.5 text-[10px] font-bold text-slate-400">{index + 3}</span>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+              <div className="mb-2 text-sm font-black text-slate-900">{name}</div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">{value}</span>
+                <span className="h-6 w-6 rounded-full bg-[#155EEF] text-center text-[10px] font-black leading-6 text-white">N</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FAQItem({ question, answer }: { question: string; answer: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-b border-slate-200">
+      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between gap-6 py-6 text-left">
+        <span className="text-lg font-black text-slate-950">{question}</span>
+        <ChevronDown className={`shrink-0 text-[#155EEF] transition ${open ? "rotate-180" : ""}`} />
       </button>
       <AnimatePresence>
-        {isOpen && (
-          <motion.div
+        {open && (
+          <motion.p
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
+            animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
+            className="overflow-hidden pb-6 text-slate-600"
           >
-            <p className="pb-6 text-gray-500 leading-relaxed">{answer}</p>
-          </motion.div>
+            {answer}
+          </motion.p>
         )}
       </AnimatePresence>
     </div>
   );
-};
+}
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900 overflow-x-hidden">
+    <main className="min-h-screen overflow-hidden bg-[#F7FAFC] text-slate-950">
       <Navbar />
 
-      {/* Hero Section */}
-      <section className="pt-40 pb-20 px-6">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider mb-8">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
-              </span>
-              Plataforma 360 para Agências e Consultores
+      <section className="relative overflow-hidden bg-white px-5 pb-24 pt-36 lg:px-8 lg:pb-32">
+        <div className="absolute left-1/2 top-20 h-[520px] w-[760px] -translate-x-1/2 rounded-full bg-[#E8F7F0] blur-3xl" />
+        <div className="relative mx-auto grid max-w-7xl items-center gap-14 lg:grid-cols-[0.95fr_1.05fr]">
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
+            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-[#00B87A]" />
+              CRM + operação 360 para agências
             </div>
-            <h1 className="text-5xl lg:text-7xl font-black text-gray-900 leading-[1.1] mb-8">
-              A máquina 360 para gerir sua agência em um só lugar.
+            <h1 className="max-w-4xl text-5xl font-black leading-[1.02] tracking-tight text-slate-950 md:text-7xl">
+              A central de gestão comercial feita para agências venderem, entregarem e reterem melhor.
             </h1>
-            <p className="text-xl text-gray-500 leading-relaxed mb-10 max-w-xl">
-              Capte leads, organize processos, gere contratos, acompanhe a execução com agentes de IA e centralize toda a operação em um painel único.
+            <p className="mt-7 max-w-2xl text-xl leading-8 text-slate-600">
+              O Nexus360 combina CRM consultivo, captação de leads, propostas, contratos, delivery, financeiro e agentes de IA em uma plataforma única para agências de marketing.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 mb-12">
-              <button className="bg-blue-600 text-white px-10 py-5 rounded-2xl font-black text-lg hover:bg-blue-700 transition-all shadow-2xl shadow-blue-200 flex items-center justify-center gap-2 group">
-                Solicitar Demonstração
-                <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-              </button>
-              <button className="bg-white text-gray-900 border-2 border-gray-100 px-10 py-5 rounded-2xl font-black text-lg hover:border-blue-600 hover:text-blue-600 transition-all flex items-center justify-center gap-2">
-                <Play size={20} fill="currentColor" />
-                Ver Plataforma
-              </button>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <a href="#demo" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#00B87A] px-8 py-4 text-base font-black text-white shadow-xl shadow-emerald-100 transition hover:bg-[#009F6A]">
+                Criar conta grátis
+                <ArrowRight size={18} />
+              </a>
+              <a href="#operacao" className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-8 py-4 text-base font-black text-slate-800 transition hover:border-[#155EEF] hover:text-[#155EEF]">
+                <Play size={18} />
+                Ver como funciona
+              </a>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-              {[
-                { label: "Leads captados", value: "1.250+", icon: Mail, color: "text-blue-600" },
-                { label: "Contratos gerados", value: "820+", icon: FileText, color: "text-emerald-600" },
-                { label: "Clientes ativos", value: "430+", icon: Users, color: "text-indigo-600" },
-                { label: "Automação IA", value: "Ativa", icon: Sparkles, color: "text-amber-600" },
-              ].map((stat, i) => (
-                <div key={i}>
-                  <div className={`flex items-center gap-2 mb-1 font-black text-lg ${stat.color}`}>
-                    <stat.icon size={18} />
-                    {stat.value}
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-bold text-slate-500">
+              <span className="flex items-center gap-2"><Check size={16} className="text-[#00B87A]" /> Acesso imediato</span>
+              <span className="flex items-center gap-2"><Check size={16} className="text-[#00B87A]" /> Sem cartão de crédito</span>
+              <span className="flex items-center gap-2"><Check size={16} className="text-[#00B87A]" /> Criado para agências</span>
+            </div>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.65, delay: 0.1 }} className="relative">
+            <div className="absolute -right-8 -top-8 h-28 w-28 rounded-[2rem] bg-[#155EEF] opacity-10" />
+            <div className="absolute -bottom-8 -left-8 h-40 w-40 rounded-full bg-[#00B87A] opacity-10" />
+            <MiniPipeline />
+            <div className="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {productCards.map((card) => (
+                <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl ${card.accent}`}>
+                    <card.icon size={18} />
                   </div>
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{stat.label}</div>
+                  <div className="text-2xl font-black text-slate-950">{card.value}</div>
+                  <div className="text-xs font-bold text-slate-500">{card.label}</div>
                 </div>
               ))}
             </div>
           </motion.div>
+        </div>
+      </section>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1, delay: 0.2 }}
-            className="relative"
-          >
-            <div className="absolute -inset-4 bg-gradient-to-tr from-blue-100 to-indigo-100 blur-3xl opacity-50 -z-10 rounded-[40px]"></div>
-            <div className="bg-white p-2 rounded-[32px] shadow-2xl border border-gray-100 transform lg:rotate-2 hover:rotate-0 transition-transform duration-700">
-              <img 
-                src="/nexus360_mockup_landing_page_1777753431423.png" 
-                alt="Nexus360 Dashboard" 
-                className="rounded-[24px] w-full"
-              />
+      <section className="bg-[#F7FAFC] px-5 py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-10 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+            <div>
+              <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#155EEF]">O que aprendemos com CRMs consultivos</p>
+              <h2 className="max-w-3xl text-4xl font-black tracking-tight text-slate-950 md:text-5xl">
+                O vendedor precisa de rotina simples. A agência precisa de visão completa.
+              </h2>
             </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Problem Section */}
-      <section className="py-32 px-6 bg-gray-50/50">
-        <div className="max-w-7xl mx-auto text-center mb-20">
-          <h2 className="text-4xl font-black text-gray-900 mb-6">Chega de operar no escuro e com ferramentas desconectadas.</h2>
-          <p className="text-xl text-gray-500 max-w-2xl mx-auto">Sua empresa merece uma visão 360° real para escalar sem perder o controle.</p>
-        </div>
-        <div className="max-w-7xl mx-auto grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {[
-            { 
-              title: "Dados espalhados", 
-              desc: "Informações em planilhas, e-mails e diversas ferramentas que não se comunicam.",
-              icon: Globe,
-              color: "red"
-            },
-            { 
-              title: "Retrabalho e perda de tempo", 
-              desc: "Processos manuais, contratos lentos e acompanhamento ineficiente de clientes.",
-              icon: Zap,
-              color: "orange"
-            },
-            { 
-              title: "Falta de visão 360", 
-              desc: "Sem uma visão completa do funil, finanças e execução da operação.",
-              icon: BarChart3,
-              color: "purple"
-            },
-            { 
-              title: "Crescimento limitado", 
-              desc: "Sem previsibilidade e controle, fica difícil escalar com consistência.",
-              icon: Monitor,
-              color: "emerald"
-            }
-          ].map((item, i) => (
-            <motion.div 
-              key={i}
-              whileHover={{ y: -10 }}
-              className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl transition-all"
-            >
-              <div className={`w-14 h-14 rounded-2xl mb-6 flex items-center justify-center bg-${item.color}-50 text-${item.color}-600 shadow-inner`}>
-                <item.icon size={28} />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4">{item.title}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="recursos" className="py-32 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-20 text-center">
-            <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-6">Tudo que sua operação precisa para crescer</h2>
-            <p className="text-xl text-gray-500">Funcionalidades pensadas para quem vive a realidade de agências e consultorias.</p>
+            <p className="max-w-md text-lg leading-8 text-slate-600">
+              O Nexus incorpora os pilares de um CRM B2B consultivo e adiciona a camada que agências precisam depois da venda: contrato, entrega, horas, health score e IA.
+            </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
-            {[
-              { title: "Gestão de Leads", desc: "Capture leads de múltiplos canais e centralize tudo em um único painel.", icon: Mail },
-              { title: "CRM Comercial", desc: "Acompanhe oportunidades, atividades e negociações com visão clara.", icon: LayoutDashboard },
-              { title: "Gestão de Clientes", desc: "Histórico, contratos, entregas e relacionamento centralizados.", icon: Users },
-              { title: "Contratos Automáticos", desc: "Crie e envie contratos profissionais em poucos cliques.", icon: FileText },
-              { title: "Agentes de IA", desc: "Agentes inteligentes que ajudam na análise, follow-up e automação.", icon: Sparkles },
-              { title: "Agenda e Tarefas", desc: "Organize equipe, prazos, reuniões e demandas em tempo real.", icon: ClipboardList },
-              { title: "Relatórios Premium", desc: "Dashboards completos para tomar decisões com base em dados.", icon: BarChart3 },
-              { title: "Operação 360", desc: "Marketing, comercial, contratos, financeiro e entrega conectados.", icon: Globe },
-            ].map((feature, i) => (
-              <div key={i} className="group cursor-default">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-6 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 shadow-inner">
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {agendorInspiredFeatures.map((feature) => (
+              <div key={feature.title} className="rounded-[1.5rem] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/60">
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-[#155EEF]">
                   <feature.icon size={22} />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-3">{feature.title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{feature.desc}</p>
+                <h3 className="text-lg font-black text-slate-950">{feature.title}</h3>
+                <p className="mt-3 leading-7 text-slate-600">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="py-32 px-6 bg-blue-900 text-white overflow-hidden relative">
-        <div className="absolute top-0 right-0 w-1/3 h-full bg-blue-800/30 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
-        <div className="max-w-7xl mx-auto relative z-10">
-          <div className="text-center mb-24">
-            <h2 className="text-4xl lg:text-5xl font-black mb-6">Como o Nexus360 funciona</h2>
-            <p className="text-xl text-blue-200">A jornada para uma gestão impecável em 3 passos simples.</p>
+      <section id="recursos" className="bg-white px-5 py-24 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mx-auto mb-14 max-w-3xl text-center">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#00B87A]">Diferencial Nexus360</p>
+            <h2 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">Além do CRM: uma operação completa para agência de marketing.</h2>
           </div>
-          <div className="grid lg:grid-cols-3 gap-16">
-            {[
-              { step: "01", title: "Capture e organize", desc: "Conecte seus canais, capture leads e centralize tudo no CRM com qualificação automática.", icon: Zap },
-              { step: "02", title: "Automatize onboarding", desc: "Gere propostas e contratos em minutos e automatize o onboarding do seu novo cliente.", icon: FileText },
-              { step: "03", title: "Execute e escale", desc: "Acompanhe a execução, receba insights da IA e foque no que realmente traz resultado.", icon: Sparkles },
-            ].map((item, i) => (
-              <div key={i} className="relative">
-                <div className="text-7xl font-black text-white/5 absolute -top-12 -left-4 leading-none">{item.step}</div>
-                <div className="w-20 h-20 rounded-3xl bg-blue-800 flex items-center justify-center mb-8 shadow-2xl">
-                  <item.icon size={36} className="text-blue-400" />
+          <div className="grid gap-6 lg:grid-cols-4">
+            {nexusOnlyFeatures.map((feature) => (
+              <div key={feature.title} className="rounded-[1.75rem] bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
+                <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-[#6EE7B7]">
+                  <feature.icon size={23} />
                 </div>
-                <h3 className="text-2xl font-bold mb-4">{item.title}</h3>
-                <p className="text-blue-200 leading-relaxed">{item.desc}</p>
-                {i < 2 && <div className="hidden lg:block absolute top-10 -right-8 w-16 h-[2px] bg-gradient-to-r from-blue-700 to-transparent"></div>}
+                <h3 className="text-xl font-black">{feature.title}</h3>
+                <p className="mt-4 leading-7 text-slate-300">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Product Demo Simulation */}
-      <section className="py-32 px-6 bg-gray-50/30">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-6">Sua operação, em um único lugar</h2>
-            <p className="text-xl text-gray-500">Visualize tudo o que importa sem trocar de aba.</p>
+      <section id="operacao" className="bg-[#0B1220] px-5 py-24 text-white lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+          <div>
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-emerald-300">Da prospecção à retenção</p>
+            <h2 className="text-4xl font-black tracking-tight md:text-5xl">Uma jornada comercial e operacional no mesmo fluxo.</h2>
+            <p className="mt-6 text-lg leading-8 text-slate-300">
+              Em CRMs tradicionais, o trabalho costuma terminar no fechamento. No Nexus, a venda vira onboarding, serviço, tarefa, entrega, cobrança, saúde do cliente e oportunidade de expansão.
+            </p>
           </div>
-          
-          <div className="grid lg:grid-cols-3 gap-8">
-            {/* CRM Block */}
-            <div className="lg:col-span-2 bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
-              <div className="flex items-center justify-between mb-8">
-                <h4 className="font-black text-gray-900 flex items-center gap-2">
-                  <KanbanSquare size={18} className="text-blue-600" />
-                  CRM & Funil de Vendas
-                </h4>
-                <button className="text-[10px] font-bold text-blue-600 uppercase tracking-widest hover:underline">Ver todos</button>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {['Novos Leads', 'Qualificados', 'Proposta', 'Fechados'].map((col, i) => (
-                  <div key={i} className="flex flex-col gap-3">
-                    <div className="bg-gray-50 p-2 rounded-lg text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">{col}</div>
-                    {[1, 2].map(card => (
-                      <div key={card} className="bg-white border border-gray-100 p-3 rounded-xl shadow-sm">
-                        <div className="text-xs font-bold text-gray-900 mb-1">Lead #{Math.floor(Math.random() * 1000)}</div>
-                        <div className="text-[10px] text-gray-400">R$ {Math.floor(Math.random() * 10)}k • 2 dias</div>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Dashboard Executivo */}
-            <div className="bg-blue-600 text-white rounded-[32px] p-8 shadow-xl shadow-blue-200">
-               <h4 className="font-black mb-8 flex items-center gap-2">
-                  <BarChart3 size={18} />
-                  Executivo
-                </h4>
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-[10px] font-bold text-blue-100 uppercase mb-1 tracking-widest">Leads este mês</div>
-                    <div className="text-4xl font-black">1.250 <span className="text-xs text-blue-200">+12%</span></div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold text-blue-100 uppercase mb-1 tracking-widest">Conversão</div>
-                    <div className="text-4xl font-black">24,6% <span className="text-xs text-blue-200">+2.4%</span></div>
-                  </div>
-                  <div className="pt-6 border-t border-blue-500/30">
-                    <div className="text-[10px] font-bold text-blue-100 uppercase mb-2 tracking-widest">Progresso da Meta</div>
-                    <div className="h-2 bg-blue-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-white w-[75%] rounded-full shadow-[0_0_10px_white]"></div>
-                    </div>
-                  </div>
-                </div>
-            </div>
-
-            {/* Contratos */}
-            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
-              <div className="flex items-center justify-between mb-8">
-                <h4 className="font-black text-gray-900 flex items-center gap-2">
-                  <FileText size={18} className="text-emerald-600" />
-                  Contratos Ativos
-                </h4>
-              </div>
-              <div className="space-y-4">
-                {[
-                  { name: "Agência Alpha", status: "Assinado", val: "8.500", color: "emerald" },
-                  { name: "Startup X", status: "Pendente", val: "4.900", color: "amber" },
-                  { name: "Loja Online", status: "Assinado", val: "6.200", color: "emerald" },
-                ].map((c, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <div>
-                      <div className="text-sm font-bold text-gray-900">{c.name}</div>
-                      <div className={`text-[10px] font-bold text-${c.color}-600 uppercase`}>{c.status}</div>
-                    </div>
-                    <div className="text-sm font-black text-gray-900">R$ {c.val}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Agentes de IA */}
-            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
-              <div className="flex items-center justify-between mb-8">
-                <h4 className="font-black text-gray-900 flex items-center gap-2">
-                  <Sparkles size={18} className="text-amber-500" />
-                  Agentes de IA
-                </h4>
-              </div>
-              <div className="space-y-4">
-                {['Follow-up', 'Qualificação', 'Insights'].map((a, i) => (
-                  <div key={i} className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center">
-                      <Sparkles size={16} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs font-bold text-gray-900">Agente de {a}</div>
-                      <div className="h-1 bg-gray-100 rounded-full mt-1">
-                        <div className="h-full bg-amber-500 w-[90%] rounded-full"></div>
-                      </div>
-                    </div>
-                    <div className="text-[10px] font-black text-emerald-500 uppercase">Ativo</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Tarefas */}
-            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm p-8">
-              <div className="flex items-center justify-between mb-8">
-                <h4 className="font-black text-gray-900 flex items-center gap-2">
-                  <ClipboardList size={18} className="text-indigo-600" />
-                  Tarefas Equipe
-                </h4>
-              </div>
-              <div className="space-y-4">
-                {[
-                  { t: "Reunião Agência Alpha", p: "Alta" },
-                  { t: "Enviar proposta Consultoria", p: "Média" },
-                  { t: "Follow-up Startup X", p: "Alta" },
-                ].map((t, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 border border-gray-50 rounded-2xl">
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 rounded border-2 border-gray-200"></div>
-                      <span className="text-xs font-bold text-gray-700">{t.t}</span>
-                    </div>
-                    <div className={`text-[8px] font-bold uppercase px-2 py-0.5 rounded ${t.p === 'Alta' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>{t.p}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits */}
-      <section className="py-32 px-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-20 items-center">
-            <div>
-              <h2 className="text-4xl lg:text-5xl font-black text-gray-900 mb-8 leading-tight">Mais controle. Mais produtividade. Mais crescimento.</h2>
-              <div className="space-y-8">
-                {[
-                  { title: "Centralização total", desc: "Tudo conectado em uma plataforma única e intuitiva.", icon: Globe },
-                  { title: "Produtividade máxima", desc: "Automação e IA para eliminar tarefas manuais e repetitivas.", icon: Zap },
-                  { title: "Previsibilidade financeira", desc: "Receitas recorrentes, contratos e métricas claras para decidir melhor.", icon: BarChart3 },
-                ].map((b, i) => (
-                  <div key={i} className="flex gap-6">
-                    <div className="w-14 h-14 rounded-2xl bg-gray-50 text-blue-600 flex items-center justify-center flex-shrink-0 shadow-inner">
-                      <b.icon size={28} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{b.title}</h3>
-                      <p className="text-gray-500 leading-relaxed">{b.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-6">
-              {[
-                { title: "Menos retrabalho", desc: "Processos padronizados.", icon: RefreshCw },
-                { title: "Visão 360", desc: "Histórico completo.", icon: LayoutDashboard },
-                { title: "Escalabilidade", desc: "Estrutura para crescer.", icon: ArrowRight },
-                { title: "IA Integrada", desc: "Inteligência real.", icon: Sparkles },
-              ].map((item, i) => (
-                <div key={i} className={`p-8 rounded-[32px] border border-gray-100 shadow-sm ${i === 1 || i === 2 ? 'bg-blue-50/30' : 'bg-white'}`}>
-                  <item.icon className="text-blue-600 mb-4" size={24} />
-                  <h4 className="font-bold text-gray-900 mb-2">{item.title}</h4>
-                  <p className="text-xs text-gray-500">{item.desc}</p>
+          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              {journey.map((step, index) => (
+                <div key={step} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-[#00B87A] text-sm font-black text-white">{index + 1}</div>
+                  <div className="font-black">{step}</div>
                 </div>
               ))}
             </div>
@@ -474,168 +394,130 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-32 px-6 bg-gray-900 text-white overflow-hidden relative">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none"></div>
-        <div className="max-w-7xl mx-auto relative z-10">
-          <h2 className="text-4xl lg:text-5xl font-black text-center mb-20">O que nossos clientes dizem</h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              { 
-                q: "O Nexus360 transformou nossa operação. Agora temos visão completa do funil, contratos e entregas em um só lugar.",
-                n: "Amanda Ribeiro",
-                r: "CEO, Agência Impulso",
-                a: "AR"
-              },
-              { 
-                q: "Como consultor, consigo gerenciar todos os clientes, contratos e processos com muito mais organização e previsibilidade.",
-                n: "Felipe Andrade",
-                r: "Consultor de Marketing",
-                a: "FA"
-              },
-              { 
-                q: "A IA nos ajuda no follow-up e nos insights diários. Ganhamos tempo e aumentamos nossa produtividade comercial.",
-                n: "Marcos Vieira",
-                r: "Gestor Comercial",
-                a: "MV"
-              },
-            ].map((t, i) => (
-              <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 p-10 rounded-[40px] hover:bg-white/10 transition-all duration-500 group">
-                <div className="text-4xl text-blue-500 font-serif mb-6 opacity-50 group-hover:opacity-100 transition-opacity">“</div>
-                <p className="text-lg text-gray-300 leading-relaxed mb-10 italic">{t.q}</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">{t.a}</div>
-                  <div>
-                    <div className="font-bold text-white">{t.n}</div>
-                    <div className="text-xs text-gray-500">{t.r}</div>
-                  </div>
-                </div>
+      <section id="comparativo" className="bg-white px-5 py-24 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 max-w-3xl">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#155EEF]">Comparativo estratégico</p>
+            <h2 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">Agendor é forte em vendas consultivas. Nexus quer ser o CRM operacional das agências.</h2>
+          </div>
+          <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-100">
+            <div className="grid grid-cols-3 bg-slate-950 px-6 py-4 text-sm font-black uppercase tracking-widest text-white">
+              <div>Critério</div>
+              <div>Agendor</div>
+              <div>Nexus360</div>
+            </div>
+            {comparison.map((row) => (
+              <div key={row.item} className="grid grid-cols-1 gap-4 border-t border-slate-100 px-6 py-5 md:grid-cols-3 md:gap-0">
+                <div className="font-black text-slate-950">{row.item}</div>
+                <div className="text-slate-600">{row.agendor}</div>
+                <div className="font-bold text-slate-800">{row.nexus}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="py-32 px-6">
-        <div className="max-w-5xl mx-auto bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[48px] p-12 md:p-20 text-center text-white relative overflow-hidden shadow-2xl shadow-blue-200">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 blur-3xl rounded-full translate-x-1/2 -translate-y-1/2"></div>
-          <div className="relative z-10">
-            <h2 className="text-4xl lg:text-6xl font-black mb-8 leading-tight">Pronto para transformar sua operação em uma máquina 360?</h2>
-            <p className="text-xl text-blue-100 mb-12 max-w-2xl mx-auto">Agende uma demonstração gratuita e veja como o Nexus360 pode levar seu negócio para o próximo nível.</p>
-            <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-12">
-              <button className="w-full md:w-auto bg-white text-blue-600 px-12 py-6 rounded-2xl font-black text-xl hover:scale-105 transition-all shadow-xl">
-                Agendar Demonstração
-              </button>
-            </div>
-            <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 text-sm font-bold text-blue-200 uppercase tracking-widest">
-              <div className="flex items-center gap-2"><Check size={16} /> Demonstração personalizada</div>
-              <div className="flex items-center gap-2"><Check size={16} /> Implantação rápida</div>
-              <div className="flex items-center gap-2"><Check size={16} /> Planos flexíveis</div>
-            </div>
+      <section className="bg-[#F7FAFC] px-5 py-24 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 text-center">
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.25em] text-[#00B87A]">Crescimento possível</p>
+            <h2 className="text-4xl font-black tracking-tight text-slate-950 md:text-5xl">Funções que podem levar o Nexus além do CRM.</h2>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {[
+              ["Score de expansão", "Detectar clientes com chance de upsell por resultados, uso, reuniões e tickets."],
+              ["Forecast por contrato", "Projetar receita recorrente, setup, churn e expansão por carteira de cliente."],
+              ["Playbooks por nicho", "Modelos de funil, proposta, contrato e entregáveis para advocacia, saúde, varejo e B2B."],
+              ["Assistente de vendedor", "IA que recomenda próxima ação, mensagem, objeção e follow-up por etapa."],
+              ["Portal executivo do cliente", "Cliente acompanha entregas, aprovações, relatórios e próximos passos."],
+              ["Benchmark de agência", "Comparar conversão, margem, horas e retenção entre contas e serviços vendidos."]
+            ].map(([title, desc]) => (
+              <div key={title} className="rounded-[1.5rem] border border-slate-200 bg-white p-7">
+                <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <Sparkles size={20} />
+                </div>
+                <h3 className="text-lg font-black text-slate-950">{title}</h3>
+                <p className="mt-3 leading-7 text-slate-600">{desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* FAQ */}
-      <section id="faq" className="py-32 px-6 bg-gray-50/50">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-20">
-             <h2 className="text-4xl font-black text-gray-900 mb-6">Perguntas Frequentes</h2>
-             <p className="text-gray-500 font-medium">Tudo o que você precisa saber sobre o Nexus360.</p>
+      <section id="demo" className="bg-white px-5 py-24 lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-10 rounded-[2.5rem] bg-[#155EEF] p-8 text-white shadow-2xl shadow-blue-200 md:p-12 lg:grid-cols-[1fr_0.8fr] lg:p-16">
+          <div>
+            <p className="mb-4 text-xs font-black uppercase tracking-[0.25em] text-blue-100">Teste o Nexus360</p>
+            <h2 className="text-4xl font-black tracking-tight md:text-6xl">Tenha controle comercial e operacional da sua agência em uma única tela.</h2>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-blue-100">
+              Comece com CRM, leads e contratos. Evolua para delivery, IA, health score e automações que aumentam retenção.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-4">
+              <Link to="/login" className="rounded-2xl bg-white px-8 py-4 text-base font-black text-[#155EEF] transition hover:scale-[1.02]">
+                Criar conta grátis
+              </Link>
+              <a href="#faq" className="rounded-2xl border border-white/25 px-8 py-4 text-base font-black text-white transition hover:bg-white/10">
+                Tirar dúvidas
+              </a>
+            </div>
           </div>
-          <div className="space-y-2">
-            <FAQItem 
-              question="O Nexus360 serve para agências e consultores?" 
-              answer="Sim. A plataforma foi criada especificamente para centralizar a gestão de agências, consultores, profissionais de marketing e operações comerciais B2B." 
-            />
-            <FAQItem 
-              question="O sistema centraliza todos os clientes e contratos?" 
-              answer="Com certeza. Você pode gerenciar todo o ciclo de vida do cliente: desde o primeiro lead, passando pela proposta, geração do contrato, onboarding e acompanhamento das entregas." 
-            />
-            <FAQItem 
-              question="Existem agentes de IA na plataforma?" 
-              answer="Sim! Nossos agentes de IA nativos apoiam no follow-up comercial, qualificação de leads, geração de insights de performance e até na criação automática de tarefas e documentos." 
-            />
-            <FAQItem 
-              question="É possível gerar contratos automaticamente?" 
-              answer="Sim. O Nexus360 permite a criação de modelos de contratos que são preenchidos automaticamente com os dados dos seus clientes, economizando horas de trabalho jurídico manual." 
-            />
-            <FAQItem 
-              question="O Nexus360 se integra com outras ferramentas?" 
-              answer="Sim. A plataforma é preparada para integrações via Webhooks e APIs, permitindo conectar com WhatsApp, ferramentas de Meta/Google Ads e automações externas." 
-            />
+          <div className="rounded-[2rem] bg-white p-5 text-slate-950">
+            <div className="mb-5 flex items-center justify-between">
+              <div className="font-black">Checklist de implantação</div>
+              <Bell className="text-[#155EEF]" />
+            </div>
+            {[
+              "Importar leads e clientes",
+              "Criar funil comercial",
+              "Configurar serviços vendidos",
+              "Ativar agentes de IA",
+              "Publicar portal do cliente"
+            ].map((item) => (
+              <div key={item} className="mb-3 flex items-center gap-3 rounded-xl bg-slate-50 p-3">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#00B87A] text-white"><Check size={14} /></span>
+                <span className="text-sm font-bold">{item}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-[#0a0f1a] text-white pt-32 pb-12 px-6 overflow-hidden relative">
-        <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full pointer-events-none"></div>
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-4 gap-16 mb-24">
-            <div className="lg:col-span-1">
-              <div className="flex items-center gap-2 mb-8">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                  <Monitor size={22} />
-                </div>
-                <span className="text-xl font-black tracking-tight">Nexus360</span>
-              </div>
-              <p className="text-gray-500 leading-relaxed mb-8">
-                A plataforma 360 para agências e consultores que querem crescer com organização, previsibilidade e tecnologia.
-              </p>
-              <div className="flex gap-4">
-                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center hover:bg-blue-600 transition-colors cursor-pointer"><Instagram size={18} /></div>
-                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center hover:bg-blue-600 transition-colors cursor-pointer"><Twitter size={18} /></div>
-                <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center hover:bg-blue-600 transition-colors cursor-pointer"><Linkedin size={18} /></div>
-              </div>
-            </div>
+      <section id="faq" className="bg-[#F7FAFC] px-5 py-24 lg:px-8">
+        <div className="mx-auto max-w-3xl">
+          <div className="mb-10 text-center">
+            <h2 className="text-4xl font-black text-slate-950">Perguntas frequentes</h2>
+            <p className="mt-4 text-slate-600">As dúvidas mais comuns para quem quer migrar de planilha, CRM simples ou operação fragmentada.</p>
+          </div>
+          <FAQItem question="O Nexus substitui um CRM como o Agendor?" answer="Para agências, sim, porque cobre o núcleo comercial e adiciona módulos operacionais que normalmente ficam fora de um CRM puro: contratos, entregas, horas, health score e IA." />
+          <FAQItem question="O Nexus é só para vendas?" answer="Não. O foco é conectar vendas, onboarding, delivery e retenção, para que a agência veja o ciclo completo do cliente." />
+          <FAQItem question="Consigo usar com equipe comercial e equipe de entrega?" answer="Sim. A plataforma já tem CRM, tarefas, calendário, clientes, projetos, entregáveis, catálogo de serviços e apontamento de horas." />
+          <FAQItem question="A IA já faz parte do produto?" answer="Sim. O Nexus tem estrutura de agentes, geração de conteúdo, análise de leads, prompts e apoio para reuniões e propostas." />
+        </div>
+      </section>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:col-span-3 gap-8">
-              <div>
-                <h5 className="font-bold mb-6 text-white uppercase text-[10px] tracking-widest opacity-40">Produto</h5>
-                <ul className="space-y-4 text-sm text-gray-500">
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Recursos</a></li>
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Funcionalidades</a></li>
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Integrações</a></li>
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Planos</a></li>
-                </ul>
-              </div>
-              <div>
-                <h5 className="font-bold mb-6 text-white uppercase text-[10px] tracking-widest opacity-40">Soluções</h5>
-                <ul className="space-y-4 text-sm text-gray-500">
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Agências de Marketing</a></li>
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Consultores</a></li>
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Gestores Comerciais</a></li>
-                  <li className="hover:text-blue-500 transition-colors"><a href="#">Times de Growth</a></li>
-                </ul>
-              </div>
-              <div className="col-span-2 md:col-span-1">
-                <h5 className="font-bold mb-6 text-white uppercase text-[10px] tracking-widest opacity-40">Newsletter</h5>
-                <p className="text-xs text-gray-500 mb-6 leading-relaxed">Receba novidades e conteúdos exclusivos sobre gestão e escala.</p>
-                <div className="relative">
-                  <input 
-                    type="email" 
-                    placeholder="Seu melhor e-mail" 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-600 outline-none transition-all"
-                  />
-                  <button className="absolute right-2 top-2 bottom-2 bg-blue-600 hover:bg-blue-700 px-3 rounded-lg transition-colors">
-                    <ArrowRight size={16} />
-                  </button>
-                </div>
-              </div>
+      <footer className="bg-slate-950 px-5 py-12 text-white lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 md:flex-row md:items-center">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#155EEF] text-white">
+              <Monitor size={20} />
+            </div>
+            <div>
+              <div className="font-black">Nexus360</div>
+              <div className="text-xs text-slate-500">CRM e operação 360 para agências.</div>
             </div>
           </div>
-
-          <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="text-xs text-gray-500 font-medium">© 2024 Nexus360. Todos os direitos reservados.</div>
-            <div className="flex gap-8 text-xs text-gray-500 font-medium">
-              <a href="#" className="hover:text-white transition-colors">Política de Privacidade</a>
-              <a href="#" className="hover:text-white transition-colors">Termos de Uso</a>
-            </div>
+          <div className="flex flex-wrap gap-5 text-sm font-bold text-slate-400">
+            <a href="#recursos" className="hover:text-white">Recursos</a>
+            <a href="#comparativo" className="hover:text-white">Comparativo</a>
+            <a href="#demo" className="hover:text-white">Criar conta</a>
+            <Link to="/login" className="hover:text-white">Entrar</Link>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <ShieldCheck size={16} />
+            Dados seguros e operação centralizada.
           </div>
         </div>
       </footer>
-    </div>
+    </main>
   );
 }

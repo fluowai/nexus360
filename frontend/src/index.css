@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --nexus-primary: #6054F8;
   --nexus-primary-hover: #5146E8;

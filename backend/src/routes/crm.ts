@@ -159,8 +159,7 @@ export function crmRoutes(prisma: PrismaClient) {
 
   // Atualizar lead — IDOR FIXED + SANITIZED
   router.patch("/leads/:id", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    const orgId = req.user!.orgId;
 
     const data = sanitizeBody(req.body, "lead");
 
@@ -191,8 +190,7 @@ export function crmRoutes(prisma: PrismaClient) {
 
   // EXCLUIR LEAD — IDOR FIXED
   router.delete("/leads/:id", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    const orgId = req.user!.orgId;
 
     try {
       const lead = await prisma.lead.findFirst({
@@ -215,8 +213,7 @@ export function crmRoutes(prisma: PrismaClient) {
 
   // Adicionar FollowUp com rastreio de autor
   router.post("/leads/:id/followups", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    const orgId = req.user!.orgId;
 
     const { type, content, scheduledAt } = req.body;
 
@@ -246,9 +243,8 @@ export function crmRoutes(prisma: PrismaClient) {
 
   // Fechar Venda (Win)
   router.post("/leads/:id/win", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
+    const orgId = req.user!.orgId;
     const userId = req.user?.id;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
       // Verificar ownership (IDOR protection)
@@ -299,8 +295,7 @@ export function crmRoutes(prisma: PrismaClient) {
 
   // Listar clientes
   router.get("/clients", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    const orgId = req.user!.orgId;
 
     try {
       const clients = await prisma.client.findMany({
@@ -315,8 +310,7 @@ export function crmRoutes(prisma: PrismaClient) {
 
   // Cadastrar Cliente Manualmente (Raio-X)
   router.post("/clients", async (req: AuthRequest, res, next) => {
-    const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    const orgId = req.user!.orgId;
 
     const data = sanitizeBody(req.body, "client");
     

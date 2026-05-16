@@ -53,6 +53,11 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
 
   jwt.verify(token, getJwtSecret(), (err: any, user: any) => {
     if (err) {
+      console.error("[AUTH_TOKEN_ERROR]", {
+        error: err.name,
+        message: err.message,
+        tokenPrefix: token.substring(0, 10) + "..."
+      });
       // Diferencia entre token expirado e inválido
       if (err.name === "TokenExpiredError") {
         return res.status(401).json({
@@ -60,7 +65,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
           message: "Token expirado. Use o refresh token para obter um novo.",
         });
       }
-      return res.status(403).json({ error: "Token inválido." });
+      return res.status(401).json({ error: "Token inválido." }); // Alterado de 403 para 401 para consistência com o frontend
     }
 
     // Se for Super Admin, permitir trocar o contexto da organização via header

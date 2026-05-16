@@ -498,7 +498,12 @@ export function authRoutes(prisma: PrismaClient) {
           leads: user.organization?._count?.leads || 0,
         },
       });
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[AUTH_ME_ERROR]", {
+        error: error.name,
+        message: error.message,
+        authHeader: req.headers["authorization"] ? "Present" : "Missing"
+      });
       res.status(401).json({ error: "Invalid token" });
     }
   });

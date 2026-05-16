@@ -88,23 +88,45 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
 
   // Send to CRM
   router.post("/leads/:id/send-to-crm", async (req: AuthRequest, res) => {
-    const orgId = req.user?.orgId;
     try {
-      const capturedLead = await prisma.capturedLead.findFirst({
-        where: { id: req.params.id, organizationId: orgId }
+      // 1. Localizar o lead capturado (sem depender exclusivamente do orgId do token, caso seja admin)
+      const capturedLead = await prisma.capturedLead.findUnique({
+        where: { id: req.params.id }
       });
-      if (!capturedLead) return res.status(404).json({ error: "Lead not found" });
 
-      const { boardId, stageId } = req.body;
+      if (!capturedLead) return res.status(404).json({ error: "Lead não encontrado" });
+
+      const targetOrgId = capturedLead.organizationId;
+      let { boardId, stageId } = req.body;
+
+      // 2. Fallback para Pipeline (Board)
+      if (!boardId || boardId === '') {
+        const defaultPipeline = await prisma.pipeline.findFirst({
+          where: { organizationId: targetOrgId },
+          orderBy: { createdAt: 'asc' }
+        });
+        boardId = defaultPipeline?.id;
+      }
+
+      // 3. Fallback para Estágio
+      if (boardId && (!stageId || stageId === '')) {
+        const firstStage = await prisma.pipelineStage.findFirst({
+          where: { pipelineId: boardId },
+          orderBy: { order: 'asc' }
+        });
+        stageId = firstStage?.id;
+      }
+
+      // 4. Criar o Lead no CRM
       const newLead = await prisma.lead.create({
         data: {
           name: capturedLead.businessName,
           email: capturedLead.email || "contato@empresa.com",
           phone: capturedLead.phoneNormalized || capturedLead.phone,
           status: "novo",
-          organizationId: orgId!,
-          pipelineId: boardId,
-          stageId,
+          organizationId: targetOrgId,
+          pipelineId: boardId || undefined,
+          stageId: stageId || undefined,
           cnpj: capturedLead.cnpj,
           owners: capturedLead.owners,
           managementTeam: capturedLead.managementTeam,
@@ -113,14 +135,23 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
         }
       });
 
-      await prisma.capturedLead.update({
+      // 5. Atualizar status da captação
+      const updatedCapturedLead = await prisma.capturedLead.update({
         where: { id: req.params.id },
         data: { sentToCrm: true, crmLeadId: newLead.id }
       });
 
-      res.json(newLead);
+      res.json(updatedCapturedLead); // Retornamos o captured lead atualizado para o frontend manter o estado consistente
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[SEND_TO_CRM_ERROR]", {
+        leadId: req.params.id,
+        error: error.message,
+        stack: error.stack
+      });
+      res.status(500).json({ 
+        error: "Erro ao enviar para o CRM", 
+        details: error.message 
+      });
     }
   });
 

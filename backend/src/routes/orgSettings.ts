@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
+import { assertStrongPassword } from "../utils/security.js";
 
 export function orgSettingsRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -107,7 +108,9 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    const { name, email, role, department } = req.body;
+    const { name, email, role, department, password } = req.body;
+    const passwordError = assertStrongPassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     // Prevenção de Escalabilidade de Privilégios
     if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
@@ -122,10 +125,11 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
           role: role || 'USER',
           department: department || 'GERAL',
           organizationId: orgId,
-          password: await bcrypt.hash('nexus123', 10)
+          password: await bcrypt.hash(password, 10)
         }
       });
-      res.json(user);
+      const { password: _password, ...safeUser } = user;
+      res.json(safeUser);
     } catch (error) {
       console.error(error);
       res.status(500).json({ error: "Failed to create team member" });
@@ -141,6 +145,10 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     }
 
     const { name, email, role, department, password, status } = req.body;
+    if (password && password.trim() !== "") {
+      const passwordError = assertStrongPassword(password);
+      if (passwordError) return res.status(400).json({ error: passwordError });
+    }
 
     // Prevenção de Escalabilidade de Privilégios
     if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {

@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "motion/react";
 
 // Components
 import { Sidebar } from "./components/sidebar/Sidebar";
-import { apiFetch } from "./lib/api";
+import { apiFetch, clearAuthSession, hasAccessToken } from "./lib/api";
 import ErrorBoundary from "./components/ErrorBoundary";
 
 // Only eagerly load Dashboard (most visited page)
@@ -94,7 +94,7 @@ const Layout = ({
   useEffect(() => {
     if (authLoading) return;
 
-    const token = localStorage.getItem('nexus_token');
+    const token = hasAccessToken();
     const onboardingDone = localStorage.getItem('nexus_onboarding_done') === 'true';
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const isLoginPath = location.pathname === '/login';
@@ -234,18 +234,12 @@ export default function App() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem('nexus_token');
-      if (!token) {
-        setAuthLoading(false);
-        return;
-      }
-
       try {
         const res = await apiFetch('/api/auth/me');
+        if (!res.ok) throw new Error("Invalid session");
         const data = await res.json();
         setUser(data);
       } catch (error) {
-        console.error("[Auth] Session validation error:", error);
         setUser(null);
       } finally {
         setAuthLoading(false);
@@ -255,14 +249,8 @@ export default function App() {
   }, []);
 
   const handleLogout = () => {
-    const refreshToken = localStorage.getItem('nexus_refresh_token');
-    // Revogar refresh token no servidor (fire-and-forget)
-    if (refreshToken) {
-      apiFetch('/api/auth/logout', {
-        method: 'POST',
-        body: JSON.stringify({ refreshToken }),
-      }).catch(() => {});
-    }
+    apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    clearAuthSession();
     localStorage.clear();
     window.location.href = '/login';
   };

@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { addDomainToVercel, addDomainToDirectAdmin } from "../utils/domainManager.js";
 import bcrypt from "bcryptjs";
+import { assertStrongPassword } from "../utils/security.js";
 
 export function adminRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -93,6 +94,8 @@ export function adminRoutes(prisma: PrismaClient) {
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { name, domain, plan, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess } = req.body;
+    const adminPasswordError = assertStrongPassword(adminPassword);
+    if (adminPasswordError) return res.status(400).json({ error: adminPasswordError });
     
     if (!adminEmail || !adminPassword) {
       return res.status(400).json({ error: "E-mail e Senha do administrador são obrigatórios" });
@@ -146,6 +149,10 @@ export function adminRoutes(prisma: PrismaClient) {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { id } = req.params;
     const { name, domain, plan, planId, slug, adminEmail, password, isTestAccount, betaAccess } = req.body;
+    if (password && password.trim() !== "") {
+      const passwordError = assertStrongPassword(password);
+      if (passwordError) return res.status(400).json({ error: passwordError });
+    }
     
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -236,7 +243,17 @@ export function adminRoutes(prisma: PrismaClient) {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     try {
       const users = await prisma.user.findMany({
-        include: { organization: { select: { name: true } } },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          permissions: true,
+          organizationId: true,
+          createdAt: true,
+          organization: { select: { name: true } },
+        },
         orderBy: { createdAt: 'desc' }
       });
       res.json(users);
@@ -249,6 +266,10 @@ export function adminRoutes(prisma: PrismaClient) {
   router.patch("/users/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { name, email, role, password, status, permissions, organizationId } = req.body;
+    if (password) {
+      const passwordError = assertStrongPassword(password);
+      if (passwordError) return res.status(400).json({ error: passwordError });
+    }
     
     try {
       const data: any = { name, email, role, status, permissions, organizationId };
@@ -260,7 +281,8 @@ export function adminRoutes(prisma: PrismaClient) {
         where: { id: req.params.id },
         data
       });
-      res.json(user);
+      const { password: _password, ...safeUser } = user;
+      res.json(safeUser);
     } catch (error) {
       res.status(500).json({ error: "Failed to update user" });
     }
@@ -303,12 +325,14 @@ export function adminRoutes(prisma: PrismaClient) {
   router.post("/users", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { name, email, role, password } = req.body;
+    const passwordError = assertStrongPassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
     
     try {
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) return res.status(400).json({ error: "E-mail já está em uso." });
 
-      const hashedPassword = await bcrypt.hash(password || 'nexus123', 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({
         data: {
           name,
@@ -318,7 +342,8 @@ export function adminRoutes(prisma: PrismaClient) {
           status: 'ACTIVE'
         }
       });
-      res.status(201).json(user);
+      const { password: _password, ...safeUser } = user;
+      res.status(201).json(safeUser);
     } catch (error) {
       console.error("[ADMIN_USER_POST]", error);
       res.status(500).json({ error: "Failed to create system user" });

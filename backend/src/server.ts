@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit";
 import { prisma } from "./lib/prisma.js";
 import { authenticateToken } from "./middleware/auth.js";
 import { resolveTenant } from "./middleware/tenant.js";
+import { sanitizeStoredHtml } from "./utils/security.js";
 
 // Import Rotas
 import { authRoutes } from "./routes/auth.js";
@@ -46,6 +47,7 @@ import { billingRoutes } from "./routes/billing.js";
 import { snapshotRoutes } from "./routes/snapshots.js";
 import { usageRoutes } from "./routes/usage.js";
 import { proposalRoutes } from "./routes/proposals.js";
+import { privacyRoutes } from "./routes/privacy.js";
 
 const app = express();
 
@@ -54,7 +56,9 @@ app.set('trust proxy', 1);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
 });
 
 // Middlewares Globais de Segurança e Utilidade
@@ -76,7 +80,25 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json({ limit: '5mb' }));
-app.use(helmet({ contentSecurityPolicy: false }));
+app.disable("x-powered-by");
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "https:", "wss:"],
+      mediaSrc: ["'self'", "blob:", "data:"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
 
 // ==================== ROTAS PÚBLICAS ====================
 
@@ -97,7 +119,8 @@ app.get("/lp/:slug", async (req, res) => {
     const page = await prisma.landingPage.findUnique({ where: { slug: req.params.slug } });
     if (!page || !page.content) return res.status(404).send("<h1>Página não encontrada</h1>");
     await prisma.landingPage.update({ where: { id: page.id }, data: { views: { increment: 1 } } });
-    res.setHeader('Content-Type', 'text/html; charset=utf-8').send(page.content);
+    res.setHeader('Content-Security-Policy', "default-src 'self' https: data:; script-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src https: data:; connect-src 'none'");
+    res.setHeader('Content-Type', 'text/html; charset=utf-8').send(sanitizeStoredHtml(page.content));
   } catch (error) {
     res.status(500).send("<h1>Erro interno</h1>");
   }
@@ -182,6 +205,7 @@ const protectedRoutes = [
   { path: "/api/snapshots", router: snapshotRoutes },
   { path: "/api/usage", router: usageRoutes },
   { path: "/api/proposals", router: proposalRoutes },
+  { path: "/api/privacy", router: privacyRoutes },
 ];
 
 protectedRoutes.forEach(route => {

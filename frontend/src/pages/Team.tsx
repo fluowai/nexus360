@@ -95,7 +95,7 @@ export default function Team() {
           body: JSON.stringify({
             name: memberForm.name,
             email: memberForm.email,
-            password: memberForm.password || 'nexus123',
+            password: memberForm.password,
             role: memberForm.role,
             accessProfileId: memberForm.accessProfileId || null
           })
@@ -319,8 +319,8 @@ export default function Team() {
               </div>
               {!memberForm.id && (
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700">Senha (padrão: nexus123)</label>
-                  <input type="password" placeholder="nexus123" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.password} onChange={e => setMemberForm({...memberForm, password: e.target.value})} />
+                  <label className="text-sm font-bold text-gray-700">Senha temporária forte</label>
+                  <input type="password" placeholder="Mínimo 10 caracteres, com maiúscula, minúscula e número" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.password} onChange={e => setMemberForm({...memberForm, password: e.target.value})} />
                 </div>
               )}
               <div className="space-y-2">

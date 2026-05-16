@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
+import { assertStrongPassword } from "../utils/security.js";
 
 export function teamRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -42,6 +43,8 @@ export function teamRoutes(prisma: PrismaClient) {
     }
 
     let { name, email, password, role, permissions, accessProfileId } = req.body;
+    const passwordError = assertStrongPassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     // Prevenção de Escalabilidade de Privilégios
     if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
@@ -66,7 +69,8 @@ export function teamRoutes(prisma: PrismaClient) {
         }
       });
 
-      res.status(201).json(user);
+      const { password: _password, ...safeUser } = user;
+      res.status(201).json(safeUser);
     } catch (error) {
       res.status(500).json({ error: "Falha ao criar membro." });
     }
@@ -103,7 +107,8 @@ export function teamRoutes(prisma: PrismaClient) {
         }
       });
 
-      res.json(updatedUser);
+      const { password: _password, ...safeUser } = updatedUser;
+      res.json(safeUser);
     } catch (error) {
       res.status(500).json({ error: "Falha ao atualizar permissões." });
     }

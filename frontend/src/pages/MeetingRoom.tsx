@@ -111,6 +111,8 @@ export default function MeetingRoom() {
         body: JSON.stringify({
           roomName: `nexus-360-${roomName}`,
           participantName: participantInfo.name,
+          email: participantInfo.email,
+          code: participantInfo.code,
         })
       });
       

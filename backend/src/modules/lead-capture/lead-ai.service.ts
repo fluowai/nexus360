@@ -144,7 +144,6 @@ export class LeadAiService {
 
   async generateDossier(leadId: string, orgId: string) {
     const groq = await this.getGroqClient(orgId);
-    
     // Fetch lead and organization details
     const [lead, org] = await Promise.all([
       this.prisma.capturedLead.findFirst({ where: { id: leadId, organizationId: orgId } }),
@@ -210,54 +209,149 @@ export class LeadAiService {
 
     if (!serperApiKey) throw new Error("Serper API Key not configured for this organization or environment.");
 
-    // 2. Perform a deep search for CNPJ and Owners
-    const searchQuery = `${lead.businessName} ${lead.city} ${lead.state} CNPJ socios quadro societario`;
-    
     try {
-      const searchRes = await axios.post('https://google.serper.dev/search', {
-        q: searchQuery,
-        gl: 'br',
-        hl: 'pt-br'
-      }, {
-        headers: { 'X-API-KEY': serperApiKey }
-      });
+      const cnpj = this.cleanCnpj(lead.cnpj) || await this.findCnpjWithSearch(groq, serperApiKey, lead);
+      const registry = cnpj ? await this.fetchCnpjRegistry(cnpj) : null;
 
-      const searchData = JSON.stringify(searchRes.data);
+      if (cnpj && registry && !this.matchesLeadLocation(registry, lead)) {
+        return await this.prisma.capturedLead.update({
+          where: { id: leadId },
+          data: {
+            cnpj: this.formatCnpj(cnpj),
+            owners: null,
+            notes: this.appendNote(
+              lead.notes,
+              "Enriquecimento: CNPJ encontrado, mas o QSA nao foi usado porque municipio/UF nao conferem com o lead capturado."
+            )
+          }
+        });
+      }
 
-      // 3. Use AI to extract information from search results
-      const prompt = `
-        Abaixo estão os resultados de uma busca no Google sobre a empresa "${lead.businessName}".
-        Extraia o CNPJ e os NOMES DOS SÓCIOS se estiverem presentes nos textos.
-
-        Resultados da Busca:
-        ${searchData.substring(0, 5000)} // Limit to 5k chars for prompt efficiency
-
-        Responda EXCLUSIVAMENTE em JSON:
-        {
-          "cnpj": "string ou null",
-          "owners": "string ou null"
-        }
-      `;
-
-      const chatCompletion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
-      });
-
-      const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+      const owners = registry?.partners?.length
+        ? registry.partners.map((partner: any) => partner.role ? `${partner.name} (${partner.role})` : partner.name).join(", ")
+        : null;
 
       return await this.prisma.capturedLead.update({
         where: { id: leadId },
         data: {
-          cnpj: result.cnpj,
-          owners: result.owners
+          cnpj: cnpj ? this.formatCnpj(cnpj) : lead.cnpj,
+          owners
         }
       });
     } catch (err: any) {
       console.error("[ENRICH_LEAD_ERROR]", err.message);
       throw err;
     }
+  }
+
+  private async findCnpjWithSearch(groq: Groq, serperApiKey: string, lead: any): Promise<string | null> {
+    const searchQuery = `${lead.businessName} ${lead.city || ""} ${lead.state || ""} CNPJ`;
+    const searchRes = await axios.post('https://google.serper.dev/search', {
+      q: searchQuery,
+      gl: 'br',
+      hl: 'pt-br'
+    }, {
+      headers: { 'X-API-KEY': serperApiKey }
+    });
+
+    const searchData = JSON.stringify(searchRes.data);
+    const prompt = `
+      Abaixo estao resultados de busca sobre a empresa "${lead.businessName}" em "${lead.city || ""}/${lead.state || ""}".
+      Extraia APENAS o CNPJ mais provavel da empresa dessa cidade. Nao extraia socios.
+      Se os resultados misturarem empresas homonimas de outra cidade/UF, retorne null.
+
+      Resultados:
+      ${searchData.substring(0, 5000)}
+
+      Responda exclusivamente em JSON:
+      { "cnpj": "string ou null" }
+    `;
+
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [{ role: "user", content: prompt }],
+      model: "llama-3.3-70b-versatile",
+      response_format: { type: "json_object" }
+    });
+
+    const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+    return this.cleanCnpj(result.cnpj);
+  }
+
+  private async fetchCnpjRegistry(cnpj: string) {
+    const clean = this.cleanCnpj(cnpj);
+    if (!clean) return null;
+
+    const providers = [
+      () => axios.get(`https://brasilapi.com.br/api/cnpj/v1/${clean}`, { timeout: 10000 }),
+      () => axios.get(`https://minhareceita.org/${clean}`, { timeout: 10000 }),
+      () => axios.get(`https://api.muac.com.br/cnpj/${clean}`, {
+        timeout: 10000,
+        headers: process.env.MUAC_API_KEY ? { Authorization: `Bearer ${process.env.MUAC_API_KEY}` } : undefined
+      })
+    ];
+
+    for (const provider of providers) {
+      try {
+        const { data } = await provider();
+        const registry = this.normalizeCnpjRegistry(data);
+        if (registry) return registry;
+      } catch (err: any) {
+        console.warn("[CNPJ_REGISTRY_LOOKUP_FAILED]", err?.response?.status || err.message);
+      }
+    }
+
+    return null;
+  }
+
+  private normalizeCnpjRegistry(data: any) {
+    const partners = (data?.qsa || data?.quadro_societario || [])
+      .map((partner: any) => ({
+        name: partner.nome_socio || partner.nome || partner.nome_socio_razao_social,
+        role: partner.qualificacao_socio || partner.qualificacao || partner.qualificacao_representante_legal
+      }))
+      .filter((partner: any) => partner.name);
+
+    return {
+      legalName: data?.razao_social || data?.identificacao?.razao_social,
+      tradeName: data?.nome_fantasia || data?.identificacao?.nome_fantasia,
+      city: data?.municipio || data?.localizacao?.municipio,
+      state: data?.uf || data?.localizacao?.uf,
+      partners
+    };
+  }
+
+  private matchesLeadLocation(registry: any, lead: any): boolean {
+    const leadState = this.normalizeText(lead.state);
+    const registryState = this.normalizeText(registry.state);
+    const leadCity = this.normalizeText(lead.city);
+    const registryCity = this.normalizeText(registry.city);
+
+    if (leadState && registryState && leadState !== registryState) return false;
+    if (leadCity && registryCity && leadCity !== registryCity) return false;
+
+    return true;
+  }
+
+  private appendNote(existing: string | null | undefined, note: string): string {
+    return [existing, note].filter(Boolean).join("\n\n");
+  }
+
+  private cleanCnpj(cnpj?: string | null): string | null {
+    const digits = String(cnpj || "").replace(/\D/g, "");
+    return digits.length === 14 ? digits : null;
+  }
+
+  private formatCnpj(cnpj: string): string {
+    const digits = this.cleanCnpj(cnpj) || cnpj;
+    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  }
+
+  private normalizeText(value?: string | null): string {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase();
   }
 
   async researchManagement(leadId: string, orgId: string) {

@@ -234,6 +234,18 @@ export default function App() {
 
   useEffect(() => {
     const fetchUser = async () => {
+      const publicPaths = ['/login', '/onboarding', '/site'];
+      const isPublicPath =
+        publicPaths.includes(window.location.pathname) ||
+        window.location.pathname.startsWith('/meet') ||
+        window.location.pathname.startsWith('/p/') ||
+        window.location.pathname.startsWith('/client-portal');
+
+      if (isPublicPath && !hasAccessToken()) {
+        setAuthLoading(false);
+        return;
+      }
+
       try {
         const res = await apiFetch('/api/auth/me');
         if (!res.ok) throw new Error("Invalid session");
@@ -241,6 +253,10 @@ export default function App() {
         setUser(data);
       } catch (error) {
         setUser(null);
+        clearAuthSession();
+        if (!isPublicPath && window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
       } finally {
         setAuthLoading(false);
       }

@@ -540,6 +540,14 @@ export function authRoutes(prisma: PrismaClient) {
         message: error.message,
         authHeader: req.headers["authorization"] ? "Present" : "Missing"
       });
+
+      if (error.name === "TokenExpiredError") {
+        return res.status(401).json({
+          error: "TOKEN_EXPIRED",
+          message: "Token expirado. Use o refresh token para obter um novo.",
+        });
+      }
+
       res.status(401).json({ error: "Invalid token" });
     }
   });

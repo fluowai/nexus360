@@ -115,7 +115,7 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
-      } else if (!path.includes('/api/auth/me') && !path.includes('/api/auth/refresh')) {
+      } else if (!path.includes('/api/auth/refresh')) {
         clearAuthSession();
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';

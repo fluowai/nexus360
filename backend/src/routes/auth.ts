@@ -200,7 +200,8 @@ export function authRoutes(prisma: PrismaClient) {
       return res.status(500).json({
         success: false,
         error: "Erro interno no servidor",
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: error.message, // Liberado temporariamente para debug
+        stack: error.stack
       });
     }
   });

@@ -50,6 +50,70 @@ export default function PromptArchitect() {
   const [suggestedServices, setSuggestedServices] = useState<string[]>([]);
   const [resultPrompt, setResultPrompt] = useState<string | null>(null);
 
+  // Estados de Criação e Hospedagem de Site com IA
+  const [isCreatingSite, setIsCreatingSite] = useState(false);
+  const [siteCreationMessage, setSiteCreationMessage] = useState('');
+  const [generatedSite, setGeneratedSite] = useState<{ id: string; slug: string; url: string } | null>(null);
+  const [siteError, setSiteError] = useState<string | null>(null);
+
+  const handleCreateSite = async () => {
+    setIsCreatingSite(true);
+    setSiteError(null);
+    
+    const messages = [
+      "Desenhando a identidade visual da sua marca...",
+      "Estruturando dobras estratégicas de alta conversão...",
+      "Escrevendo copywriting persuasivo com Inteligência Artificial...",
+      "Estilizando layout corporativo moderno...",
+      "Publicando a página nos servidores seguros do Nexus360..."
+    ];
+    
+    let currentMsgIdx = 0;
+    setSiteCreationMessage(messages[0]);
+    const msgInterval = setInterval(() => {
+      currentMsgIdx = (currentMsgIdx + 1) % messages.length;
+      setSiteCreationMessage(messages[currentMsgIdx]);
+    }, 2500);
+
+    try {
+      const res = await apiFetch('/api/marketing/generate-lp-ia', {
+        method: 'POST',
+        body: JSON.stringify({
+          companyName: formData.projectName,
+          description: `${formData.niche} - ${formData.objective}`,
+          targetAudience: formData.targetAudience,
+          goal: formData.objective || `Geração de leads no nicho ${formData.niche}`,
+          ctaText: 'Falar com Especialista',
+          colorPrimary: '#2563eb',
+          colorSecondary: '#1e40af',
+          tone: formData.tone,
+          sectionsCount: formData.pageSections || 6,
+          services: formData.selectedServices.join(", ") || formData.structure.join(", ")
+        })
+      });
+
+      clearInterval(msgInterval);
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Falha na criação do site");
+      }
+
+      const data = await res.json();
+      setGeneratedSite({
+        id: data.pageId,
+        slug: data.slug,
+        url: data.url
+      });
+    } catch (err: any) {
+      clearInterval(msgInterval);
+      console.error(err);
+      setSiteError(err.message || "Não foi possível gerar e hospedar o site no momento.");
+    } finally {
+      setIsCreatingSite(false);
+    }
+  };
+
   // Estados do Formulário
   const [formData, setFormData] = useState({
     projectName: '',
@@ -223,49 +287,159 @@ export default function PromptArchitect() {
 
         {step === 7 && !isGenerating && resultPrompt && (
           <div className="flex-1 space-y-8 animate-in zoom-in-95 duration-500">
-             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-3xl font-black text-gray-900 leading-tight">Prompt Master Pronto!</h2>
-                  <p className="text-gray-500">Copie ou baixe o Markdown para usar em sua ferramenta de desenvolvimento.</p>
+            {isCreatingSite ? (
+              <div className="flex-1 flex flex-col items-center justify-center space-y-6 py-20">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-blue-500 blur-3xl opacity-20 animate-pulse"></div>
+                  <Loader2 size={64} className="text-blue-600 animate-spin relative z-10" />
                 </div>
-                <div className="flex gap-2">
+                <div className="text-center space-y-2 animate-pulse">
+                  <h3 className="text-2xl font-black text-gray-900">IA Criando e Hospedando seu Site...</h3>
+                  <p className="text-gray-500 font-medium">{siteCreationMessage}</p>
+                </div>
+              </div>
+            ) : generatedSite ? (
+              <div className="space-y-8 animate-in zoom-in-95 duration-500">
+                <div className="text-center space-y-2">
+                  <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto border border-green-200">
+                    <CheckCircle2 size={32} />
+                  </div>
+                  <h2 className="text-3xl font-black text-gray-900 leading-tight">Site Criado e Hospedado!</h2>
+                  <p className="text-gray-500 max-w-lg mx-auto font-medium">
+                    Sua Landing Page foi construída de forma estratégica e já está publicada nos servidores do Nexus360.
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-100 p-6 rounded-[2rem] flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="space-y-1 text-center md:text-left">
+                    <span className="inline-block px-2.5 py-0.5 bg-green-50 border border-green-200 text-green-600 text-[10px] font-black rounded-full uppercase tracking-wider">ONLINE & HOSPEDADO</span>
+                    <h4 className="font-bold text-gray-900 text-sm mt-1.5">{formData.projectName}</h4>
+                    <p className="text-xs text-gray-400 font-mono">/lp/{generatedSite.slug}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => window.open(generatedSite.url, '_blank')}
+                      className="flex items-center gap-2 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-all shadow-md cursor-pointer"
+                    >
+                      <Globe size={16} />
+                      Visitar Site
+                    </button>
+                    <button 
+                      onClick={() => window.location.href = '/marketing/landing-pages'}
+                      className="flex items-center gap-2 px-6 py-3.5 bg-gray-900 hover:bg-black text-white font-bold text-sm rounded-xl transition-all shadow-md cursor-pointer"
+                    >
+                      <Layout size={16} />
+                      Ir para Construtor
+                    </button>
+                  </div>
+                </div>
+
+                {/* Iframe Preview */}
+                <div className="space-y-3">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-widest ml-1">Visualização do Site no Ar</label>
+                  <div className="border border-gray-200 rounded-[2.5rem] overflow-hidden shadow-2xl bg-white relative">
+                    <div className="h-10 bg-gray-100 border-b border-gray-200 flex items-center px-4 gap-2">
+                      <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                      <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                      <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                      <div className="flex-1 bg-white mx-10 rounded text-[10px] text-gray-400 py-1 text-center font-mono truncate">
+                        https://nexus360.consultio.com.br/lp/{generatedSite.slug}
+                      </div>
+                    </div>
+                    <iframe 
+                      src={`/lp/${generatedSite.slug}`}
+                      className="w-full h-[550px] border-none"
+                      title="Preview da Landing Page"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-center pt-4">
                   <button 
                     onClick={() => {
-                      navigator.clipboard.writeText(resultPrompt);
-                      alert("Copiado!");
+                      setGeneratedSite(null);
+                      setStep(0);
                     }}
-                    className="p-4 bg-gray-900 text-white rounded-2xl hover:bg-black transition-all shadow-lg"
+                    className="px-10 py-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-all shadow-sm cursor-pointer"
                   >
-                    <Copy size={20} />
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const element = document.createElement("a");
-                      const file = new Blob([resultPrompt], {type: 'text/markdown'});
-                      element.href = URL.createObjectURL(file);
-                      element.download = `prompt-master-${formData.projectName}.md`;
-                      document.body.appendChild(element);
-                      element.click();
-                    }}
-                    className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg"
-                  >
-                    <Download size={20} />
+                    Criar Novo Prompt
                   </button>
                 </div>
-             </div>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {/* Banner de Hospedagem em 1-Clique */}
+                {(selectedType === 'lp' || selectedType === 'site' || selectedType === 'sales') && (
+                  <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 rounded-[2rem] text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden border border-white/10">
+                    <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+                    <div className="space-y-2 max-w-xl">
+                      <span className="inline-block px-3 py-1 bg-white/20 text-white text-[10px] font-black rounded-full uppercase tracking-wider">Hospedagem Nexus360</span>
+                      <h3 className="text-2xl font-black tracking-tight">Hospedar e Publicar este Site no Nexus360!</h3>
+                      <p className="text-sm text-blue-100 leading-relaxed font-medium">
+                        Em vez de copiar o prompt, nossa IA integrada pode escrever todo o copywriting persuasivo, gerar o código estruturado da Landing Page e publicá-la automaticamente em 1-Clique nos seus servidores seguros!
+                      </p>
+                      {siteError && (
+                        <div className="flex items-center gap-2 text-red-200 text-xs font-bold mt-2 bg-red-950/20 px-3 py-1.5 rounded-lg border border-red-500/20">
+                          <AlertCircle size={14} />
+                          <span>{siteError}</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleCreateSite}
+                      className="flex items-center gap-3 px-8 py-5 bg-white text-blue-600 hover:text-blue-700 font-black rounded-2xl hover:bg-blue-50 transition-all shadow-xl hover:scale-[1.03] active:scale-[0.98] shrink-0 cursor-pointer"
+                    >
+                      <Sparkles size={20} className="fill-blue-600 animate-pulse" />
+                      Criar e Hospedar Site
+                    </button>
+                  </div>
+                )}
 
-             <div className="bg-gray-50 rounded-[2rem] border border-gray-200 p-8 font-mono text-sm leading-relaxed overflow-y-auto max-h-[500px] whitespace-pre-wrap text-gray-800">
-                {resultPrompt}
-             </div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-3xl font-black text-gray-900 leading-tight">Prompt Master Pronto!</h2>
+                    <p className="text-gray-500">Copie ou baixe o Markdown para usar em sua ferramenta de desenvolvimento.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(resultPrompt);
+                        alert("Copiado!");
+                      }}
+                      className="p-4 bg-gray-900 text-white rounded-2xl hover:bg-black transition-all shadow-lg cursor-pointer"
+                    >
+                      <Copy size={20} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const element = document.createElement("a");
+                        const file = new Blob([resultPrompt], {type: 'text/markdown'});
+                        element.href = URL.createObjectURL(file);
+                        element.download = `prompt-master-${formData.projectName}.md`;
+                        document.body.appendChild(element);
+                        element.click();
+                      }}
+                      className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg cursor-pointer"
+                    >
+                      <Download size={20} />
+                    </button>
+                  </div>
+                </div>
 
-             <div className="flex justify-center pt-4">
-                <button 
-                  onClick={() => setStep(0)}
-                  className="px-10 py-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-all"
-                >
-                  Criar Novo Prompt
-                </button>
-             </div>
+                <div className="bg-gray-50 rounded-[2rem] border border-gray-200 p-8 font-mono text-sm leading-relaxed overflow-y-auto max-h-[500px] whitespace-pre-wrap text-gray-800">
+                  {resultPrompt}
+                </div>
+
+                <div className="flex justify-center pt-4">
+                  <button 
+                    onClick={() => setStep(0)}
+                    className="px-10 py-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-2xl hover:bg-gray-50 transition-all cursor-pointer"
+                  >
+                    Criar Novo Prompt
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

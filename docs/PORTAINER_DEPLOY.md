@@ -45,6 +45,8 @@ VITE_API_URL=same-origin
 
 Se for usar banco externo, defina `DATABASE_URL` e `DIRECT_URL` na Stack. Se usar o Postgres interno, deixe a stack montar as URLs automaticamente a partir de `POSTGRES_DB`, `POSTGRES_USER` e `POSTGRES_PASSWORD`.
 
+O servico `api` tambem recebe o alias interno `backend` na rede `nexus360_internal`, porque o Nginx do frontend encaminha chamadas internas para `http://backend:10000`.
+
 ## Depois do primeiro deploy
 
 Depois que o banco já estiver criado e semeado, você pode mudar:

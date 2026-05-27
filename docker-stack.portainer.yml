@@ -36,8 +36,8 @@ services:
   api:
     image: ghcr.io/fluowai/nexus360-api:latest
     command: >
-      sh -c 'if [ "${RUN_DB_PUSH:-true}" = "true" ]; then npx prisma db push; fi;
-      if [ "${RUN_SEED:-true}" = "true" ]; then node prisma/seed.js; fi;
+      sh -c 'if [ "$${RUN_DB_PUSH:-true}" = "true" ]; then npx prisma db push; fi;
+      if [ "$${RUN_SEED:-true}" = "true" ]; then node prisma/seed.js; fi;
       npm run start'
     environment:
       NODE_ENV: production
@@ -75,8 +75,10 @@ services:
       ASAAS_WEBHOOK_SECRET: "${ASAAS_WEBHOOK_SECRET:-}"
       STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
     networks:
-      - consultio1
-      - nexus360_internal
+      consultio1:
+      nexus360_internal:
+        aliases:
+          - backend
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:10000/api/health >/dev/null 2>&1 || exit 1"]
       interval: 30s

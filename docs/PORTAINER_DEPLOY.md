@@ -45,9 +45,9 @@ VITE_API_URL=same-origin
 
 Se for usar banco externo, defina `DATABASE_URL` e `DIRECT_URL` na Stack. Se usar o Postgres interno, deixe a stack montar as URLs automaticamente a partir de `POSTGRES_DB`, `POSTGRES_USER` e `POSTGRES_PASSWORD`.
 
-O servico `api` tambem recebe o alias interno `backend` na rede `nexus360_internal`, porque o Nginx do frontend encaminha chamadas internas para `http://backend:10000`.
+O servico `api` tambem recebe o alias interno `backend` na rede `nexus360_internal`, mas em producao quem encaminha `/api` e `/lp` e o Traefik.
 
-O frontend tambem sobrescreve o comando de start para gerar a configuracao Nginx em runtime. Isso evita falha por CMD antigo em cache ou imagem `latest` ainda nao atualizada.
+O frontend sobrescreve o comando de start para gerar uma configuracao Nginx simples em runtime. Ele serve apenas a SPA; as rotas `/api` e `/lp` sao publicadas diretamente pelo Traefik para a API.
 
 ## Depois do primeiro deploy
 

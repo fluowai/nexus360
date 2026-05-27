@@ -28,7 +28,8 @@ import {
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
+const rawApiUrl = import.meta.env.VITE_API_URL || '';
+const API_URL = rawApiUrl === 'same-origin' ? '' : rawApiUrl;
 
 interface LandingPage {
   id: string;

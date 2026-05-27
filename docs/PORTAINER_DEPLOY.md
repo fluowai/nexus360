@@ -58,6 +58,8 @@ RUN_DB_PUSH=false
 RUN_SEED=false
 ```
 
+Enquanto o primeiro deploy nao passar sem erros, mantenha `RUN_DB_PUSH=true`. A API usa `set -e` no bootstrap para parar o container se o schema Prisma nao conseguir ser aplicado; isso evita backend online com banco incompleto retornando 500 no login.
+
 Assim os próximos restarts não tentam sincronizar schema e seed de novo.
 
 ## Verificações

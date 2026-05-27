@@ -1,6 +1,12 @@
 /// <reference types="vite/client" />
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000';
+const PRODUCTION_API_URL = 'https://nexus360-production.up.railway.app';
+const rawApiUrl = import.meta.env.VITE_API_URL || '';
+const normalizedApiUrl = rawApiUrl === 'same-origin' ? '' : rawApiUrl;
+
+const API_URL = normalizedApiUrl.includes('woomobzy-production.up.railway.app')
+  ? PRODUCTION_API_URL
+  : normalizedApiUrl;
 const ACCESS_TOKEN_KEY = 'nexus_access_token';
 
 let isRefreshing = false;

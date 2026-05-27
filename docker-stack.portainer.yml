@@ -1,0 +1,136 @@
+services:
+  frontend:
+    image: ghcr.io/fluowai/nexus360-frontend:latest
+    environment:
+      VITE_API_URL: "same-origin"
+      VITE_LIVEKIT_URL: ""
+      VITE_PANEL_URL: "https://nexus360.consultio.com.br"
+    networks:
+      - consultio1
+      - nexus360_internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      update_config:
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=consultio1"
+        - "traefik.http.routers.nexus360_frontend.rule=Host(`nexus360.consultio.com.br`)"
+        - "traefik.http.routers.nexus360_frontend.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_frontend.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_frontend.priority=1"
+        - "traefik.http.routers.nexus360_frontend.service=nexus360_frontend"
+        - "traefik.http.services.nexus360_frontend.loadbalancer.server.port=80"
+
+  api:
+    image: ghcr.io/fluowai/nexus360-api:latest
+    command: >
+      sh -c 'if [ "${RUN_DB_PUSH:-true}" = "true" ]; then npx prisma db push; fi;
+      if [ "${RUN_SEED:-true}" = "true" ]; then node prisma/seed.js; fi;
+      npm run start'
+    environment:
+      NODE_ENV: production
+      PORT: 10000
+      FRONTEND_URL: "https://nexus360.consultio.com.br"
+      CORS_ORIGINS: "https://nexus360.consultio.com.br"
+      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-nexus360}:${POSTGRES_PASSWORD:-troque_por_uma_senha_forte}@postgres:5432/${POSTGRES_DB:-nexus360}?schema=public}"
+      DIRECT_URL: "${DIRECT_URL:-postgresql://${POSTGRES_USER:-nexus360}:${POSTGRES_PASSWORD:-troque_por_uma_senha_forte}@postgres:5432/${POSTGRES_DB:-nexus360}?schema=public}"
+      JWT_SECRET: "${JWT_SECRET:-troque_por_um_segredo_longo_com_32_chars_ou_mais}"
+      SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@nexus360.com}"
+      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD:-Admin@2024!}"
+      RUN_DB_PUSH: "${RUN_DB_PUSH:-true}"
+      RUN_SEED: "${RUN_SEED:-true}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      SERPER_API_KEY: "${SERPER_API_KEY:-}"
+      SERPAPI_API_KEY: "${SERPAPI_API_KEY:-}"
+      SERP_API_KEY: "${SERP_API_KEY:-}"
+      OUTSCRAPER_API_KEY: "${OUTSCRAPER_API_KEY:-}"
+      OUTSCRAPER_KEY: "${OUTSCRAPER_KEY:-}"
+      MUAC_API_KEY: "${MUAC_API_KEY:-}"
+      TOGETHER_API_KEY: "${TOGETHER_API_KEY:-}"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-}"
+      LIVEKIT_URL: "${LIVEKIT_URL:-}"
+      VERCEL_API_TOKEN: "${VERCEL_API_TOKEN:-}"
+      VERCEL_TOKEN: "${VERCEL_TOKEN:-}"
+      VERCEL_PROJECT_ID: "${VERCEL_PROJECT_ID:-}"
+      VERCEL_TEAM_ID: "${VERCEL_TEAM_ID:-}"
+      DIRECT_ADMIN_URL: "${DIRECT_ADMIN_URL:-}"
+      DIRECT_ADMIN_USER: "${DIRECT_ADMIN_USER:-}"
+      DIRECT_ADMIN_API_KEY: "${DIRECT_ADMIN_API_KEY:-}"
+      WHM_MAIN_DOMAIN: "${WHM_MAIN_DOMAIN:-consultio.com.br}"
+      BILLING_WEBHOOK_SECRET: "${BILLING_WEBHOOK_SECRET:-}"
+      ASAAS_WEBHOOK_SECRET: "${ASAAS_WEBHOOK_SECRET:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+    networks:
+      - consultio1
+      - nexus360_internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:10000/api/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      update_config:
+        order: start-first
+        failure_action: rollback
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=consultio1"
+        - "traefik.http.routers.nexus360_api.rule=Host(`nexus360.consultio.com.br`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
+        - "traefik.http.routers.nexus360_api.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_api.priority=10"
+        - "traefik.http.routers.nexus360_api.service=nexus360_api"
+        - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:-nexus360}"
+      POSTGRES_USER: "${POSTGRES_USER:-nexus360}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-troque_por_uma_senha_forte}"
+    volumes:
+      - nexus360_postgres_data:/var/lib/postgresql/data
+    networks:
+      - nexus360_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexus360} -d ${POSTGRES_DB:-nexus360}"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
+volumes:
+  nexus360_postgres_data:
+
+networks:
+  consultio1:
+    external: true
+    name: consultio1
+
+  nexus360_internal:
+    driver: overlay
+    attachable: true

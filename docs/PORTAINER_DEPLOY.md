@@ -47,6 +47,8 @@ Se for usar banco externo, defina `DATABASE_URL` e `DIRECT_URL` na Stack. Se usa
 
 O servico `api` tambem recebe o alias interno `backend` na rede `nexus360_internal`, porque o Nginx do frontend encaminha chamadas internas para `http://backend:10000`.
 
+O frontend tambem sobrescreve o comando de start para gerar a configuracao Nginx em runtime. Isso evita falha por CMD antigo em cache ou imagem `latest` ainda nao atualizada.
+
 ## Depois do primeiro deploy
 
 Depois que o banco já estiver criado e semeado, você pode mudar:

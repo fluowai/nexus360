@@ -571,9 +571,10 @@ export default function CRM() {
                                   <span>Dossiê IA</span>
                                 </div>
                               )}
-                            </div>            </div>
+                            </div>
+                          </div>
 
-                            <div className="pt-3 border-t border-[var(--nexus-card-border)] flex items-center justify-between">
+                          <div className="pt-3 border-t border-[var(--nexus-card-border)] flex items-center justify-between">
                               <div className="flex flex-col">
                                 <span className="text-[9px] font-black text-[var(--nexus-text-muted)] uppercase tracking-wider">Valor do Negócio</span>
                                 <span className="text-sm font-bold text-[var(--nexus-text-primary)]">

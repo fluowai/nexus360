@@ -1,69 +1,44 @@
 # Deploy do Nexus360 no Portainer
 
-Use o arquivo `docker-stack.portainer.yml` para publicar em Swarm/Portainer no mesmo padrão da stack da Imobzy: imagens no GHCR, rede externa do Traefik e uma rede interna overlay.
+Esta stack segue o modelo que estabilizou em producao: frontend com Nginx interno encaminhando `/api` e `/lp` para o alias `backend`, API Node na porta `10000`, rede externa `consultio1` para o Traefik e rede overlay interna `nexus360_internal`.
 
-## Stack
+## Imagens
 
-Serviços publicados:
+- `ghcr.io/fluowai/nexus360-frontend:latest`
+- `ghcr.io/fluowai/nexus360-api:latest`
 
-- `frontend`: `ghcr.io/fluowai/nexus360-frontend:latest`, exposto pelo Traefik em `https://nexus360.consultio.com.br`.
-- `api`: `ghcr.io/fluowai/nexus360-api:latest`, exposto pelo Traefik apenas em `/api` e `/lp`.
-- `postgres`: PostgreSQL 16 interno com volume persistente `nexus360_postgres_data`.
+O workflow `.github/workflows/docker-images.yml` publica as imagens no GHCR quando ha push na branch `main`.
 
-Redes:
+## Variaveis obrigatorias no Portainer
 
-- `consultio1`: rede externa já usada pelo Traefik.
-- `nexus360_internal`: rede overlay interna da aplicação.
-
-## Como subir
-
-1. Envie as alterações para o GitHub. O workflow `.github/workflows/docker-images.yml` publica automaticamente:
-   - `ghcr.io/fluowai/nexus360-frontend:latest`
-   - `ghcr.io/fluowai/nexus360-api:latest`
-2. No Portainer, acesse **Stacks > Add stack**.
-3. Use **Repository** e informe `docker-stack.portainer.yml` como compose path, ou cole o conteúdo no Web editor.
-4. Configure as variáveis da Stack usando `.env.portainer.example` como base.
-5. Troque obrigatoriamente `POSTGRES_PASSWORD`, `JWT_SECRET` e `SEED_ADMIN_PASSWORD`.
-6. Faça o DNS `nexus360.consultio.com.br` apontar para o servidor onde o Traefik está rodando.
-7. Deploy.
-
-## Variáveis essenciais
+Configure estas variaveis em **Environment variables** da stack:
 
 ```env
-POSTGRES_DB=nexus360
-POSTGRES_USER=nexus360
-POSTGRES_PASSWORD=troque_por_uma_senha_forte
-JWT_SECRET=troque_por_um_segredo_longo_com_32_chars_ou_mais
-FRONTEND_URL=https://nexus360.consultio.com.br
-CORS_ORIGINS=https://nexus360.consultio.com.br
+DATABASE_URL=postgresql://...
+DIRECT_URL=postgresql://...
+JWT_SECRET=troque_por_um_segredo_longo
 SEED_ADMIN_EMAIL=admin@nexus360.com
 SEED_ADMIN_PASSWORD=troque_por_uma_senha_forte
 RUN_DB_PUSH=true
 RUN_SEED=true
-VITE_API_URL=same-origin
 ```
 
-Se for usar banco externo, defina `DATABASE_URL` e `DIRECT_URL` na Stack. Se usar o Postgres interno, deixe a stack montar as URLs automaticamente a partir de `POSTGRES_DB`, `POSTGRES_USER` e `POSTGRES_PASSWORD`.
-
-O servico `api` tambem recebe o alias interno `backend` na rede `nexus360_internal`, mas em producao quem encaminha `/api` e `/lp` e o Traefik.
-
-O frontend sobrescreve o comando de start para gerar uma configuracao Nginx simples em runtime. Ele serve apenas a SPA; as rotas `/api` e `/lp` sao publicadas diretamente pelo Traefik para a API.
-
-## Depois do primeiro deploy
-
-Depois que o banco já estiver criado e semeado, você pode mudar:
+Depois do primeiro deploy bem-sucedido, altere:
 
 ```env
 RUN_DB_PUSH=false
 RUN_SEED=false
 ```
 
-Enquanto o primeiro deploy nao passar sem erros, mantenha `RUN_DB_PUSH=true`. A API usa `set -e` no bootstrap para parar o container se o schema Prisma nao conseguir ser aplicado; isso evita backend online com banco incompleto retornando 500 no login.
-
-Assim os próximos restarts não tentam sincronizar schema e seed de novo.
-
-## Verificações
+## Publicacao
 
 - Site: `https://nexus360.consultio.com.br`
-- API health: `https://nexus360.consultio.com.br/api/health`
-- Landing pages públicas: `https://nexus360.consultio.com.br/lp/slug-da-landing`
+- API: `https://nexus360.consultio.com.br/api`
+- Healthcheck: `https://nexus360.consultio.com.br/api/health`
+- Landing pages publicas: `https://nexus360.consultio.com.br/lp/slug-da-landing`
+
+## Observacoes
+
+- Nao versione secrets reais no reposititorio.
+- A API recebe o alias `backend` na rede interna porque o Nginx do frontend usa `http://backend:10000`.
+- Se o login retornar 500, veja os logs do servico `nexus360_api` no Portainer.

@@ -1,22 +1,45 @@
+version: "3.8"
+
 services:
   frontend:
     image: ghcr.io/fluowai/nexus360-frontend:latest
     command:
       - /bin/sh
       - -c
-      - >
-        printf '%s\n'
-        'server {'
-        '  listen 80;'
-        '  server_name _;'
-        '  root /usr/share/nginx/html;'
-        '  index index.html;'
-        '  error_page 404 =200 /index.html;'
-        '  location / {}'
-        '}'
-        > /etc/nginx/conf.d/default.conf
-        && nginx -t
-        && exec nginx -g 'daemon off;'
+      - |
+        cat > /etc/nginx/conf.d/default.conf <<'EOF'
+        server {
+          listen 80;
+          server_name _;
+
+          root /usr/share/nginx/html;
+          index index.html;
+
+          location / {
+            try_files $$uri $$uri/ /index.html;
+          }
+
+          location /api/ {
+            proxy_pass http://backend:10000/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $$host;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $$scheme;
+          }
+
+          location /lp/ {
+            proxy_pass http://backend:10000/lp/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $$host;
+            proxy_set_header X-Real-IP $$remote_addr;
+            proxy_set_header X-Forwarded-For $$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $$scheme;
+          }
+        }
+        EOF
+        nginx -t
+        exec nginx -g 'daemon off;'
     environment:
       VITE_API_URL: "same-origin"
       VITE_LIVEKIT_URL: ""
@@ -24,21 +47,10 @@ services:
     networks:
       - consultio1
       - nexus360_internal
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
     deploy:
       replicas: 1
       restart_policy:
         condition: any
-      update_config:
-        order: start-first
-        failure_action: rollback
-      rollback_config:
-        order: stop-first
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=consultio1"
@@ -51,21 +63,31 @@ services:
 
   api:
     image: ghcr.io/fluowai/nexus360-api:latest
-    command: >
-      sh -c 'set -e;
-      if [ "$${RUN_DB_PUSH:-true}" = "true" ]; then npx prisma db push; fi;
-      if [ "$${RUN_SEED:-true}" = "true" ]; then node prisma/seed.js; fi;
-      npm run start'
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ "$${RUN_DB_PUSH:-true}" = "true" ]; then
+          npx prisma db push;
+        fi
+
+        if [ "$${RUN_SEED:-true}" = "true" ]; then
+          node prisma/seed.js;
+        fi
+
+        npm run start
     environment:
       NODE_ENV: production
       PORT: 10000
       FRONTEND_URL: "https://nexus360.consultio.com.br"
-      CORS_ORIGINS: "https://nexus360.consultio.com.br"
-      DATABASE_URL: "${DATABASE_URL:-postgresql://${POSTGRES_USER:-nexus360}:${POSTGRES_PASSWORD:-troque_por_uma_senha_forte}@postgres:5432/${POSTGRES_DB:-nexus360}?schema=public}"
-      DIRECT_URL: "${DIRECT_URL:-postgresql://${POSTGRES_USER:-nexus360}:${POSTGRES_PASSWORD:-troque_por_uma_senha_forte}@postgres:5432/${POSTGRES_DB:-nexus360}?schema=public}"
-      JWT_SECRET: "${JWT_SECRET:-troque_por_um_segredo_longo_com_32_chars_ou_mais}"
+      ALLOWED_ORIGINS: "https://nexus360.consultio.com.br,https://www.nexus360.consultio.com.br"
+      CORS_ORIGINS: "https://nexus360.consultio.com.br,https://www.nexus360.consultio.com.br"
+      DATABASE_URL: "${DATABASE_URL}"
+      DIRECT_URL: "${DIRECT_URL}"
+      PGSSLMODE: "require"
+      JWT_SECRET: "${JWT_SECRET}"
       SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-admin@nexus360.com}"
-      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD:-Admin@2024!}"
+      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD}"
       RUN_DB_PUSH: "${RUN_DB_PUSH:-true}"
       RUN_SEED: "${RUN_SEED:-true}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
@@ -107,7 +129,7 @@ services:
       restart_policy:
         condition: any
       update_config:
-        order: start-first
+        order: stop-first
         failure_action: rollback
       rollback_config:
         order: stop-first
@@ -120,30 +142,6 @@ services:
         - "traefik.http.routers.nexus360_api.priority=10"
         - "traefik.http.routers.nexus360_api.service=nexus360_api"
         - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
-
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: "${POSTGRES_DB:-nexus360}"
-      POSTGRES_USER: "${POSTGRES_USER:-nexus360}"
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-troque_por_uma_senha_forte}"
-    volumes:
-      - nexus360_postgres_data:/var/lib/postgresql/data
-    networks:
-      - nexus360_internal
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nexus360} -d ${POSTGRES_DB:-nexus360}"]
-      interval: 20s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-
-volumes:
-  nexus360_postgres_data:
 
 networks:
   consultio1:

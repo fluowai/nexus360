@@ -131,6 +131,9 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
           owners: capturedLead.owners,
           managementTeam: capturedLead.managementTeam,
           aiDiagnosis: capturedLead.aiDiagnosis,
+          score: Math.round(capturedLead.scoreOpportunity || 0),
+          tags: capturedLead.category || undefined,
+          source: capturedLead.provider || undefined,
           notes: `[Captação Elite - ${capturedLead.provider}]\n\nSITE: ${capturedLead.website || 'Não informado'}\n\nDIAGNÓSTICO IA:\n${capturedLead.aiDiagnosis || 'Não realizado'}\n\nEQUIPE DE GESTÃO (LINKEDIN):\n${capturedLead.managementTeam || 'Não pesquisado'}\n\nNOTAS ADICIONAIS:\n${capturedLead.notes || ''}`
         }
       });
@@ -211,6 +214,26 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       const updated = await prisma.capturedLead.update({
         where: { id: req.params.id, organizationId: orgId },
         data: { notes }
+      });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update Single Captured Lead (phone, email, businessName, whatsappMessage)
+  router.patch("/leads/:id", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    const { phone, email, businessName, whatsappMessage } = req.body;
+    try {
+      const updated = await prisma.capturedLead.update({
+        where: { id: req.params.id, organizationId: orgId },
+        data: {
+          phone: phone !== undefined ? phone : undefined,
+          email: email !== undefined ? email : undefined,
+          businessName: businessName !== undefined ? businessName : undefined,
+          whatsappMessage: whatsappMessage !== undefined ? whatsappMessage : undefined
+        }
       });
       res.json(updated);
     } catch (error: any) {

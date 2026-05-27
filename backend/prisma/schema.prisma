@@ -2,7 +2,7 @@
 
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  binaryTargets = ["native", "debian-openssl-3.0.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -111,6 +111,8 @@ model Organization {
   leadCaptureSources    LeadCaptureSource[]
   capturedLeads         CapturedLead[]
   leadCaptureUsageLogs  LeadCaptureUsageLog[]
+  prospectingFunnels    ProspectingFunnel[]
+  prospectingRuns       ProspectingRun[]
 
   // Novos modelos para automação de agência
   serviceCatalog     ServiceCatalog[]
@@ -1535,6 +1537,7 @@ model CapturedLead {
   owners         String? @db.Text
   managementTeam String? @db.Text
   rawData        Json?
+  prospectingRuns ProspectingRun[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1542,6 +1545,93 @@ model CapturedLead {
   @@unique([organizationId, provider, externalId])
   @@index([organizationId])
   @@index([sourceId])
+}
+
+model ProspectingFunnel {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name           String
+  description    String?      @db.Text
+  channel        String       @default("WHATSAPP")
+  status         String       @default("active") // active, paused, archived
+  objective      String?      @db.Text
+  qualificationRules Json?
+  handoffRules       Json?
+  safetyRules        Json?
+  isDefault      Boolean      @default(false)
+
+  stages         ProspectingFunnelStage[]
+  runs           ProspectingRun[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@unique([organizationId, name])
+}
+
+model ProspectingFunnelStage {
+  id             String             @id @default(uuid())
+  funnelId       String
+  funnel         ProspectingFunnel  @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  name           String
+  order          Int                @default(0)
+  agentKey       String
+  agentName      String
+  goal           String             @db.Text
+  prompt         String             @db.Text
+  successCriteria Json?
+  nextAction     String?
+  maxMessages    Int                @default(3)
+  isHumanHandoff Boolean            @default(false)
+
+  runs           ProspectingRun[]
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([funnelId])
+}
+
+model ProspectingRun {
+  id             String                   @id @default(uuid())
+  organizationId String
+  organization   Organization             @relation(fields: [organizationId], references: [id])
+
+  funnelId       String
+  funnel         ProspectingFunnel        @relation(fields: [funnelId], references: [id])
+  stageId        String?
+  stage          ProspectingFunnelStage?  @relation(fields: [stageId], references: [id])
+
+  capturedLeadId String?
+  capturedLead   CapturedLead?            @relation(fields: [capturedLeadId], references: [id])
+  crmLeadId      String?
+
+  status         String                   @default("queued") // queued, active, qualified, nurturing, human_handoff, lost, stopped
+  channel        String                   @default("WHATSAPP")
+  leadName       String
+  leadPhone      String?
+  leadSnapshot   Json?
+  score          Int                      @default(0)
+  qualification  Json?
+  firstMessage   String?                  @db.Text
+  lastAiSummary  String?                  @db.Text
+  nextAction     String?
+  lastContactAt  DateTime?
+  qualifiedAt    DateTime?
+  handedOffAt    DateTime?
+
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@index([organizationId])
+  @@index([funnelId])
+  @@index([stageId])
+  @@index([capturedLeadId])
+  @@unique([funnelId, capturedLeadId])
 }
 
 model LeadCaptureUsageLog {
@@ -2025,4 +2115,3 @@ model UsageEvent {
   @@index([organizationId])
   @@index([feature])
 }
-

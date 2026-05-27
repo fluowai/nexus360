@@ -57,6 +57,7 @@ const LandingEditor = lazy(() => import("./pages/LandingTemplates/LandingEditor"
 const PublicProposal = lazy(() => import("./pages/PublicProposal"));
 const LeadCapture = lazy(() => import("./pages/prospecting/LeadCapture"));
 const CapturedLists = lazy(() => import("./pages/prospecting/CapturedLists"));
+const ProspectingFunnels = lazy(() => import("./pages/prospecting/ProspectingFunnels"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const Login = lazy(() => import("./pages/Login"));
 
@@ -299,6 +300,7 @@ export default function App() {
           <Route path="/crm" element={<CRM />} />
           <Route path="/prospecting/capture" element={<LeadCapture />} />
           <Route path="/prospecting/lists" element={<CapturedLists />} />
+          <Route path="/prospecting/funnels" element={<ProspectingFunnels />} />
           <Route path="/team" element={<Team />} />
           <Route path="/site" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
@@ -338,6 +340,7 @@ export default function App() {
           <Route path="/:slug/landing-pages" element={<LandingPages />} />
           <Route path="/:slug/prospecting/capture" element={<LeadCapture />} />
           <Route path="/:slug/prospecting/lists" element={<CapturedLists />} />
+          <Route path="/:slug/prospecting/funnels" element={<ProspectingFunnels />} />
           <Route path="/:slug/quiz" element={<QuizBuilder />} />
           <Route path="/:slug/content" element={<Content />} />
           <Route path="/:slug/projects" element={<Projects />} />

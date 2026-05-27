@@ -18,7 +18,9 @@ import {
   History,
   Download,
   ListFilter,
-  Zap
+  Zap,
+  MessageCircle,
+  Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../lib/api';
@@ -45,6 +47,12 @@ interface Lead {
   managementTeam?: string;
 }
 
+const toneTemplates: Record<string, string> = {
+  consultive: "Olá! Tudo bem? Entro em contato sobre a {businessName}. 🚀\n\nNossa IA do Nexus360 analisou sua empresa em {city} e identificou excelentes oportunidades de otimização de conversão e captação ativa.\n\nGostaria de apresentar esse diagnóstico em um bate-papo rápido de {duration} minutos na nossa agenda própria.\n\nTemos horários livres esta semana:\n👉 {slots}\n\nQual desses fica melhor para você?",
+  direct: "Oi, tudo bem? Sou consultor comercial no Nexus360 e vi o cadastro da {businessName}. 🎯\n\nQuero agendar uma conversa estratégica de {duration} minutos para te apresentar nossa plataforma de automação e vendas.\n\nSeparei os seguintes horários livres na nossa agenda própria:\n👉 {slots}\n\nConsegue participar em algum desses?",
+  friendly: "Olá! Tudo bem com a equipe da {businessName}? 😄\n\nEstive analisando o perfil de vocês em {city} e achei super promissor! Gostaria de fazer uma ligação rápida de {duration} minutos para apresentar algumas ideias de crescimento.\n\nNossa agenda própria tem esses horários vagos:\n👉 {slots}\n\nBora bater esse papo? Qual slot funciona melhor aí?"
+};
+
 export default function LeadCapture() {
   const [loading, setLoading] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -60,6 +68,85 @@ export default function LeadCapture() {
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [boards, setBoards] = useState<any[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
+
+  // Estados da Prospecção Ativa & Agenda Própria
+  const [showProspectingModal, setShowProspectingModal] = useState(false);
+  const [prospectingLeads, setProspectingLeads] = useState<Lead[]>([]);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([
+    "Amanhã às 14:00",
+    "Sexta-feira às 10:00",
+    "Segunda-feira às 15:30"
+  ]);
+  const [customSlot, setCustomSlot] = useState("");
+  const [agentTone, setAgentTone] = useState("consultive");
+  const [meetingDuration, setMeetingDuration] = useState("30");
+  const [prospectingSuccess, setProspectingSuccess] = useState(false);
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
+
+  const fetchCalendar = async () => {
+    try {
+      const res = await apiFetch('/api/calendar');
+      if (res.ok) {
+        const data = await res.json();
+        setCalendarEvents(data);
+      }
+    } catch (err) {
+      console.error("Error fetching calendar:", err);
+    }
+  };
+
+  const handleOpenProspectingModal = () => {
+    const chosen = leads.filter(l => selectedLeads.includes(l.id));
+    setProspectingLeads(chosen);
+    setProspectingSuccess(false);
+    fetchCalendar();
+    setShowProspectingModal(true);
+  };
+
+  const handleProspectingSubmit = async () => {
+    setLoading(true);
+    try {
+      for (const lead of prospectingLeads) {
+        if (!lead.phone) continue;
+
+        const slotsStr = selectedSlots.join(", ");
+        const formattedMsg = toneTemplates[agentTone]
+          .replace("{businessName}", lead.businessName)
+          .replace("{city}", lead.city || lead.state || "sua cidade")
+          .replace("{duration}", meetingDuration)
+          .replace("{slots}", slotsStr);
+
+        // 1. Salvar telefone e mensagem customizada de WhatsApp do lead capturado
+        await apiFetch(`/api/lead-capture/leads/${lead.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            phone: lead.phone,
+            whatsappMessage: formattedMsg
+          })
+        });
+
+        // 2. Enviar para o CRM Kanban
+        await apiFetch(`/api/lead-capture/leads/${lead.id}/send-to-crm`, {
+          method: 'POST',
+          body: JSON.stringify({ boardId: selectedBoardId })
+        });
+      }
+
+      // 3. Enviar todos para o Funil de Prospecção Ativa (inicia WhatsApp SDR)
+      await apiFetch('/api/prospecting-funnels/funnels/default/enroll', {
+        method: 'POST',
+        body: JSON.stringify({ leadIds: selectedLeads })
+      });
+
+      setProspectingSuccess(true);
+      fetchLeads(activeSourceId || undefined);
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao disparar prospecção ativa");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchBoards = async () => {
     try {
@@ -102,7 +189,6 @@ export default function LeadCapture() {
       const res = await apiFetch(`/api/lead-capture/leads/${id}/dossier`, { method: 'POST' });
       const data = await res.json();
       if (res.ok) {
-        // Apenas atualiza o card — sem abrir popup
         setLeads(prev => prev.map(l => l.id === id ? data : l));
       }
     } catch (err) {
@@ -255,6 +341,26 @@ export default function LeadCapture() {
     }
   };
 
+  const handleBulkSendToFunnel = async () => {
+    if (selectedLeads.length === 0) return;
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/prospecting-funnels/funnels/default/enroll', {
+        method: 'POST',
+        body: JSON.stringify({ leadIds: selectedLeads })
+      });
+
+      if (res.ok) {
+        await fetchLeads(activeSourceId || undefined);
+        setSelectedLeads([]);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateLeadNotes = async (id: string, notes: string) => {
     try {
       const res = await apiFetch(`/api/lead-capture/leads/${id}/notes`, {
@@ -327,7 +433,7 @@ export default function LeadCapture() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-3 p-2 bg-primary/5 border border-primary/20 rounded-2xl shadow-sm"
+            className="flex flex-wrap items-center gap-3 p-2 bg-primary/5 border border-primary/20 rounded-2xl shadow-sm"
           >
             <span className="text-xs font-bold text-primary ml-2">{selectedLeads.length} selecionados</span>
             
@@ -365,6 +471,25 @@ export default function LeadCapture() {
             >
               {loading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               Enviar para o CRM
+            </button>
+
+            {/* Ação Premium de Prospecção Ativa com Agenda Própria */}
+            <button 
+              onClick={handleOpenProspectingModal}
+              disabled={loading}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold rounded-xl hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-indigo-600/20"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Calendar size={14} />}
+              Prospecção + Agenda IA
+            </button>
+
+            <button 
+              onClick={handleBulkSendToFunnel}
+              disabled={loading}
+              className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-600/20"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} />}
+              Enviar p/ Funil IA
             </button>
             <button 
               onClick={handleSuperIntelligence}
@@ -621,7 +746,7 @@ export default function LeadCapture() {
                           />
                         </div>
 
-                        {/* Dossiê Inline — aparece no card após ser gerado */}
+                        {/* Dossiê Inline */}
                         {lead.aiDiagnosis && (
                           <div className="w-full mt-3 border border-indigo-200 rounded-2xl overflow-hidden">
                             <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600">
@@ -753,6 +878,310 @@ export default function LeadCapture() {
         </div>
       </div>
 
+      {/* Modal - Prospecção Ativa & Agendamento IA com Agenda Própria */}
+      <AnimatePresence>
+        {showProspectingModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col my-8 border border-gray-100"
+            >
+              {!prospectingSuccess ? (
+                <>
+                  {/* Header */}
+                  <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-50/50 to-purple-50/50">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-gradient-to-tr from-indigo-600 to-purple-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
+                        <Calendar size={24} />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black text-gray-900 tracking-tight">Prospecção Ativa & Agendamento IA</h2>
+                        <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">SDR WhatsApp + Agenda Própria Nexus360</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setShowProspectingModal(false)}
+                      className="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-400 hover:text-gray-900 font-bold"
+                    >
+                      Fechar X
+                    </button>
+                  </div>
+
+                  {/* Body Grid */}
+                  <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-8 max-h-[70vh]">
+                    
+                    {/* Left Column: Leads Validation & Tone */}
+                    <div className="space-y-6">
+                      
+                      {/* Step 1: Validation */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black">1</span>
+                          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Validar Leads Selecionados</h3>
+                        </div>
+                        
+                        <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                          {prospectingLeads.map((lead) => (
+                            <div key={lead.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-gray-50 border border-gray-100 rounded-2xl hover:border-indigo-100 transition-all">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-black text-gray-800 truncate">{lead.businessName}</p>
+                                <p className="text-[10px] text-gray-400 font-bold mt-0.5">{lead.city || lead.state || 'Cidade não informada'}</p>
+                              </div>
+                              <div className="w-full sm:w-48 shrink-0">
+                                <input 
+                                  type="text"
+                                  placeholder="Inserir WhatsApp..."
+                                  value={lead.phone || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setProspectingLeads(prev => prev.map(l => l.id === lead.id ? { ...l, phone: val } : l));
+                                  }}
+                                  className={`w-full px-3 py-2 border text-xs font-bold rounded-xl outline-none transition-all ${
+                                    lead.phone 
+                                      ? 'border-green-200 bg-green-50/20 text-green-700 focus:ring-2 focus:ring-green-500/10' 
+                                      : 'border-red-200 bg-red-50/20 text-red-700 focus:ring-2 focus:ring-red-500/10 placeholder-red-400'
+                                  }`}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Step 2: Pitch settings */}
+                      <div className="space-y-4 pt-4 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black">2</span>
+                          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Configurar Abordagem SDR</h3>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Tom de Voz</label>
+                            <select 
+                              value={agentTone}
+                              onChange={(e) => setAgentTone(e.target.value)}
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 text-xs font-bold"
+                            >
+                              <option value="consultive">Consultivo & Estratégico</option>
+                              <option value="direct">Comercial Objetivo</option>
+                              <option value="friendly">Amigável & Descontraído</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Duração da Reunião</label>
+                            <select 
+                              value={meetingDuration}
+                              onChange={(e) => setMeetingDuration(e.target.value)}
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 text-xs font-bold"
+                            >
+                              <option value="15">15 minutos</option>
+                              <option value="30">30 minutos (Recomendado)</option>
+                              <option value="45">45 minutos</option>
+                              <option value="60">1 hora</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Pré-visualização do Roteiro (WhatsApp)</label>
+                          <div className="p-4 bg-indigo-50/20 border border-indigo-100 rounded-2xl text-xs text-gray-700 leading-relaxed font-medium whitespace-pre-wrap">
+                            {toneTemplates[agentTone]
+                              .replace("{businessName}", prospectingLeads[0]?.businessName || "Empresa Exemplo")
+                              .replace("{city}", prospectingLeads[0]?.city || "sua cidade")
+                              .replace("{duration}", meetingDuration)
+                              .replace("{slots}", selectedSlots.length > 0 ? selectedSlots.join(", ") : "[Nenhum horário selecionado]")}
+                          </div>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Right Column: Calendar Slots & CRM Destination */}
+                    <div className="space-y-6 lg:border-l lg:border-gray-100 lg:pl-8">
+                      
+                      {/* Step 3: Calendar Slots */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black">3</span>
+                          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Oferecer Horários Livres (Agenda Própria)</h3>
+                        </div>
+
+                        {/* List of offered slots */}
+                        <div className="flex flex-wrap gap-2">
+                          {selectedSlots.map((slot, index) => (
+                            <span key={index} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-bold rounded-xl">
+                              {slot}
+                              <button 
+                                type="button" 
+                                onClick={() => setSelectedSlots(prev => prev.filter((_, i) => i !== index))}
+                                className="text-indigo-400 hover:text-indigo-900 font-bold ml-1"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Custom slot adder */}
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            placeholder="Adicionar novo horário (Ex: Quinta às 15h)"
+                            value={customSlot}
+                            onChange={(e) => setCustomSlot(e.target.value)}
+                            className="flex-1 px-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-100"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && customSlot.trim()) {
+                                e.preventDefault();
+                                setSelectedSlots([...selectedSlots, customSlot.trim()]);
+                                setCustomSlot("");
+                              }
+                            }}
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              if (customSlot.trim()) {
+                                setSelectedSlots([...selectedSlots, customSlot.trim()]);
+                                setCustomSlot("");
+                              }
+                            }}
+                            className="px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all"
+                          >
+                            Adicionar
+                          </button>
+                        </div>
+
+                        {/* Sincronização com Agenda Própria */}
+                        <div className="mt-4 p-4 bg-purple-50/30 border border-purple-100 rounded-2xl">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-black text-purple-700 uppercase tracking-widest flex items-center gap-1.5">
+                              <Calendar size={12} className="text-purple-600" />
+                              Compromissos na Agenda Própria
+                            </span>
+                            <span className="text-[9px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-black">Ao Vivo</span>
+                          </div>
+                          
+                          <div className="space-y-2 max-h-36 overflow-y-auto">
+                            {calendarEvents.length === 0 ? (
+                              <p className="text-[10px] text-gray-500 font-bold italic">Sem conflitos! Nenhum evento agendado esta semana.</p>
+                            ) : (
+                              calendarEvents.slice(0, 5).map((evt: any) => (
+                                <div key={evt.id} className="flex justify-between items-center text-[10px] text-gray-700 font-bold border-b border-purple-50/50 pb-1.5 last:border-0 last:pb-0">
+                                  <span className="truncate max-w-[180px]">📅 {evt.title}</span>
+                                  <span className="text-purple-600 shrink-0 font-bold">
+                                    {new Date(evt.startDate).toLocaleDateString()} {new Date(evt.startDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Step 4: CRM settings */}
+                      <div className="space-y-3 pt-4 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-black">4</span>
+                          <h3 className="text-sm font-black text-gray-900 uppercase tracking-wider">Destino no CRM Kanban</h3>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Selecione o Funil de Vendas</label>
+                          <select 
+                            value={selectedBoardId}
+                            onChange={(e) => setSelectedBoardId(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 text-xs font-bold"
+                          >
+                            {boards.map(b => (
+                              <option key={b.id} value={b.id}>Enviar para {b.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Footer Action Buttons */}
+                  <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
+                    <button 
+                      onClick={() => setShowProspectingModal(false)}
+                      className="px-6 py-3 border border-gray-200 text-gray-600 hover:bg-gray-100 rounded-2xl text-xs font-bold transition-all"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      onClick={handleProspectingSubmit}
+                      disabled={loading || selectedSlots.length === 0 || prospectingLeads.some(l => !l.phone)}
+                      className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:scale-[1.02] text-white text-xs font-black rounded-2xl shadow-xl shadow-indigo-200 transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      Disparar Automação & CRM 🚀
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Success Screen */
+                <div className="p-8 text-center space-y-6 max-h-[85vh] overflow-y-auto">
+                  <div className="w-20 h-20 bg-green-50 border-4 border-green-500/20 rounded-full flex items-center justify-center mx-auto text-green-600 shadow-xl shadow-green-100">
+                    <CheckCircle2 size={44} />
+                  </div>
+                  
+                  <div className="max-w-xl mx-auto">
+                    <h3 className="text-2xl font-black text-gray-900 tracking-tight">Operação Disparada! 🎉</h3>
+                    <p className="text-sm text-gray-500 mt-2 font-medium">
+                      Os leads selecionados foram validados com sucesso no banco de dados, enviados para a coluna inicial do seu Kanban no CRM e matriculados na automação do **SDR WhatsApp**.
+                    </p>
+                  </div>
+
+                  <div className="p-6 bg-gradient-to-br from-indigo-50/50 to-purple-50/50 border border-indigo-100/50 rounded-3xl max-w-2xl mx-auto text-left space-y-4">
+                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Leads Qualificados & Horários Reservados</p>
+                    
+                    <div className="space-y-3">
+                      {prospectingLeads.map((l) => (
+                        <div key={l.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white border border-indigo-100/30 rounded-2xl shadow-sm">
+                          <div>
+                            <p className="text-xs font-black text-gray-800">{l.businessName}</p>
+                            <p className="text-[9px] font-bold text-gray-400 mt-0.5">📞 WhatsApp: {l.phone}</p>
+                          </div>
+                          
+                          <a 
+                            href={`https://wa.me/${l.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(
+                              toneTemplates[agentTone]
+                                .replace("{businessName}", l.businessName)
+                                .replace("{city}", l.city || l.state || "sua cidade")
+                                .replace("{duration}", meetingDuration)
+                                .replace("{slots}", selectedSlots.join(", "))
+                            )}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-[11px] font-black rounded-xl transition-all shadow-md shadow-green-100 flex items-center gap-1.5 justify-center"
+                          >
+                            <MessageCircle size={14} /> Abrir Conversa
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 max-w-sm mx-auto">
+                    <button 
+                      onClick={() => { setShowProspectingModal(false); setSelectedLeads([]); }}
+                      className="w-full py-3.5 bg-gray-900 hover:bg-black text-white text-xs font-black rounded-2xl transition-all uppercase tracking-widest shadow-xl shadow-gray-200"
+                    >
+                      Voltar para Captação
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Scripts Modal */}
       <AnimatePresence>

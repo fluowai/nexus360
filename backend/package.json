@@ -7,6 +7,7 @@
     "dev": "tsx src/server.ts",
     "build": "prisma generate && tsc",
     "start": "node dist/server.js",
+    "seed": "node prisma/seed.js",
     "lint": "eslint src/**/*.ts",
     "prisma:generate": "prisma generate",
     "prisma:deploy": "prisma migrate deploy",
@@ -24,7 +25,8 @@
     "jsonwebtoken": "^9.0.3",
     "livekit-server-sdk": "^2.15.2",
     "uuid": "^14.0.0",
-    "groq-sdk": "^0.9.0"
+    "groq-sdk": "^0.9.0",
+    "prisma": "^6.19.3"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -33,11 +35,10 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.14.0",
     "@types/uuid": "^10.0.0",
-    "prisma": "^6.19.3",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node prisma/seed.js"
   }
 }

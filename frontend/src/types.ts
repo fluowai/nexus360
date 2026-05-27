@@ -17,6 +17,11 @@ export interface Lead {
   tags: string | string[];
   source?: string;
   notes?: string;
+  cnpj?: string;
+  owners?: string;
+  managementTeam?: string;
+  aiDiagnosis?: string;
+  score?: number;
 }
 
 export interface Project {

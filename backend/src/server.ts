@@ -24,6 +24,7 @@ import { clientRoutes } from "./routes/clients.js";
 import { aiRoutes } from "./routes/ai.js";
 import { calendarRoutes } from "./routes/calendar.js";
 import { leadCaptureRoutes } from "./routes/leadCapture.js";
+import { prospectingFunnelRoutes } from "./routes/prospectingFunnels.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { creativeRoutes } from "./routes/creatives.js";
 import { domainRoutes } from "./routes/domains.js";
@@ -54,6 +55,41 @@ const app = express();
 // Necessário para Railway/Heroku/Vercel — eles ficam atrás de um reverse proxy
 app.set('trust proxy', 1);
 
+const configuredOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([
+  ...configuredOrigins,
+  'https://nexus360-zeta.vercel.app',
+  'https://nexus.woopanel.com.br',
+  'http://localhost:5173',
+  'http://localhost:3000'
+]);
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+
+    try {
+      const { hostname } = new URL(origin);
+      const isAllowed =
+        allowedOrigins.has(origin) ||
+        hostname.endsWith('.woopanel.com.br') ||
+        hostname.endsWith('.vercel.app') ||
+        hostname === 'localhost';
+
+      return callback(null, isAllowed);
+    } catch {
+      return callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id']
+};
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -63,22 +99,8 @@ const limiter = rateLimit({
 
 // Middlewares Globais de Segurança e Utilidade
 app.use(limiter);
-app.use(cors({
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      process.env.FRONTEND_URL,
-      'https://nexus360-zeta.vercel.app',
-      'https://nexus.woopanel.com.br',
-      'http://localhost:5173'
-    ];
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.woopanel.com.br')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 app.disable("x-powered-by");
 app.use(helmet({
@@ -185,6 +207,7 @@ const protectedRoutes = [
   { path: "/api/ads", router: adsRoutes },
   { path: "/api/calendar", router: calendarRoutes },
   { path: "/api/lead-capture", router: leadCaptureRoutes },
+  { path: "/api/prospecting-funnels", router: prospectingFunnelRoutes },
   { path: "/api/tasks", router: taskRoutes },
   { path: "/api/creatives", router: creativeRoutes },
   { path: "/api/domains", router: domainRoutes },

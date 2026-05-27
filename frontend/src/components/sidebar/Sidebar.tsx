@@ -37,7 +37,8 @@ import {
   Clock,
   BookOpen,
   Activity,
-  GitBranch
+  GitBranch,
+  MessageCircle
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
@@ -329,6 +330,15 @@ export const Sidebar: React.FC<{
                       label="Captação de Leads" 
                       path={getPath("/prospecting/capture")} 
                       isActive={location.pathname === getPath('/prospecting/capture')}
+                      collapsed={collapsed}
+                    />
+                  )}
+                  {(isSuper || access.hasModule('prospecting')) && (
+                    <SidebarItem 
+                      icon={MessageCircle} 
+                      label="Funis IA WhatsApp" 
+                      path={getPath("/prospecting/funnels")} 
+                      isActive={location.pathname === getPath('/prospecting/funnels')}
                       collapsed={collapsed}
                     />
                   )}

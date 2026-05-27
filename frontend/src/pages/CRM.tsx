@@ -27,7 +27,9 @@ import {
   LayoutGrid,
   List,
   BarChart3,
-  Trophy
+  Trophy,
+  Database,
+  Star
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Lead, LeadStatus } from "../types";
@@ -503,25 +505,73 @@ export default function CRM() {
                           />
 
                           <div className="flex flex-col gap-3">
-                            <div className="flex items-start justify-between">
-                              <h4 className="font-bold text-sm text-[var(--nexus-text-primary)] leading-snug group-hover:text-[var(--nexus-primary)] transition-colors line-clamp-2">
-                                {lead.name}
-                              </h4>
-                              <div className="p-1.5 text-[var(--nexus-text-muted)] hover:text-[var(--nexus-primary)] rounded-lg hover:bg-[var(--nexus-background-soft)] transition-all">
-                                <MoreVertical size={14} />
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-bold text-sm text-[var(--nexus-text-primary)] leading-snug group-hover:text-[var(--nexus-primary)] transition-colors line-clamp-2">
+                                  {lead.name}
+                                </h4>
+                                {lead.tags && (
+                                  <span className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-500 text-[8px] font-black rounded uppercase tracking-wider mt-1.5">
+                                    {typeof lead.tags === 'string' ? lead.tags : lead.tags[0]}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                {lead.score !== undefined && lead.score > 0 && (
+                                  <div className={`flex flex-col items-end px-2 py-0.5 rounded-lg border ${
+                                    lead.score > 70 ? 'bg-green-50 text-green-600 border-green-100' : 
+                                    lead.score > 40 ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-gray-50 text-gray-400 border-gray-100'
+                                  }`}>
+                                    <span className="text-[10px] font-black leading-none">{lead.score}%</span>
+                                    <span className="text-[6px] font-black uppercase tracking-wider mt-0.5">Score</span>
+                                  </div>
+                                )}
+                                <div className="p-1 text-[var(--nexus-text-muted)] hover:text-[var(--nexus-primary)] rounded-lg hover:bg-[var(--nexus-background-soft)] transition-all flex-shrink-0">
+                                  <MoreVertical size={14} />
+                                </div>
                               </div>
                             </div>
                             
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center gap-2 text-[var(--nexus-text-secondary)]">
-                                <User size={12} className="opacity-50" />
+                                <Mail size={12} className="opacity-60 text-indigo-500 flex-shrink-0" />
                                 <span className="text-[11px] font-medium truncate">{lead.email}</span>
                               </div>
                               <div className="flex items-center gap-2 text-[var(--nexus-text-secondary)]">
-                                <Phone size={12} className="opacity-50" />
+                                <Phone size={12} className="opacity-60 text-green-500 flex-shrink-0" />
                                 <span className="text-[11px] font-medium">{lead.phone || '(00) 00000-0000'}</span>
                               </div>
-                            </div>
+
+                              {/* CNPJ da Empresa */}
+                              {lead.cnpj && (
+                                <div className="flex items-center gap-1.5 mt-1 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg w-fit">
+                                  <Database size={10} className="text-orange-500 flex-shrink-0" />
+                                  <span className="text-[10px] font-bold text-gray-700 tracking-wider">
+                                    {lead.cnpj}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Sócios Identificados */}
+                              {lead.owners && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {lead.owners.split(',').slice(0, 2).map((owner: string, idx: number) => (
+                                    <span key={idx} className="px-1.5 py-0.5 bg-blue-50/50 text-blue-700 text-[9px] font-bold rounded border border-blue-200/40 flex items-center gap-1">
+                                      <Star size={7} className="fill-blue-500 text-blue-500 flex-shrink-0" />
+                                      <span className="truncate max-w-[80px]">{owner.trim()}</span>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Dossiê Estratégico IA Badge */}
+                              {lead.aiDiagnosis && (
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-50 border border-purple-100/50 text-purple-600 rounded text-[9px] font-black uppercase tracking-wider w-fit mt-1">
+                                  <Sparkles size={8} className="fill-purple-500 text-purple-500 flex-shrink-0" />
+                                  <span>Dossiê IA</span>
+                                </div>
+                              )}
+                            </div>            </div>
 
                             <div className="pt-3 border-t border-[var(--nexus-card-border)] flex items-center justify-between">
                               <div className="flex flex-col">
@@ -590,6 +640,7 @@ export default function CRM() {
             onWin={(lead) => { setSelectedLeadId(null); setWinLead(lead); }}
             onScheduleMeet={(lead) => { setSelectedLeadId(null); setShowMeetScheduler(lead); }}
             onDelete={() => { setSelectedLeadId(null); fetchLeads(); }}
+            onUpdate={fetchLeads}
           />
         )}
         {winLead && (
@@ -664,7 +715,7 @@ function NewLeadModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: 
   );
 }
 
-function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete }: { leadId: string, onClose: () => void, onWin: (lead: any) => void, onScheduleMeet: (lead: any) => void, onDelete: () => void }) {
+function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete, onUpdate }: { leadId: string, onClose: () => void, onWin: (lead: any) => void, onScheduleMeet: (lead: any) => void, onDelete: () => void, onUpdate?: () => void }) {
   const [lead, setLead] = useState<any>(null);
   const [newFollowUp, setNewFollowUp] = useState({ type: 'note', content: '', scheduledAt: '' });
   const [loading, setLoading] = useState(true);
@@ -746,6 +797,31 @@ function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete }: {
                     {lead.status}
                   </span>
                </div>
+               
+               {/* Inline editable email */}
+               <div className="flex items-center gap-2 mt-2 bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-lg w-fit group/email">
+                 <Mail size={11} className="text-gray-400 group-hover/email:text-[var(--nexus-primary)] transition-colors flex-shrink-0" />
+                 <input 
+                   type="email" 
+                   value={lead.email || ''}
+                   onChange={(e) => {
+                     setLead({ ...lead, email: e.target.value });
+                   }}
+                   onBlur={async () => {
+                     try {
+                       await apiFetch(`/api/crm/leads/${lead.id}`, {
+                         method: 'PATCH',
+                         body: JSON.stringify({ email: lead.email })
+                       });
+                       onUpdate?.();
+                     } catch (err) {
+                       console.error(err);
+                     }
+                   }}
+                   className="text-xs text-[var(--nexus-text-secondary)] font-bold bg-transparent outline-none py-0 px-1 border-b border-transparent hover:border-gray-300 focus:border-[var(--nexus-primary)] transition-all w-[180px]"
+                   placeholder="E-mail da empresa"
+                 />
+               </div>
              </div>
           </div>
           <div className="flex items-center gap-3">
@@ -792,6 +868,89 @@ function LeadDetailModal({ leadId, onClose, onWin, onScheduleMeet, onDelete }: {
               <span className="text-[9px] font-black text-[var(--nexus-text-secondary)] uppercase">Tarefa</span>
             </button>
           </div>
+
+          {/* Enriched Information Section (Treated Info from Prospecting Screen) */}
+          {(lead.cnpj || lead.owners || lead.aiDiagnosis || lead.tags) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white border border-[var(--nexus-card-border)] p-6 rounded-[24px] shadow-sm">
+              <div className="md:col-span-2 pb-3 border-b border-gray-100 flex items-center justify-between">
+                <h3 className="text-xs font-black text-[var(--nexus-text-primary)] uppercase tracking-widest flex items-center gap-2">
+                  <Sparkles size={14} className="text-indigo-500 flex-shrink-0" />
+                  Informações de Inteligência da Empresa
+                </h3>
+                {lead.score !== undefined && lead.score > 0 && (
+                  <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg ${
+                    lead.score > 70 ? 'bg-green-50 text-green-600 border border-green-100' : 
+                    lead.score > 40 ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-gray-50 text-gray-400 border border-gray-100'
+                  }`}>
+                    {lead.score}% Score Comercial
+                  </span>
+                )}
+              </div>
+
+              {/* Left Column: CNPJ, Sócios, Decisores */}
+              <div className="space-y-4">
+                {lead.cnpj && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">CNPJ da Empresa</label>
+                    <div className="flex items-center gap-2 text-sm text-[var(--nexus-text-primary)] font-bold">
+                      <Database size={14} className="text-orange-500 flex-shrink-0" />
+                      <span>{lead.cnpj}</span>
+                    </div>
+                  </div>
+                )}
+
+                {lead.tags && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Nicho / Categoria</label>
+                    <span className="w-fit px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-black rounded uppercase tracking-wider">
+                      {typeof lead.tags === 'string' ? lead.tags : lead.tags[0]}
+                    </span>
+                  </div>
+                )}
+
+                {lead.owners && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sócios Identificados</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {lead.owners.split(',').map((owner: string, idx: number) => (
+                        <span key={idx} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-md border border-blue-100 flex items-center gap-1">
+                          <User size={10} className="text-blue-500 flex-shrink-0" />
+                          {owner.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {lead.managementTeam && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Decisores (LinkedIn)</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {lead.managementTeam.split(',').map((person: string, idx: number) => (
+                        <span key={idx} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-md border border-emerald-100 flex items-center gap-1">
+                          {person.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: AI Diagnosis / Dossier */}
+              <div className="md:col-span-2">
+                {lead.aiDiagnosis && (
+                  <div className="flex flex-col gap-2 mt-2">
+                    <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                      <Sparkles size={11} className="fill-indigo-500 text-indigo-500 flex-shrink-0" /> Dossiê Estratégico IA
+                    </label>
+                    <div className="p-4 bg-indigo-50/40 border border-indigo-100 rounded-2xl text-[12px] text-gray-700 leading-relaxed whitespace-pre-wrap font-medium max-h-60 overflow-y-auto custom-scrollbar">
+                      {lead.aiDiagnosis}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Activity Entry Box (ESTILO AGENDOR) */}
           <div className="bg-white rounded-[24px] border border-[var(--nexus-card-border)] shadow-sm overflow-hidden">

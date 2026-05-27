@@ -44,14 +44,6 @@ services:
 
   api:
     image: ghcr.io/fluowai/nexus360-api:latest
-    command:
-      - /bin/sh
-      - -c
-      - >
-        set -e;
-        if [ "$${RUN_DB_PUSH:-true}" = "true" ]; then npx prisma db push --skip-generate; fi;
-        if [ "$${RUN_SEED:-true}" = "true" ]; then node prisma/seed.js; fi;
-        exec npm run start
     environment:
       NODE_ENV: production
       PORT: 10000
@@ -68,10 +60,6 @@ services:
       SUPABASE_ANON_KEY: "${SUPABASE_ANON_KEY:-}"
       SUPABASE_SERVICE_ROLE_KEY: "${SUPABASE_SERVICE_ROLE_KEY:-}"
       SUPABASE_JWT_SECRET: "${JWT_SECRET}"
-      SEED_ADMIN_EMAIL: "${SEED_ADMIN_EMAIL:-paulo@consultio.com.br}"
-      SEED_ADMIN_PASSWORD: "${SEED_ADMIN_PASSWORD}"
-      RUN_DB_PUSH: "${RUN_DB_PUSH:-false}"
-      RUN_SEED: "${RUN_SEED:-false}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       GROQ_API_KEY: "${GROQ_API_KEY:-}"
       SERPER_API_KEY: "${SERPER_API_KEY:-}"

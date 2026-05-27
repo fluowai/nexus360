@@ -22,18 +22,9 @@ JWT_SECRET=troque_por_um_segredo_longo
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-SEED_ADMIN_EMAIL=paulo@consultio.com.br
-SEED_ADMIN_PASSWORD=troque_por_uma_senha_forte
-RUN_DB_PUSH=false
-RUN_SEED=false
 ```
 
-Se o banco estiver vazio, rode `npx prisma db push --skip-generate` fora do boot da API ou temporariamente altere:
-
-```env
-RUN_DB_PUSH=true
-RUN_SEED=true
-```
+Se o banco estiver vazio, rode `npx prisma db push --skip-generate` fora do boot da API e depois execute `node prisma/seed.js` uma vez. Nao deixe migracao/seed no comando principal da API em producao.
 
 ## Publicacao
 

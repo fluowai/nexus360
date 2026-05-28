@@ -53,8 +53,7 @@ export const errorHandler = (err: any, req: Request, res: Response, next: NextFu
   const status = err.status || 500;
   res.status(status).json({
     success: false,
-    error: status === 500 ? 'Erro interno no servidor Nexus360.' : err.message,
+    error: err.message || 'Erro interno no servidor Nexus360.',
     code: err.code || 'INTERNAL_ERROR',
-    // stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 };

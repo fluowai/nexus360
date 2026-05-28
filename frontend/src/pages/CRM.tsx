@@ -603,7 +603,6 @@ export default function CRM() {
                                 </div>
                               )}
                             </div>
-                          </div>
                         </motion.div>
                       ))}
                     </AnimatePresence>

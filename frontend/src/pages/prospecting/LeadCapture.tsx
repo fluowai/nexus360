@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../lib/api';
+import LeadDetailModal from '../../components/crm/LeadDetailModal';
 
 interface Lead {
   id: string;
@@ -68,6 +69,7 @@ export default function LeadCapture() {
   const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
   const [boards, setBoards] = useState<any[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
+  const [selectedLeadForModal, setSelectedLeadForModal] = useState<Lead | null>(null);
 
   // Estados da Prospecção Ativa & Agenda Própria
   const [showProspectingModal, setShowProspectingModal] = useState(false);
@@ -751,7 +753,8 @@ export default function LeadCapture() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className={`group relative bg-white p-4 rounded-2xl border-2 transition-all hover:shadow-xl hover:shadow-gray-200/40 ${selectedLeads.includes(lead.id) ? 'border-primary bg-primary/5 shadow-md' : 'border-gray-50'}`}
+                  onClick={() => setSelectedLeadForModal(lead)}
+                  className={`group relative bg-white p-4 rounded-2xl border-2 transition-all hover:shadow-xl hover:shadow-gray-200/40 cursor-pointer ${selectedLeads.includes(lead.id) ? 'border-primary bg-primary/5 shadow-md' : 'border-gray-50'}`}
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex items-center h-full pt-1">
@@ -760,6 +763,7 @@ export default function LeadCapture() {
                         className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                         checked={selectedLeads.includes(lead.id)}
                         onChange={() => toggleSelectLead(lead.id)}
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
 
@@ -1373,6 +1377,24 @@ export default function LeadCapture() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Lead Detail Modal */}
+      <LeadDetailModal
+        lead={selectedLeadForModal!}
+        isOpen={!!selectedLeadForModal}
+        onClose={() => setSelectedLeadForModal(null)}
+        onEnrich={handleEnrich}
+        onResearchManagement={handleResearchManagement}
+        onDossier={handleDossier}
+        onGenerateScripts={handleGenerateScripts}
+        onSendToCrm={handleSendToCrm}
+        onDelete={() => {
+          // Implementar lógica de deletar se necessário
+          setSelectedLeadForModal(null);
+        }}
+        analyzingIds={analyzingIds}
+        onNotesUpdate={updateLeadNotes}
+      />
     </div>
   );
 }

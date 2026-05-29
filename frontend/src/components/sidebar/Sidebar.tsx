@@ -332,13 +332,31 @@ export const Sidebar: React.FC<{
                       isActive={location.pathname === getPath('/prospecting/capture')}
                       collapsed={collapsed}
                     />
-                  )}
+                   )}
+                   {(isSuper || access.hasModule('prospecting')) && (
+                     <SidebarItem 
+                       icon={Calendar} 
+                       label="Missões Agendadas" 
+                       path={getPath("/prospecting/missions")} 
+                       isActive={location.pathname === getPath('/prospecting/missions')}
+                       collapsed={collapsed}
+                     />
+                   )}
+                   {(isSuper || access.hasModule('prospecting')) && (
+                     <SidebarItem 
+                       icon={MessageCircle} 
+                       label="Funis IA WhatsApp" 
+                       path={getPath("/prospecting/funnels")} 
+                       isActive={location.pathname === getPath('/prospecting/funnels')}
+                       collapsed={collapsed}
+                     />
+                   )}
                   {(isSuper || access.hasModule('prospecting')) && (
                     <SidebarItem 
                       icon={MessageCircle} 
-                      label="Funis IA WhatsApp" 
-                      path={getPath("/prospecting/funnels")} 
-                      isActive={location.pathname === getPath('/prospecting/funnels')}
+                      label="WhatsApp" 
+                      path={getPath("/whatsapp")} 
+                      isActive={location.pathname === getPath('/whatsapp')}
                       collapsed={collapsed}
                     />
                   )}

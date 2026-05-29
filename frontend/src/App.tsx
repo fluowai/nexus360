@@ -55,6 +55,8 @@ const PublicProposal = lazy(() => import("./pages/PublicProposal"));
 const LeadCapture = lazy(() => import("./pages/prospecting/LeadCapture"));
 const CapturedLists = lazy(() => import("./pages/prospecting/CapturedLists"));
 const ProspectingFunnels = lazy(() => import("./pages/prospecting/ProspectingFunnels"));
+const MissionsList = lazy(() => import("./pages/prospecting/MissionsList"));
+const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const Login = lazy(() => import("./pages/Login"));
 const CRMSalesPage = lazy(() => import("./pages/CRMSalesPage"));
@@ -72,7 +74,7 @@ const RESERVED_WORDS = new Set([
   'admin', 'site', 'vendas', 'login', 'onboarding', 'meet',
   'dashboard', 'crm', 'finance', 'settings', 'team', 'projects',
   'reports', 'api', 'automations', 'notifications', 'delivery',
-  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health'
+  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health', 'whatsapp'
 ]);
 
 function isPublicPath(pathname: string) {
@@ -244,6 +246,8 @@ export default function App() {
           <Route path="/prospecting/capture" element={<LeadCapture />} />
           <Route path="/prospecting/lists" element={<CapturedLists />} />
           <Route path="/prospecting/funnels" element={<ProspectingFunnels />} />
+          <Route path="/prospecting/missions" element={<MissionsList />} />
+          <Route path="/whatsapp" element={<WhatsApp />} />
           <Route path="/team" element={<Team />} />
           <Route path="/site" element={<LandingPage />} />
           <Route path="/vendas" element={<CRMSalesPage />} />
@@ -284,6 +288,8 @@ export default function App() {
           <Route path="/:slug/prospecting/capture" element={<LeadCapture />} />
           <Route path="/:slug/prospecting/lists" element={<CapturedLists />} />
           <Route path="/:slug/prospecting/funnels" element={<ProspectingFunnels />} />
+          <Route path="/:slug/prospecting/missions" element={<MissionsList />} />
+          <Route path="/:slug/whatsapp" element={<WhatsApp />} />
           <Route path="/:slug/quiz" element={<QuizBuilder />} />
           <Route path="/:slug/content" element={<Content />} />
           <Route path="/:slug/projects" element={<Projects />} />
@@ -313,6 +319,7 @@ export default function App() {
           <Route path="/time-tracking" element={<TimeTracking />} />
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/client-health" element={<ClientHealthDashboard />} />
+          <Route path="/whatsapp" element={<WhatsApp />} />
 
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/crm" element={<CRM />} />

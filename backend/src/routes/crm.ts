@@ -5,14 +5,18 @@ import { AuthRequest, authenticateToken } from "../middleware/auth.js";
 import { sanitizeBody } from "../utils/sanitizer.js";
 import { auditFromRequest } from "../utils/auditLogger.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
+import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
 
 export function crmRoutes(prisma: PrismaClient) {
   const router = Router();
 
-  const listPipelines = (orgId: string) => prisma.pipeline.findMany({
-    where: { organizationId: orgId },
-    include: { stages: { orderBy: { order: 'asc' } } }
-  });
+  const listPipelines = async (orgId: string) => {
+    await ensureDefaultSalesPipeline(prisma, orgId);
+    return prisma.pipeline.findMany({
+      where: { organizationId: orgId },
+      include: { stages: { orderBy: { order: 'asc' } } }
+    });
+  };
 
   const safeQuery = async <T>(label: string, query: Promise<T>, fallback: T): Promise<T> => {
     try { return await query; }
@@ -33,6 +37,15 @@ export function crmRoutes(prisma: PrismaClient) {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
     try { res.json(await listPipelines(orgId)); } catch (error) { next(error); }
+  });
+
+  router.post("/boards/setup", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+    try {
+      const pipeline = await ensureDefaultSalesPipeline(prisma, orgId, req.body?.boardId);
+      res.json(pipeline);
+    } catch (error) { next(error); }
   });
 
   // ==================== OPPORTUNITIES ====================
@@ -98,9 +111,17 @@ export function crmRoutes(prisma: PrismaClient) {
       const client = await prisma.client.findFirst({ where: { id: clientId, organizationId: orgId }, select: { id: true } });
       if (!client) return res.status(400).json({ error: "Cliente invalido para esta organizacao" });
 
-      if (pipelineId) {
-        const pipeline = await prisma.pipeline.findFirst({ where: { id: pipelineId, organizationId: orgId }, select: { id: true } });
+      let targetPipelineId = pipelineId;
+      let ensuredPipeline = null;
+      if (!targetPipelineId) {
+        ensuredPipeline = await ensureDefaultSalesPipeline(prisma, orgId);
+        targetPipelineId = ensuredPipeline.id;
+      }
+
+      if (targetPipelineId) {
+        const pipeline = await prisma.pipeline.findFirst({ where: { id: targetPipelineId, organizationId: orgId }, include: { stages: { orderBy: { order: "asc" } } } });
         if (!pipeline) return res.status(400).json({ error: "Pipeline invalido para esta organizacao" });
+        ensuredPipeline = pipeline;
       }
 
       if (assignedToId) {
@@ -109,17 +130,14 @@ export function crmRoutes(prisma: PrismaClient) {
       }
 
       let targetStageId = stageId;
-      if (pipelineId && !stageId) {
-        const defaultStage = await prisma.pipelineStage.findFirst({
-          where: { pipelineId, pipeline: { organizationId: orgId }, isDefault: true },
-          orderBy: { order: "asc" },
-        });
-        targetStageId = defaultStage?.id;
+      if (targetPipelineId && !stageId) {
+        if (!ensuredPipeline) ensuredPipeline = await ensureDefaultSalesPipeline(prisma, orgId, targetPipelineId);
+        targetStageId = getInitialSalesStage(ensuredPipeline)?.id;
       }
 
       if (targetStageId) {
         const stage = await prisma.pipelineStage.findFirst({
-          where: { id: targetStageId, pipeline: { organizationId: orgId, ...(pipelineId ? { id: pipelineId } : {}) } },
+          where: { id: targetStageId, pipeline: { organizationId: orgId, ...(targetPipelineId ? { id: targetPipelineId } : {}) } },
           select: { id: true },
         });
         if (!stage) return res.status(400).json({ error: "Etapa invalida para esta organizacao" });
@@ -133,7 +151,7 @@ export function crmRoutes(prisma: PrismaClient) {
           estimatedValue: parseFloat(value) || 0,
           organizationId: orgId,
           clientId,
-          pipelineId,
+          pipelineId: targetPipelineId,
           stageId: targetStageId,
           assignedToId: assignedToId || req.user?.id,
           expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : null,

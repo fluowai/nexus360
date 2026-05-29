@@ -4,6 +4,7 @@ import { AuthRequest } from "../middleware/auth.js";
 import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../modules/lead-capture/lead-ai.service.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
+import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
 
 export function leadCaptureRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -128,24 +129,16 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       const targetOrgId = orgId;
       let { boardId, stageId } = req.body;
 
-      // 2. Fallback para Pipeline (Board)
-      if (!boardId || boardId === '') {
-        const defaultPipeline = await prisma.pipeline.findFirst({
-          where: { organizationId: targetOrgId },
-          orderBy: { createdAt: 'asc' }
-        });
-        boardId = defaultPipeline?.id;
+      const pipeline = await ensureDefaultSalesPipeline(prisma, targetOrgId, boardId || undefined);
+      boardId = pipeline.id;
+      if (!stageId || stageId === '') {
+        stageId = getInitialSalesStage(pipeline)?.id;
+      }
+      if (!stageId) {
+        return res.status(400).json({ error: "Pipeline sem etapa inicial configurada" });
       }
 
       // 3. Fallback para Estágio
-      if (boardId && (!stageId || stageId === '')) {
-        const firstStage = await prisma.pipelineStage.findFirst({
-          where: { pipelineId: boardId, pipeline: { organizationId: targetOrgId } },
-          orderBy: { order: 'asc' }
-        });
-        stageId = firstStage?.id;
-      }
-
       if (boardId) {
         const pipeline = await prisma.pipeline.findFirst({
           where: { id: boardId, organizationId: targetOrgId },
@@ -183,13 +176,91 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
         }
       });
 
-      // 5. Atualizar status da captação
+      // 5. Criar cliente e oportunidade para aparecer no Kanban.
+      const crmNotes = newLead.notes || "";
+      let crmClient = capturedLead.cnpj
+        ? await prisma.client.findFirst({ where: { organizationId: targetOrgId, cnpj: capturedLead.cnpj } })
+        : null;
+
+      if (!crmClient && capturedLead.email) {
+        crmClient = await prisma.client.findFirst({
+          where: { organizationId: targetOrgId, email: capturedLead.email, corporateName: capturedLead.businessName },
+        });
+      }
+
+      if (!crmClient) {
+        crmClient = await prisma.client.create({
+          data: {
+            corporateName: capturedLead.businessName,
+            tradeName: capturedLead.businessName,
+            cnpj: capturedLead.cnpj || undefined,
+            email: capturedLead.email || "",
+            phone: capturedLead.phoneNormalized || capturedLead.phone,
+            website: capturedLead.website,
+            address: capturedLead.address,
+            city: capturedLead.city,
+            state: capturedLead.state,
+            segment: capturedLead.category,
+            source: capturedLead.provider || "captacao",
+            sourceDetail: capturedLead.sourceId || undefined,
+            notes: crmNotes,
+            tags: capturedLead.category || undefined,
+            status: "prospect",
+            organizationId: targetOrgId,
+            assignedToId: req.user?.id,
+          },
+        });
+      }
+
+      await prisma.lead.update({
+        where: { id: newLead.id },
+        data: { clientId: crmClient.id, assignedToId: req.user?.id },
+      });
+
+      const opportunity = await prisma.opportunity.create({
+        data: {
+          title: capturedLead.businessName,
+          description: crmNotes,
+          value: 0,
+          estimatedValue: 0,
+          organizationId: targetOrgId,
+          clientId: crmClient.id,
+          pipelineId: boardId,
+          stageId,
+          assignedToId: req.user?.id,
+          stage: "qualificacao",
+          score: Math.round(capturedLead.scoreOpportunity || 0),
+          temperature: (capturedLead.scoreOpportunity || 0) >= 70 ? "HOT" : (capturedLead.scoreOpportunity || 0) >= 40 ? "WARM" : "COLD",
+          customFields: {
+            capturedLeadId: capturedLead.id,
+            crmLeadId: newLead.id,
+            provider: capturedLead.provider,
+            category: capturedLead.category,
+            googleMapsUrl: capturedLead.googleMapsUrl,
+          },
+        },
+      });
+
+      await prisma.activity.create({
+        data: {
+          organizationId: targetOrgId,
+          type: "SYSTEM",
+          description: `Lead captado "${capturedLead.businessName}" enviado para o Kanban`,
+          userId: req.user?.id,
+          contactId: newLead.id,
+          companyId: crmClient.id,
+          dealId: opportunity.id,
+        },
+      });
+
+      // 6. Atualizar status da captacao.
       const updatedCapturedLead = await prisma.capturedLead.update({
         where: { id: req.params.id },
         data: { sentToCrm: true, crmLeadId: newLead.id }
       });
 
       emitAutomationEvent("lead.created", { organizationId: targetOrgId, leadId: newLead.id, lead: newLead });
+      emitAutomationEvent("opportunity.created", { organizationId: targetOrgId, opportunityId: opportunity.id, opportunity });
 
       res.json(updatedCapturedLead); // Retornamos o captured lead atualizado para o frontend manter o estado consistente
     } catch (error: any) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, Phone, Globe, MapPin, Database, Star, Loader2, Send, Trash2, Wand2, MessageCircle, ExternalLink, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -25,7 +25,7 @@ interface Lead {
 }
 
 interface LeadDetailModalProps {
-  lead: Lead;
+  lead: Lead | null;
   isOpen: boolean;
   onClose: () => void;
   onEnrich?: (leadId: string) => void;
@@ -51,10 +51,14 @@ export default function LeadDetailModal({
   analyzingIds = [],
   onNotesUpdate,
 }: LeadDetailModalProps) {
-  const [notes, setNotes] = useState(lead.notes || '');
+  const [notes, setNotes] = useState('');
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    setNotes(lead?.notes || '');
+  }, [lead?.id, lead?.notes]);
+
+  if (!isOpen || !lead) return null;
 
   const handleSaveNotes = async () => {
     if (onNotesUpdate && notes !== lead.notes) {

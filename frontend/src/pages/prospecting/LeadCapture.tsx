@@ -1380,7 +1380,7 @@ export default function LeadCapture() {
 
       {/* Lead Detail Modal */}
       <LeadDetailModal
-        lead={selectedLeadForModal!}
+        lead={selectedLeadForModal}
         isOpen={!!selectedLeadForModal}
         onClose={() => setSelectedLeadForModal(null)}
         onEnrich={handleEnrich}

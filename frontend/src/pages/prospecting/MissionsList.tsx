@@ -106,6 +106,13 @@ export default function MissionsList() {
     }
   };
 
+  const getMissionProgress = (mission: Mission) => {
+    const total = Math.max(Number(mission.leadQuantity) || 0, 0);
+    const captured = Math.max(Number(mission._count?.leads) || 0, 0);
+    if (!total) return mission.status === 'concluida' ? 100 : 0;
+    return Math.min(100, Math.round((captured / total) * 100));
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -152,6 +159,7 @@ export default function MissionsList() {
           {missions.map((mission) => {
             const sc = getStatusConfig(mission.status);
             const isExpanded = expandedId === mission.id;
+            const progress = getMissionProgress(mission);
 
             return (
               <div
@@ -212,6 +220,27 @@ export default function MissionsList() {
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
                       <Target size={14} className="text-indigo-500" />
                       <span>Qtd: {mission.leadQuantity}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Progresso da missao</p>
+                        <p className="text-xs font-bold text-gray-600">{mission._count?.leads || 0} de {mission.leadQuantity || 0} leads captados</p>
+                      </div>
+                      <span className="rounded-xl bg-white px-3 py-1 text-sm font-black text-primary shadow-sm">{progress}%</span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-white">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          mission.status === 'erro' ? 'bg-red-500' :
+                          mission.status === 'pausada' ? 'bg-amber-500' :
+                          mission.status === 'concluida' ? 'bg-green-500' :
+                          'bg-primary'
+                        }`}
+                        style={{ width: `${progress}%` }}
+                      />
                     </div>
                   </div>
 

@@ -103,8 +103,7 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
     where: { channelId, contactId: chatJid },
   });
 
-  const metadata = {
-    ...(typeof conversation?.metadata === "object" && conversation?.metadata ? conversation.metadata as any : {}),
+  const conversationMetadata = {
     externalChatId: chatJid,
     isGroup: !!payload.isGroup,
     phone: isWhatsAppGroupJid(chatJid) ? null : normalizeWhatsAppPhone(chatJid).e164,
@@ -127,7 +126,6 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
         status: "open",
         priority: prospectingRun ? "high" : "medium",
         lastMessageAt: payload.message?.timestamp ? new Date(payload.message.timestamp) : new Date(),
-        metadata,
       } as any,
     });
   } else {
@@ -137,7 +135,6 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
         subject: displayName,
         status: conversation.status === "closed" ? "open" : conversation.status,
         lastMessageAt: payload.message?.timestamp ? new Date(payload.message.timestamp) : new Date(),
-        metadata,
       } as any,
     });
   }
@@ -172,6 +169,7 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
         mediaSha256: payload.message?.mediaSha256 || null,
         rawType: payload.message?.type || null,
         prospectingRunId: prospectingRun?.id || null,
+        conversation: conversationMetadata,
       },
       createdAt: payload.message?.timestamp ? new Date(payload.message.timestamp) : new Date(),
     },
@@ -368,7 +366,24 @@ export function whatsappRoutes(prisma: PrismaClient) {
         },
         orderBy: { lastMessageAt: "desc" },
       });
-      res.json(conversations);
+      res.json(conversations.map((conversation) => {
+        const latestMessage = conversation.messages?.[0];
+        const messageMetadata = latestMessage?.metadata as any;
+        return {
+          ...conversation,
+          metadata: messageMetadata?.conversation || {
+            externalChatId: conversation.contactId,
+            isGroup: isWhatsAppGroupJid(conversation.contactId),
+            phone: isWhatsAppGroupJid(conversation.contactId) ? null : normalizeWhatsAppPhone(conversation.contactId).e164,
+            pushName: null,
+            displayName: conversation.subject,
+            profilePictureUrl: null,
+            group: null,
+            participants: [],
+            provider: WHATSAPP_PROVIDER,
+          },
+        };
+      }));
     } catch (error) { next(error); }
   });
 

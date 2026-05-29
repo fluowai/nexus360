@@ -69,8 +69,6 @@ model Organization {
 
   geminiKey  String?
   groqKey    String?
-  openaiKey  String?
-  chatgptKey String?
   serpApiKey String?
   serperApiKey String?
   outscraperKey String?
@@ -1943,8 +1941,6 @@ model Conversation {
   assignedTo     User?        @relation(fields: [assignedToId], references: [id])
   
   messages       Message[]
-  metadata       Json?
-  
   lastMessageAt  DateTime     @default(now())
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

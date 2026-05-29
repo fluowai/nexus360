@@ -57,15 +57,21 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
         select: {
           geminiKey: true,
           groqKey: true,
-          openaiKey: true,
-          chatgptKey: true,
+          settings: true,
           serpApiKey: true,
           serperApiKey: true,
           outscraperKey: true,
           aiProvider: true
         }
       });
-      res.json(org);
+      const settings = typeof org?.settings === "object" && org?.settings && !Array.isArray(org.settings)
+        ? org.settings as Record<string, any>
+        : {};
+      res.json({
+        ...org,
+        openaiKey: settings.openaiKey || "",
+        chatgptKey: settings.chatgptKey || "",
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch settings" });
     }
@@ -78,11 +84,26 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
 
     try {
       const { geminiKey, groqKey, openaiKey, chatgptKey, serpApiKey, serperApiKey, outscraperKey, aiProvider } = req.body;
+      const current = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { settings: true },
+      });
+      const settings = typeof current?.settings === "object" && current?.settings && !Array.isArray(current.settings)
+        ? current.settings as Record<string, any>
+        : {};
       const org = await prisma.organization.update({
         where: { id: orgId },
-        data: { geminiKey, groqKey, openaiKey, chatgptKey, serpApiKey, serperApiKey, outscraperKey, aiProvider }
+        data: {
+          geminiKey,
+          groqKey,
+          serpApiKey,
+          serperApiKey,
+          outscraperKey,
+          aiProvider,
+          settings: { ...settings, openaiKey, chatgptKey },
+        }
       });
-      res.json(org);
+      res.json({ ...org, openaiKey, chatgptKey });
     } catch (error) {
       res.status(500).json({ error: "Failed to update settings" });
     }

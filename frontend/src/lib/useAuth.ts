@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { apiFetch, clearAuthSession, hasAccessToken } from "./api";
+import { redirectToLogin } from "./navigation";
 import type { User } from "../types";
 
 export function useAuth() {
@@ -29,7 +30,7 @@ export function useAuth() {
         setUser(null);
         clearAuthSession();
         if (!isPublicPath && window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          redirectToLogin();
         }
       } finally {
         setAuthLoading(false);
@@ -42,7 +43,8 @@ export function useAuth() {
     apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     clearAuthSession();
     localStorage.clear();
-    window.location.href = '/login';
+    setUser(null);
+    redirectToLogin();
   };
 
   return { user, setUser, authLoading, handleLogout };

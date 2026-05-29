@@ -50,11 +50,11 @@ export default function Login() {
       } else {
         localStorage.setItem("nexus_onboarding_done", "true");
         if (data.user.role === 'SUPER_ADMIN') {
-          window.location.href = "/admin";
+          navigate("/admin", { replace: true });
         } else if (data.user.orgSlug) {
-          window.location.href = `/${data.user.orgSlug}/dashboard`;
+          navigate(`/${data.user.orgSlug}/dashboard`, { replace: true });
         } else {
-          window.location.href = "/dashboard";
+          navigate("/dashboard", { replace: true });
         }
       }
 

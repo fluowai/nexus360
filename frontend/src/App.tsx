@@ -3,7 +3,7 @@ import {
   Menu,
   Monitor
 } from "lucide-react";
-import { useState, lazy, Suspense } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 import { Sidebar } from "./components/sidebar/Sidebar";
@@ -178,30 +178,32 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
 
   const { pathname } = location;
 
-  if (isPublicPath(pathname)) return;
-  if (hasUrlSlug(pathname)) return;
+  useEffect(() => {
+    if (isPublicPath(pathname)) return;
+    if (hasUrlSlug(pathname)) return;
 
-  const onboardingDone = localStorage.getItem('nexus_onboarding_done') === 'true';
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+    const onboardingDone = localStorage.getItem('nexus_onboarding_done') === 'true';
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
-  if (pathname === '/') {
-    if (isSuperAdmin && !selectedClientId) {
-      navigate('/admin', { replace: true });
-    } else {
-      const savedSlug = localStorage.getItem('nexus_org_slug');
-      navigate(savedSlug ? `/${savedSlug}/dashboard` : '/dashboard', { replace: true });
+    if (pathname === '/') {
+      if (isSuperAdmin && !selectedClientId) {
+        navigate('/admin', { replace: true });
+      } else {
+        const savedSlug = localStorage.getItem('nexus_org_slug');
+        navigate(savedSlug ? `/${savedSlug}/dashboard` : '/dashboard', { replace: true });
+      }
+      return;
     }
-    return;
-  }
 
-  if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin')) {
-    navigate('/admin', { replace: true });
-    return;
-  }
+    if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin')) {
+      navigate('/admin', { replace: true });
+      return;
+    }
 
-  if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding') {
-    navigate('/onboarding', { replace: true });
-  }
+    if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding') {
+      navigate('/onboarding', { replace: true });
+    }
+  }, [navigate, pathname, selectedClientId, user?.role]);
 }
 
 export default function App() {

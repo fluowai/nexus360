@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+import { redirectToLogin } from "./navigation";
+
 const PRODUCTION_API_URL = 'https://nexus360-production.up.railway.app';
 const rawApiUrl = import.meta.env.VITE_API_URL || '';
 const normalizedApiUrl = rawApiUrl === 'same-origin' ? '' : rawApiUrl;
@@ -14,7 +16,7 @@ let refreshPromise: Promise<string | null> | null = null;
 let accessTokenMemory: string | null = sessionStorage.getItem(ACCESS_TOKEN_KEY);
 
 function isAuthPath(path: string) {
-  return path.includes('/api/auth/login') || path.includes('/api/auth/register') || path.includes('/api/auth/refresh');
+  return path.includes('/api/auth/login') || path.includes('/api/auth/register') || path.includes('/api/auth/refresh') || path.includes('/api/auth/logout');
 }
 
 function isTokenExpiring(token: string | null): boolean {
@@ -101,16 +103,21 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => {
+      controller.abort(new DOMException('Request timed out', 'TimeoutError'));
+    }, 15000);
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include',
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include',
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (response.status === 401) {
       if (!path.includes('/api/auth/refresh')) {
@@ -133,20 +140,16 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
           });
         }
 
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
+        redirectToLogin();
       } else {
         clearAuthSession();
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
+        redirectToLogin();
       }
     }
 
     return response;
   } catch (error: any) {
-    if (retries > 0 && (error.name === 'AbortError' || error.name === 'TypeError')) {
+    if (retries > 0 && (error.name === 'AbortError' || error.name === 'TimeoutError' || error.name === 'TypeError')) {
       return apiFetch(path, options, retries - 1);
     }
 

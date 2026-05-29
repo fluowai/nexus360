@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { 
   Building2, 
   Plus, 
@@ -19,6 +20,7 @@ import { motion } from "motion/react";
 import { apiFetch } from "../../lib/api";
 
 export default function AdminAgencies() {
+  const navigate = useNavigate();
   const [agencies, setAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -254,7 +256,7 @@ export default function AdminAgencies() {
                       <button 
                         onClick={() => {
                           localStorage.setItem('nexus_selected_client', org.id);
-                          window.location.href = '/dashboard';
+                          navigate('/dashboard');
                         }}
                         className="p-2 hover:bg-emerald-50 rounded-lg text-gray-400 hover:text-emerald-600 transition-all"
                         title="Acessar como Suporte (Impersonate)"

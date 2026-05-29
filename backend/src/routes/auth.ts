@@ -487,9 +487,7 @@ export function authRoutes(prisma: PrismaClient) {
         include: {
           organization: {
             include: {
-              planObj: {
-                include: { planFeatures: true },
-              },
+              planObj: true,
               _count: {
                 select: { leads: true },
               },

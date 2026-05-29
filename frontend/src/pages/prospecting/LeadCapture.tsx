@@ -256,6 +256,56 @@ export default function LeadCapture() {
       onlyWithWebsite: false
     }
   });
+  const [missionForm, setMissionForm] = useState({
+    recurrence: 'semanal',
+    executionDate: new Date().toISOString().slice(0, 10),
+    executionTime: '09:00',
+    leadQuantity: 25,
+    minScore: 50
+  });
+  const [missionCreated, setMissionCreated] = useState<string | null>(null);
+
+  const handleCreateScheduledMission = async () => {
+    if (!searchParams.keyword || !searchParams.city || !searchParams.state) {
+      setSearchError('Informe nicho, cidade e UF antes de agendar a captacao.');
+      return;
+    }
+
+    setLoading(true);
+    setSearchError(null);
+    setMissionCreated(null);
+
+    try {
+      const res = await apiFetch('/api/nexus-prospect/missions', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `Captacao ${searchParams.keyword} - ${searchParams.city}/${searchParams.state}`,
+          niche: searchParams.keyword,
+          city: searchParams.city,
+          state: searchParams.state,
+          country: 'Brasil',
+          leadQuantity: missionForm.leadQuantity,
+          executionDate: missionForm.executionDate,
+          executionTime: missionForm.executionTime,
+          recurrence: missionForm.recurrence,
+          minScore: missionForm.minScore,
+          initialApproach: 'Abordagem consultiva, personalizada pelo diagnostico do lead, com objetivo de qualificar e agendar uma reuniao de 30 minutos.'
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setSearchError(data.error || 'Nao foi possivel criar o agendamento.');
+        return;
+      }
+
+      setMissionCreated(`Missao agendada para ${missionForm.executionDate} as ${missionForm.executionTime}.`);
+    } catch (err: any) {
+      setSearchError(err.message || 'Erro ao criar agendamento.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchSources();
@@ -588,6 +638,84 @@ export default function LeadCapture() {
           </div>
         )}
       </div>
+
+      <section className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-2 bg-emerald-50 rounded-xl">
+                <Calendar size={18} className="text-emerald-600" />
+              </div>
+              <h2 className="text-lg font-black text-gray-900 tracking-tight">Agendamento automatico de captacao</h2>
+            </div>
+            <p className="text-sm text-gray-500 font-medium">
+              Usa o nicho, cidade e UF acima para captar a quantidade definida, enriquecer, filtrar contador/anti-bot e enviar os aprovados ao funil SDR IA.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 w-full lg:w-auto">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Recorrencia</label>
+              <select
+                value={missionForm.recurrence}
+                onChange={e => setMissionForm({ ...missionForm, recurrence: e.target.value })}
+                className="w-full h-11 px-3 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-100"
+              >
+                <option value="unica">Uma vez</option>
+                <option value="diaria">Diaria</option>
+                <option value="semanal">Semanal</option>
+                <option value="quinzenal">Quinzenal</option>
+                <option value="mensal">Mensal</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Data inicial</label>
+              <input
+                type="date"
+                value={missionForm.executionDate}
+                onChange={e => setMissionForm({ ...missionForm, executionDate: e.target.value })}
+                className="w-full h-11 px-3 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Horario</label>
+              <input
+                type="time"
+                value={missionForm.executionTime}
+                onChange={e => setMissionForm({ ...missionForm, executionTime: e.target.value })}
+                className="w-full h-11 px-3 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Leads</label>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={missionForm.leadQuantity}
+                onChange={e => setMissionForm({ ...missionForm, leadQuantity: Number(e.target.value) })}
+                className="w-full h-11 px-3 bg-gray-50 border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleCreateScheduledMission}
+              disabled={loading}
+              className="h-11 self-end bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:opacity-60 text-xs px-4"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+              Agendar
+            </button>
+          </div>
+        </div>
+
+        {missionCreated && (
+          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-700 font-bold flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            {missionCreated}
+          </div>
+        )}
+      </section>
 
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Lista de Resultados */}

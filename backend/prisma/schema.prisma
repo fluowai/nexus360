@@ -124,6 +124,9 @@ model Organization {
   // SaaS Control (Super Admin -> Agency)
   saasInvoices      SaaSInvoice[]
   supportTickets    SupportTicket[]
+
+  // Nexus Prospect AI
+  prospectMissions  ProspectMission[]
 }
 
 model Workspace {
@@ -411,6 +414,10 @@ model User {
   
   conversations        Conversation[]
   refreshTokens        RefreshToken[]
+  
+  // Nexus Prospect AI
+  prospectMissions       ProspectMission[]
+  prospectMissionsOwned  ProspectMission[] @relation("MissionSalesOwner")
   
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -2114,4 +2121,216 @@ model UsageEvent {
 
   @@index([organizationId])
   @@index([feature])
+}
+
+// ==========================================
+// MÓDULO: NEXUS PROSPECT AI
+// ==========================================
+
+model ProspectMission {
+  id                      String    @id @default(uuid())
+  organizationId          String
+  organization            Organization @relation(fields: [organizationId], references: [id])
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id])
+  name                    String
+  niche                   String
+  city                    String
+  state                   String
+  country                 String
+  leadQuantity            Int
+  executionDate           DateTime
+  executionTime           String
+  recurrence              String    @default("unica") // unica, diaria, semanal, quinzenal, mensal
+  dailyMessageLimit       Int       @default(50)
+  messageIntervalMinutes  Int       @default(15)
+  minScore                Int       @default(50)
+  initialApproach         String    @db.Text
+  salesOwnerId            String?
+  salesOwner              User?     @relation("MissionSalesOwner", fields: [salesOwnerId], references: [id])
+  calendarId              String?   
+  status                  String    @default("agendada") // agendada, em_execucao, pausada, concluida, erro, cancelada
+  
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  leads                   ProspectLead[]
+  messages                ProspectOutreachMessage[]
+  conversations           ProspectConversation[]
+  appointments            ProspectAppointment[]
+  logs                    ProspectAgentLog[]
+
+  @@index([organizationId])
+}
+
+model ProspectLead {
+  id                  String    @id @default(uuid())
+  missionId           String
+  mission             ProspectMission @relation(fields: [missionId], references: [id])
+  companyName         String
+  category            String?
+  phone               String?
+  whatsapp            String?
+  website             String?
+  instagram           String?
+  address             String?
+  city                String?
+  state               String?
+  country             String?
+  latitude            Float?
+  longitude           Float?
+  googleRating        Float?
+  googleReviewsCount  Int?
+  openingHours        Json?
+  googleMapsUrl       String?
+  dataSource          String?
+  captureDate         DateTime  @default(now())
+  status              String    @default("captado") // captado, validado, aprovado_para_contato, pendente_revisao, reprovado, call_agendada
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  validation          ProspectValidation?
+  dossier             ProspectDossier?
+  messages            ProspectOutreachMessage[]
+  conversations       ProspectConversation[]
+  appointment         ProspectAppointment?
+  logs                ProspectAgentLog[]
+
+  @@index([missionId])
+}
+
+model ProspectValidation {
+  id                  String    @id @default(uuid())
+  leadId              String    @unique
+  lead                ProspectLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  phoneValid          Boolean   @default(false)
+  whatsappValid       Boolean   @default(false)
+  websiteActive       Boolean   @default(false)
+  instagramFound      Boolean   @default(false)
+  companyActive       Boolean   @default(false)
+  duplicate           Boolean   @default(false)
+  accountantSuspect   Boolean   @default(false)
+  usesBot             Boolean   @default(false)
+  detectedBotType     String?
+  digitalMaturity     String?   // baixa, media, alta
+  validationNotes     String?   @db.Text
+  validatedAt         DateTime  @default(now())
+}
+
+model ProspectDossier {
+  id                        String    @id @default(uuid())
+  leadId                    String    @unique
+  lead                      ProspectLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  companySummary            String?   @db.Text
+  digitalPresenceDiagnosis  String?   @db.Text
+  strengths                 Json?
+  weaknesses                Json?
+  opportunities             Json?
+  possiblePains             Json?
+  recommendedApproach       String?   @db.Text
+  personalizedArgument      String?   @db.Text
+  opportunityScore          Int       @default(0)
+  classification            String?   // frio, morno, quente, prioridade
+  classificationReason      String?   @db.Text
+  createdAt                 DateTime  @default(now())
+}
+
+model ProspectOutreachMessage {
+  id                  String    @id @default(uuid())
+  leadId              String
+  lead                ProspectLead @relation(fields: [leadId], references: [id])
+  missionId           String
+  mission             ProspectMission @relation(fields: [missionId], references: [id])
+  channel             String    @default("whatsapp")
+  message             String    @db.Text
+  sendStatus          String    @default("pending") // pending, sent, failed
+  sentAt              DateTime?
+  responseReceived    Boolean   @default(false)
+  optOut              Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+
+  @@index([leadId])
+  @@index([missionId])
+}
+
+model ProspectConversation {
+  id                      String    @id @default(uuid())
+  leadId                  String
+  lead                    ProspectLead @relation(fields: [leadId], references: [id])
+  missionId               String
+  mission                 ProspectMission @relation(fields: [missionId], references: [id])
+  externalConversationId  String?
+  lastMessage             String?   @db.Text
+  leadIntent              String?   // sem_interesse, interessado, curioso, pediu_mais_informacoes, quer_agendar, não_respondeu, opt_out
+  qualificationStatus     String?
+  summary                 String?   @db.Text
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([leadId])
+  @@index([missionId])
+}
+
+model ProspectAppointment {
+  id                      String    @id @default(uuid())
+  leadId                  String    @unique
+  lead                    ProspectLead @relation(fields: [leadId], references: [id])
+  missionId               String
+  mission                 ProspectMission @relation(fields: [missionId], references: [id])
+  salesOwnerId            String?
+  calendarEventId         String?
+  appointmentDate         DateTime
+  appointmentTime         String
+  durationMinutes         Int       @default(30)
+  meetingLink             String?
+  status                  String    @default("scheduled")
+  qualificationSummary    String?   @db.Text
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([missionId])
+}
+
+model ProspectAgentLog {
+  id                  String    @id @default(uuid())
+  missionId           String?
+  mission             ProspectMission? @relation(fields: [missionId], references: [id])
+  leadId              String?
+  lead                ProspectLead? @relation(fields: [leadId], references: [id])
+  agentName           String
+  action              String
+  status              String
+  message             String?   @db.Text
+  metadata            Json?
+  createdAt           DateTime  @default(now())
+
+  @@index([missionId])
+  @@index([leadId])
+}
+
+model ProspectBlockedContact {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  phone               String
+  reason              String?
+  createdAt           DateTime  @default(now())
+
+  @@unique([organizationId, phone])
+}
+
+model ProspectLearningMetric {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  niche               String
+  city                String
+  approachType        String
+  leadsContacted      Int       @default(0)
+  responsesReceived   Int       @default(0)
+  appointmentsBooked  Int       @default(0)
+  responseRate        Float     @default(0)
+  bookingRate         Float     @default(0)
+  createdAt           DateTime  @default(now())
+
+  @@index([organizationId])
 }

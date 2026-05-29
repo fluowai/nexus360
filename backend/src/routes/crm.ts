@@ -9,17 +9,73 @@ import { auditFromRequest } from "../utils/auditLogger.js";
 export function crmRoutes(prisma: PrismaClient) {
   const router = Router();
 
+  const defaultPipelines = [
+    { name: 'BDR (Prospeccao Fria)', stages: ['Novo', 'Primeiro Contato', 'Em Conversa', 'Interesse Detectado', 'Qualificado'], type: 'BDR' },
+    { name: 'SDR (Qualificacao)', stages: ['Novo', 'Agendamento em Aberto', 'Reuniao Marcada', 'Qualificado (SQL)', 'Descartado'], type: 'SDR' },
+    { name: 'Closer (Vendas)', stages: ['Demonstracao', 'Proposta Enviada', 'Negociacao', 'Fechado Ganho', 'Fechado Perdido'], type: 'SALES' }
+  ];
+
+  const listPipelines = (orgId: string) => prisma.pipeline.findMany({
+    where: { organizationId: orgId },
+    include: { stages: { orderBy: { order: 'asc' } } }
+  });
+
+  const ensureDefaultPipelines = async (orgId: string) => {
+    const result = [];
+
+    for (const p of defaultPipelines) {
+      let pipeline = await prisma.pipeline.findFirst({
+        where: { organizationId: orgId, name: p.name },
+        include: { stages: { orderBy: { order: 'asc' } } }
+      });
+
+      if (!pipeline) {
+        pipeline = await prisma.pipeline.create({
+          data: {
+            name: p.name,
+            organizationId: orgId,
+            type: p.type,
+            stages: {
+              create: p.stages.map((name, order) => ({ name, order }))
+            }
+          },
+          include: { stages: { orderBy: { order: 'asc' } } }
+        });
+      } else if (pipeline.stages.length === 0) {
+        await prisma.pipelineStage.createMany({
+          data: p.stages.map((name, order) => ({ name, order, pipelineId: pipeline!.id }))
+        });
+        pipeline = await prisma.pipeline.findUniqueOrThrow({
+          where: { id: pipeline.id },
+          include: { stages: { orderBy: { order: 'asc' } } }
+        });
+      }
+
+      result.push(pipeline);
+    }
+
+    return result;
+  };
+
+  const safeQuery = async <T>(label: string, query: Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await query;
+    } catch (error: any) {
+      console.error(`[CRM_GROWTH_${label}_ERROR]`, error?.message || error);
+      return fallback;
+    }
+  };
+
   // Debug Ping
   router.get("/ping-crm", (req, res) => res.json({ message: "crm router is active", timestamp: new Date().toISOString() }));
 
   // List Pipelines (Boards Alias)
   router.get("/boards", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+
     try {
-      const pipelines = await prisma.pipeline.findMany({
-        where: { organizationId: orgId },
-        include: { stages: { orderBy: { order: 'asc' } } }
-      });
+      const pipelines = await listPipelines(orgId);
       res.json(pipelines);
     } catch (error) {
       next(error);
@@ -29,11 +85,10 @@ export function crmRoutes(prisma: PrismaClient) {
   // List Pipelines
   router.get("/pipelines", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+
     try {
-      const pipelines = await prisma.pipeline.findMany({
-        where: { organizationId: orgId },
-        include: { stages: { orderBy: { order: 'asc' } } }
-      });
+      const pipelines = await listPipelines(orgId);
       res.json(pipelines);
     } catch (error) {
       next(error);
@@ -43,7 +98,13 @@ export function crmRoutes(prisma: PrismaClient) {
   // Setup Default Pipelines
   router.post("/pipelines/setup", authenticateToken, requireAccess({ module: "crm", feature: "crm.manage_boards" }), async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+
     try {
+      const ensuredPipelines = await ensureDefaultPipelines(orgId);
+      auditFromRequest(req, "CREATE", "Pipeline", null, { action: "setup_defaults" });
+      return res.json({ success: true, pipelines: ensuredPipelines });
+
       const pipelines = [
         { name: 'BDR (Prospecção Fria)', stages: ['Novo', 'Primeiro Contato', 'Em Conversa', 'Interesse Detectado', 'Qualificado'], type: 'BDR' },
         { name: 'SDR (Qualificação)', stages: ['Novo', 'Agendamento em Aberto', 'Reunião Marcada', 'Qualificado (SQL)', 'Descartado'], type: 'SDR' },
@@ -68,9 +129,24 @@ export function crmRoutes(prisma: PrismaClient) {
     }
   });
 
+  router.post("/boards/setup", authenticateToken, requireAccess({ module: "crm", feature: "crm.manage_boards" }), async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+
+    try {
+      const pipelines = await ensureDefaultPipelines(orgId);
+      auditFromRequest(req, "CREATE", "Pipeline", null, { action: "setup_defaults" });
+      res.json({ success: true, pipelines });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Listar leads
   router.get("/leads", async (req: AuthRequest, res, next) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+
     const { skip, take } = getPagination(req.query);
     try {
       const [leads, total] = await Promise.all([
@@ -83,6 +159,15 @@ export function crmRoutes(prisma: PrismaClient) {
             } 
           },
           orderBy: { createdAt: 'desc' }
+        }).catch(async (error: any) => {
+          console.error("[CRM_LEADS_WITH_FOLLOWUPS_ERROR]", error?.message || error);
+          const fallbackLeads = await prisma.lead.findMany({
+            where: { organizationId: orgId },
+            skip,
+            take,
+            orderBy: { createdAt: 'desc' }
+          });
+          return fallbackLeads.map((lead) => ({ ...lead, followUps: [] }));
         }),
         prisma.lead.count({ where: { organizationId: orgId } })
       ]);
@@ -359,25 +444,25 @@ export function crmRoutes(prisma: PrismaClient) {
 
     try {
       const [leads, clients, soldProducts, healthScores, tasks] = await Promise.all([
-        prisma.lead.findMany({
+        safeQuery("LEADS", prisma.lead.findMany({
           where: { organizationId: orgId },
           include: { followUps: { orderBy: { createdAt: "desc" }, take: 1 } },
           orderBy: { updatedAt: "desc" },
-        }),
-        prisma.client.findMany({
+        }), []),
+        safeQuery("CLIENTS", prisma.client.findMany({
           where: { organizationId: orgId },
           select: { id: true, corporateName: true, tradeName: true, segment: true, status: true, updatedAt: true, createdAt: true },
-        }),
-        prisma.soldProduct.findMany({
+        }), []),
+        safeQuery("SOLD_PRODUCTS", prisma.soldProduct.findMany({
           where: { client: { organizationId: orgId } },
           include: { client: { select: { id: true, corporateName: true, tradeName: true, status: true, segment: true } } },
-        }),
-        prisma.clientHealthScore.findMany({ where: { organizationId: orgId } }),
-        prisma.task.findMany({
+        }), []),
+        safeQuery("HEALTH_SCORES", prisma.clientHealthScore.findMany({ where: { organizationId: orgId } }), []),
+        safeQuery("TASKS", prisma.task.findMany({
           where: { organizationId: orgId, status: { not: "concluida" } },
           orderBy: { dueDate: "asc" },
           take: 8,
-        }),
+        }), []),
       ]);
 
       const openLeads = leads.filter((lead) => lead.status !== "fechado");

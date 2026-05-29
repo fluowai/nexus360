@@ -9,6 +9,7 @@ import { prisma } from "./lib/prisma.js";
 import { authenticateToken } from "./middleware/auth.js";
 import { resolveTenant } from "./middleware/tenant.js";
 import { sanitizeStoredHtml } from "./utils/security.js";
+import { MissionScheduler } from "./services/prospect/MissionScheduler.js";
 
 // Import Rotas
 import { authRoutes } from "./routes/auth.js";
@@ -49,6 +50,7 @@ import { snapshotRoutes } from "./routes/snapshots.js";
 import { usageRoutes } from "./routes/usage.js";
 import { proposalRoutes } from "./routes/proposals.js";
 import { privacyRoutes } from "./routes/privacy.js";
+import { prospectRoutes } from "./routes/prospect.js";
 
 const app = express();
 
@@ -62,8 +64,6 @@ const configuredOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL 
 
 const allowedOrigins = new Set([
   ...configuredOrigins,
-  'https://nexus360-zeta.vercel.app',
-  'https://nexus.woopanel.com.br',
   'http://localhost:5173',
   'http://localhost:3000'
 ]);
@@ -74,11 +74,7 @@ const corsOptions: cors.CorsOptions = {
 
     try {
       const { hostname } = new URL(origin);
-      const isAllowed =
-        allowedOrigins.has(origin) ||
-        hostname.endsWith('.woopanel.com.br') ||
-        hostname.endsWith('.vercel.app') ||
-        hostname === 'localhost';
+      const isAllowed = allowedOrigins.has(origin) || hostname === 'localhost';
 
       return callback(null, isAllowed);
     } catch {
@@ -90,15 +86,24 @@ const corsOptions: cors.CorsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id']
 };
 
-const limiter = rateLimit({
+const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 2000,
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  message: { error: 'Muitas requisições, tente novamente mais tarde.' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas tentativas de login, tente novamente mais tarde.' }
 });
 
 // Middlewares Globais de Segurança e Utilidade
-app.use(limiter);
+app.use(globalLimiter);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
@@ -124,19 +129,19 @@ app.use(helmet({
 
 // ==================== ROTAS PÚBLICAS ====================
 
-app.get("/api/health", async (req, res) => {
+app.get("/api/health", async (req, res, next) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ success: true, message: 'Backend Nexus360 Online' });
   } catch (error) {
-    res.status(500).json({ success: false, error: 'Database disconnected' });
+    next(error);
   }
 });
 
 app.get("/api/ping", (req, res) => res.json({ message: "pong", timestamp: new Date().toISOString() }));
 
 // Rota PÚBLICA para Landing Pages
-app.get("/lp/:slug", async (req, res) => {
+app.get("/lp/:slug", async (req, res, next) => {
   try {
     const page = await prisma.landingPage.findUnique({ where: { slug: req.params.slug } });
     if (!page || !page.content) return res.status(404).send("<h1>Página não encontrada</h1>");
@@ -144,12 +149,12 @@ app.get("/lp/:slug", async (req, res) => {
     res.setHeader('Content-Security-Policy', "default-src 'self' https: data:; script-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src https: data:; connect-src 'none'");
     res.setHeader('Content-Type', 'text/html; charset=utf-8').send(sanitizeStoredHtml(page.content));
   } catch (error) {
-    res.status(500).send("<h1>Erro interno</h1>");
+    next(error);
   }
 });
 
 // Propostas Públicas
-app.get("/api/public/proposals/:slug", async (req, res) => {
+app.get("/api/public/proposals/:slug", async (req, res, next) => {
   try {
     const proposal = await prisma.proposal.findUnique({
       where: { slug: req.params.slug },
@@ -161,11 +166,11 @@ app.get("/api/public/proposals/:slug", async (req, res) => {
     if (!proposal) return res.status(404).json({ error: "Proposta não encontrada" });
     res.json(proposal);
   } catch (error) {
-    res.status(500).json({ error: "Erro ao buscar proposta" });
+    next(error);
   }
 });
 
-app.post("/api/public/proposals/:slug/accept", async (req, res) => {
+app.post("/api/public/proposals/:slug/accept", async (req, res, next) => {
   const { cnpj, corporateName, phone, email } = req.body;
   try {
     const proposal = await prisma.proposal.findUnique({ where: { slug: req.params.slug } });
@@ -187,12 +192,12 @@ app.post("/api/public/proposals/:slug/accept", async (req, res) => {
     }
     res.json({ success: true, message: "Proposta aceita com sucesso!" });
   } catch (error) {
-    res.status(500).json({ error: "Erro ao aceitar proposta" });
+    next(error);
   }
 });
 
 // ==================== ROTAS DE AUTH (Público + Refresh) ====================
-app.use("/api/auth", authRoutes(prisma));
+app.use("/api/auth", authLimiter, authRoutes(prisma));
 
 // ==================== ROTAS PROTEGIDAS (Tenant Isolated) ====================
 const protectedRoutes = [
@@ -229,6 +234,7 @@ const protectedRoutes = [
   { path: "/api/usage", router: usageRoutes },
   { path: "/api/proposals", router: proposalRoutes },
   { path: "/api/privacy", router: privacyRoutes },
+  { path: "/api/nexus-prospect", router: prospectRoutes },
 ];
 
 protectedRoutes.forEach(route => {
@@ -245,29 +251,42 @@ app.use("/api/client-portal", clientPortalRoutes(prisma));
 
 // ==================== DASHBOARD E FALLBACKS ====================
 
-app.get("/api/dashboard", authenticateToken, resolveTenant, async (req: any, res) => {
+async function safeDashboardValue<T>(label: string, fallback: T, loader: () => Promise<T>): Promise<T> {
+  try {
+    return await loader();
+  } catch (error: any) {
+    console.error(`[DASHBOARD_METRIC_ERROR] ${label}:`, error?.message || error);
+    return fallback;
+  }
+}
+
+app.get("/api/dashboard", authenticateToken, resolveTenant, async (req: any, res, next) => {
   try {
     const orgId = req.user.orgId;
     const [leads, clients, proposals, invoices, contentCount, org, user, agency] = await Promise.all([
-      prisma.lead.count({ where: { organizationId: orgId } }),
-      prisma.client.count({ where: { organizationId: orgId } }),
-      prisma.proposal.count({ where: { organizationId: orgId } }),
-      prisma.invoice.aggregate({ where: { organizationId: orgId, status: 'paga' }, _sum: { total: true } }),
-      prisma.creative.count({ where: { organizationId: orgId } }),
-      orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, planObj: true } }) : Promise.resolve(null),
-      prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } }),
-      req.user.agencyId ? prisma.agency.findUnique({ where: { id: req.user.agencyId }, select: { name: true } }) : Promise.resolve(null),
+      safeDashboardValue("leads", 0, () => prisma.lead.count({ where: { organizationId: orgId } })),
+      safeDashboardValue("clients", 0, () => prisma.client.count({ where: { organizationId: orgId } })),
+      safeDashboardValue("proposals", 0, () => prisma.proposal.count({ where: { organizationId: orgId } })),
+      safeDashboardValue("invoices", { _sum: { total: 0 } }, () => prisma.invoice.aggregate({ where: { organizationId: orgId, status: 'paga' }, _sum: { total: true } })),
+      safeDashboardValue("creatives", 0, () => prisma.creative.count({ where: { organizationId: orgId } })),
+      safeDashboardValue("organization", null, () => orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, planObj: true } }) : Promise.resolve(null)),
+      safeDashboardValue("user", null, () => prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } })),
+      safeDashboardValue("agency", null, () => req.user.agencyId ? prisma.agency.findUnique({ where: { id: req.user.agencyId }, select: { name: true } }) : Promise.resolve(null)),
     ]);
+
+    const conversions = leads > 0 ? Number(((clients / leads) * 100).toFixed(1)) : 0;
+    const plan = org?.planObj || { name: 'Free', leadsLimit: 100 };
 
     res.json({
       orgName: org?.name || agency?.name || "Minha Agência",
       userName: user?.name || "Usuário",
-      plan: org?.planObj || { name: 'Free' },
-      metrics: { leads, clients, proposals, revenue: invoices._sum.total || 0, contentCount },
+      plan,
+      usage: { leads },
+      metrics: { leads, clients, proposals, conversions, revenue: invoices._sum.total || 0, contentCount },
       chartData: [] 
     });
   } catch (error) {
-    res.status(500).json({ error: "Dashboard failure" });
+    next(error);
   }
 });
 
@@ -280,6 +299,11 @@ import { errorHandler } from "./middleware/errorHandler.js";
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 10000;
+
+// Inicialização dos Serviços em Background (Agentes)
+const missionScheduler = new MissionScheduler(prisma);
+missionScheduler.start();
+
 app.listen(PORT, () => {
   console.log(`\n🚀 Nexus360 Core rodando na porta ${PORT}`);
   console.log(`👉 API: http://localhost:${PORT}/api`);

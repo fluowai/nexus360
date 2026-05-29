@@ -13,6 +13,22 @@ let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 let accessTokenMemory: string | null = sessionStorage.getItem(ACCESS_TOKEN_KEY);
 
+function isAuthPath(path: string) {
+  return path.includes('/api/auth/login') || path.includes('/api/auth/register') || path.includes('/api/auth/refresh');
+}
+
+function isTokenExpiring(token: string | null): boolean {
+  if (!token) return true;
+
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1] || ''));
+    if (!payload?.exp) return false;
+    return payload.exp * 1000 <= Date.now() + 60_000;
+  } catch {
+    return true;
+  }
+}
+
 export function setAccessToken(token: string | null) {
   accessTokenMemory = token;
   if (token) {
@@ -59,8 +75,9 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
   let token = accessTokenMemory || sessionStorage.getItem(ACCESS_TOKEN_KEY);
   const userRole = localStorage.getItem('nexus_user_role');
   const impersonatedOrgId = localStorage.getItem('nexus_selected_client');
+  const shouldUseAuth = !isAuthPath(path);
 
-  if (!token && !path.includes('/api/auth/login') && !path.includes('/api/auth/register') && !path.includes('/api/auth/refresh')) {
+  if (shouldUseAuth && isTokenExpiring(token)) {
     if (!isRefreshing) {
       isRefreshing = true;
       refreshPromise = refreshAccessToken().finally(() => {
@@ -96,9 +113,7 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
     clearTimeout(timeoutId);
 
     if (response.status === 401) {
-      const body = await response.clone().json().catch(() => ({}));
-
-      if (body.error === 'TOKEN_EXPIRED' && !path.includes('/api/auth/refresh')) {
+      if (!path.includes('/api/auth/refresh')) {
         if (!isRefreshing) {
           isRefreshing = true;
           refreshPromise = refreshAccessToken().finally(() => {
@@ -121,7 +136,7 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
-      } else if (!path.includes('/api/auth/refresh')) {
+      } else {
         clearAuthSession();
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';

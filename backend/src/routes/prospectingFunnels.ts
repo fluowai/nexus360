@@ -76,7 +76,7 @@ function buildFirstMessage(lead: any) {
   return `Oi, ${name}! Tudo bem? Vi seu contato${contextText} e queria entender se faz sentido conversarmos rapidamente. Posso te fazer duas perguntas para ver se conseguimos ajudar?`;
 }
 
-async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: string) {
+export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: string) {
   const existing = await prisma.prospectingFunnel.findFirst({
     where: { organizationId, isDefault: true },
     include: { stages: { orderBy: { order: "asc" } } }
@@ -105,6 +105,87 @@ async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: string)
     },
     include: { stages: { orderBy: { order: "asc" } } }
   });
+}
+
+export async function enrollCapturedLeadsInFunnel(
+  prisma: PrismaClient,
+  organizationId: string,
+  leadIds: string[],
+  funnelId: string = "default"
+) {
+  if (leadIds.length === 0) {
+    return { funnelId: "", enrolled: 0, skipped: 0, runs: [] as any[] };
+  }
+
+  const funnel = funnelId === "default"
+    ? await ensureDefaultFunnel(prisma, organizationId)
+    : await prisma.prospectingFunnel.findFirst({
+        where: { id: funnelId, organizationId },
+        include: { stages: { orderBy: { order: "asc" } } }
+      });
+
+  if (!funnel) throw Object.assign(new Error("Funil nao encontrado"), { status: 404 });
+
+  const firstStage = funnel.stages[0];
+  if (!firstStage) throw Object.assign(new Error("Funil sem etapas configuradas"), { status: 400 });
+
+  const leads = await prisma.capturedLead.findMany({
+    where: { organizationId, id: { in: leadIds } }
+  });
+
+  const results = [];
+
+  for (const lead of leads) {
+    const score = lead.scoreOpportunity || 0;
+    const run = await prisma.prospectingRun.upsert({
+      where: {
+        funnelId_capturedLeadId: {
+          funnelId: funnel.id,
+          capturedLeadId: lead.id
+        }
+      },
+      update: {
+        stageId: firstStage.id,
+        status: "queued",
+        score,
+        leadPhone: lead.phoneNormalized || lead.phone,
+        leadSnapshot: lead as any,
+        firstMessage: lead.whatsappMessage || buildFirstMessage(lead),
+        nextAction: "send_first_whatsapp_message"
+      },
+      create: {
+        organizationId,
+        funnelId: funnel.id,
+        stageId: firstStage.id,
+        capturedLeadId: lead.id,
+        status: "queued",
+        channel: "WHATSAPP",
+        leadName: lead.businessName,
+        leadPhone: lead.phoneNormalized || lead.phone,
+        leadSnapshot: lead as any,
+        score,
+        firstMessage: lead.whatsappMessage || buildFirstMessage(lead),
+        nextAction: "send_first_whatsapp_message"
+      }
+    });
+
+    await prisma.capturedLead.update({
+      where: { id: lead.id },
+      data: {
+        crmStatus: "prospecting_funnel",
+        notes: [lead.notes, `Enviado ao funil IA WhatsApp: ${funnel.name}`].filter(Boolean).join("\n")
+      }
+    });
+
+    results.push(run);
+  }
+
+  return {
+    funnelId: funnel.id,
+    enrolled: results.length,
+    skipped: leadIds.length - leads.length,
+    runs: results
+  };
 }
 
 export function prospectingFunnelRoutes(prisma: PrismaClient) {
@@ -183,6 +264,77 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     res.json(runs);
   });
 
+  router.post("/runs/:id/response", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { message, meetingStartDate, durationMinutes = 30 } = req.body;
+    if (!message) return res.status(400).json({ error: "Resposta do lead e obrigatoria" });
+
+    const run = await prisma.prospectingRun.findFirst({
+      where: { id: req.params.id, organizationId: orgId },
+      include: {
+        funnel: { include: { stages: { orderBy: { order: "asc" } } } },
+        stage: true
+      }
+    });
+
+    if (!run) return res.status(404).json({ error: "Execucao do funil nao encontrada" });
+
+    const normalized = String(message).toLowerCase();
+    const wantsMeeting = ["agenda", "reuniao", "reunião", "ligar", "call", "horario", "horário", "tenho interesse"].some(term => normalized.includes(term));
+    const optOut = ["parar", "remover", "nao quero", "não quero", "cancelar"].some(term => normalized.includes(term));
+    const currentOrder = run.stage?.order ?? 0;
+    const nextStage = run.funnel.stages.find(stage => stage.order > currentOrder) || run.stage;
+
+    let status = optOut ? "stopped" : wantsMeeting ? "human_handoff" : "active";
+    let nextAction = optOut ? "stop_contact" : wantsMeeting ? "book_30_min_meeting" : "continue_qualification";
+    let calendarEvent = null;
+
+    if (wantsMeeting && meetingStartDate) {
+      const start = new Date(meetingStartDate);
+      const end = new Date(start.getTime() + Number(durationMinutes) * 60 * 1000);
+      calendarEvent = await prisma.calendarEvent.create({
+        data: {
+          title: `Reuniao SDR - ${run.leadName}`,
+          description: `Lead qualificado pelo funil ${run.funnel.name}.\nTelefone: ${run.leadPhone || "Nao informado"}\nResumo: ${message}`,
+          startDate: start,
+          endDate: end,
+          type: "reunion",
+          userId: req.user?.id,
+          organizationId: orgId
+        }
+      });
+      status = "qualified";
+      nextAction = "meeting_booked";
+    }
+
+    const updated = await prisma.prospectingRun.update({
+      where: { id: run.id },
+      data: {
+        status,
+        stageId: optOut ? run.stageId : nextStage?.id,
+        qualification: {
+          lastLeadMessage: message,
+          intent: optOut ? "opt_out" : wantsMeeting ? "quer_agendar" : "continuar_qualificacao",
+          durationMinutes,
+          meetingEventId: calendarEvent?.id || null
+        },
+        lastAiSummary: wantsMeeting
+          ? "Lead demonstrou interesse e deve ser direcionado para reuniao de 30 minutos."
+          : optOut
+            ? "Lead pediu para interromper o contato."
+            : "Lead respondeu. Continuar qualificacao com uma pergunta objetiva por mensagem.",
+        nextAction,
+        qualifiedAt: wantsMeeting ? new Date() : undefined,
+        handedOffAt: wantsMeeting ? new Date() : undefined,
+        lastContactAt: new Date()
+      }
+    });
+
+    res.json({ run: updated, calendarEvent });
+  });
+
   router.post("/funnels/:id/enroll", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
@@ -190,75 +342,8 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     const leadIds = Array.isArray(req.body.leadIds) ? req.body.leadIds : [];
     if (leadIds.length === 0) return res.status(400).json({ error: "Selecione ao menos um lead" });
 
-    const funnel = req.params.id === "default"
-      ? await ensureDefaultFunnel(prisma, orgId)
-      : await prisma.prospectingFunnel.findFirst({
-          where: { id: req.params.id, organizationId: orgId },
-          include: { stages: { orderBy: { order: "asc" } } }
-        });
-
-    if (!funnel) return res.status(404).json({ error: "Funil nao encontrado" });
-
-    const firstStage = funnel.stages[0];
-    if (!firstStage) return res.status(400).json({ error: "Funil sem etapas configuradas" });
-
-    const leads = await prisma.capturedLead.findMany({
-      where: { organizationId: orgId, id: { in: leadIds } }
-    });
-
-    const results = [];
-
-    for (const lead of leads) {
-      const score = lead.scoreOpportunity || 0;
-      const run = await prisma.prospectingRun.upsert({
-        where: {
-          funnelId_capturedLeadId: {
-            funnelId: funnel.id,
-            capturedLeadId: lead.id
-          }
-        },
-        update: {
-          stageId: firstStage.id,
-          status: "queued",
-          score,
-          leadPhone: lead.phoneNormalized || lead.phone,
-          leadSnapshot: lead as any,
-          firstMessage: lead.whatsappMessage || buildFirstMessage(lead),
-          nextAction: "send_first_whatsapp_message"
-        },
-        create: {
-          organizationId: orgId,
-          funnelId: funnel.id,
-          stageId: firstStage.id,
-          capturedLeadId: lead.id,
-          status: "queued",
-          channel: "WHATSAPP",
-          leadName: lead.businessName,
-          leadPhone: lead.phoneNormalized || lead.phone,
-          leadSnapshot: lead as any,
-          score,
-          firstMessage: lead.whatsappMessage || buildFirstMessage(lead),
-          nextAction: "send_first_whatsapp_message"
-        }
-      });
-
-      await prisma.capturedLead.update({
-        where: { id: lead.id },
-        data: {
-          crmStatus: "prospecting_funnel",
-          notes: [lead.notes, `Enviado ao funil IA WhatsApp: ${funnel.name}`].filter(Boolean).join("\n")
-        }
-      });
-
-      results.push(run);
-    }
-
-    res.status(201).json({
-      funnelId: funnel.id,
-      enrolled: results.length,
-      skipped: leadIds.length - leads.length,
-      runs: results
-    });
+    const result = await enrollCapturedLeadsInFunnel(prisma, orgId, leadIds, req.params.id);
+    res.status(201).json(result);
   });
 
   return router;

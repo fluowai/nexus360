@@ -132,12 +132,30 @@ export class LeadAiService {
     });
 
     const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+    const ownerCandidate = String(lead.owners || "")
+      .split(/[,;|\n]+/)
+      .map(item => item.replace(/\([^)]*\)/g, "").trim())
+      .find(Boolean);
+    const targetName = ownerCandidate
+      ? ownerCandidate.split(/\s+/).find(part => part.length > 2)
+      : null;
+    const gatekeeperMessage = targetName
+      ? `Oi, meu nome e Paulo. Quero falar com ${targetName.charAt(0).toUpperCase() + targetName.slice(1).toLowerCase()}, por gentileza.`
+      : "Oi, meu nome e Paulo. Quero falar com a pessoa responsavel pelo comercial, por gentileza.";
+    const gatekeeperScript = [
+      `[Passo 1 - Pessoa certa]: "${gatekeeperMessage}"`,
+      `[Passo 2 - Se nao estiver]: "Claro. Com quem eu falo?"`,
+      targetName
+        ? `[Passo 3 - Mapear responsavel]: "Certo. Alem de ${targetName.charAt(0).toUpperCase() + targetName.slice(1).toLowerCase()}, tem mais alguma pessoa que cuida do comercial?"`
+        : `[Passo 3 - Mapear responsavel]: "Certo. Tem alguma pessoa especifica que cuida do comercial?"`,
+      `[Passo 4 - Se estiver com a pessoa certa]: fazer uma pergunta objetiva de qualificacao, sem vender.`
+    ].join("\n");
 
     return await this.prisma.capturedLead.update({
       where: { id: leadId },
       data: {
-        coldCallScript: result.coldCallScript,
-        whatsappMessage: result.whatsappMessage
+        coldCallScript: gatekeeperScript || result.coldCallScript,
+        whatsappMessage: gatekeeperMessage
       }
     });
   }

@@ -49,9 +49,9 @@ interface Lead {
 }
 
 const toneTemplates: Record<string, string> = {
-  consultive: "Olá! Tudo bem? Entro em contato sobre a {businessName}. 🚀\n\nNossa IA do Nexus360 analisou sua empresa em {city} e identificou excelentes oportunidades de otimização de conversão e captação ativa.\n\nGostaria de apresentar esse diagnóstico em um bate-papo rápido de {duration} minutos na nossa agenda própria.\n\nTemos horários livres esta semana:\n👉 {slots}\n\nQual desses fica melhor para você?",
-  direct: "Oi, tudo bem? Sou consultor comercial no Nexus360 e vi o cadastro da {businessName}. 🎯\n\nQuero agendar uma conversa estratégica de {duration} minutos para te apresentar nossa plataforma de automação e vendas.\n\nSeparei os seguintes horários livres na nossa agenda própria:\n👉 {slots}\n\nConsegue participar em algum desses?",
-  friendly: "Olá! Tudo bem com a equipe da {businessName}? 😄\n\nEstive analisando o perfil de vocês em {city} e achei super promissor! Gostaria de fazer uma ligação rápida de {duration} minutos para apresentar algumas ideias de crescimento.\n\nNossa agenda própria tem esses horários vagos:\n👉 {slots}\n\nBora bater esse papo? Qual slot funciona melhor aí?"
+  consultive: "Oi, meu nome e Paulo. Quero falar com a pessoa responsavel pelo comercial, por gentileza.",
+  direct: "Oi, meu nome e Paulo. Quero falar com o socio ou administrador da {businessName}, por gentileza.",
+  friendly: "Oi, meu nome e Paulo. Consegue me dizer quem cuida do comercial da {businessName}, por gentileza?"
 };
 
 export default function LeadCapture() {

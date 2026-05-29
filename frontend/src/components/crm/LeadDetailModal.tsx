@@ -265,7 +265,7 @@ export default function LeadDetailModal({
                 label="Enriquecer"
                 onClick={() => onEnrich?.(lead.id)}
                 loading={isAnalyzing}
-                disabled={lead.cnpj && lead.owners}
+                disabled={Boolean(lead.cnpj && lead.owners)}
                 title="Buscar CNPJ e Sócios"
               />
 
@@ -274,7 +274,7 @@ export default function LeadDetailModal({
                 label="Pesquisar Decisores"
                 onClick={() => onResearchManagement?.(lead.id)}
                 loading={isAnalyzing}
-                disabled={lead.managementTeam}
+                disabled={Boolean(lead.managementTeam)}
                 title="Pesquisar no LinkedIn"
               />
 

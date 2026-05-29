@@ -335,7 +335,7 @@ export const Sidebar: React.FC<{
                    )}
                    {(isSuper || access.hasModule('prospecting')) && (
                      <SidebarItem 
-                       icon={Calendar} 
+                       icon={CalendarDays}
                        label="Missões Agendadas" 
                        path={getPath("/prospecting/missions")} 
                        isActive={location.pathname === getPath('/prospecting/missions')}

@@ -7,9 +7,9 @@ const DEFAULT_STAGES = [
     name: "Primeiro contato",
     agentKey: "whatsapp_opener",
     agentName: "Agente de Abordagem",
-    goal: "Iniciar uma conversa natural, confirmar interesse e evitar qualquer tom de spam.",
-    prompt: "Voce e um SDR cordial. Faca uma abordagem curta pelo WhatsApp, contextualize o motivo do contato e peca permissao para fazer duas perguntas rapidas.",
-    successCriteria: ["Lead respondeu", "Lead confirmou interesse", "Lead autorizou continuar"],
+    goal: "Chegar ao socio ou responsavel comercial pelo nome, sem vender e sem explicar a oferta antes da pessoa certa responder.",
+    prompt: "Voce e um agente de abordagem humana por WhatsApp. A primeira mensagem deve apenas pedir para falar com o socio/administrador identificado. Se a pessoa disser que ele(a) nao esta, pergunte com quem fala e depois pergunte se, alem do socio citado, existe outra pessoa que cuida do comercial. Se o socio estiver disponivel, siga para qualificacao com uma pergunta por vez. Nunca faca pitch, nunca ofereca servico e nunca envie texto longo nesta etapa.",
+    successCriteria: ["Pessoa certa localizada", "Nome do atendente identificado", "Responsavel comercial mapeado"],
     nextAction: "qualificacao",
     maxMessages: 2
   },
@@ -17,9 +17,9 @@ const DEFAULT_STAGES = [
     name: "Qualificacao",
     agentKey: "qualification_sdr",
     agentName: "Agente de Qualificacao",
-    goal: "Entender necessidade, urgencia, orcamento, autoridade e encaixe comercial.",
-    prompt: "Conduza perguntas objetivas, uma por mensagem. Capture dor, prazo, decisor, investimento e solucao atual. Classifique como frio, morno ou quente.",
-    successCriteria: ["Dor identificada", "Prazo entendido", "Decisor ou responsavel mapeado", "Nivel de prioridade calculado"],
+    goal: "Entender se a pessoa certa cuida do comercial e mapear contexto antes de qualquer proposta.",
+    prompt: "Conduza a conversa como sondagem. Pergunte uma coisa por mensagem: quem cuida do comercial, como chegam novos clientes hoje, se existe alguma meta ou gargalo e se faz sentido falar com alguem do time. Nunca venda, nunca prometa resultado e nunca envie link antes de permissao clara.",
+    successCriteria: ["Responsavel confirmado", "Canal atual de aquisicao entendido", "Gargalo comercial identificado", "Permissao para proximo passo"],
     nextAction: "diagnostico",
     maxMessages: 5
   },
@@ -27,8 +27,8 @@ const DEFAULT_STAGES = [
     name: "Diagnostico",
     agentKey: "opportunity_analyst",
     agentName: "Agente de Diagnostico",
-    goal: "Interpretar respostas e decidir se o lead deve ir para vendedor, nutricao ou descarte.",
-    prompt: "Analise o contexto do lead, gere score de 0 a 100 e explique o proximo passo recomendado para o time comercial.",
+    goal: "Interpretar respostas e decidir se existe abertura real para contato humano.",
+    prompt: "Analise o contexto do lead, gere score de 0 a 100 e explique o proximo passo recomendado para o time comercial. Considere forte apenas quando a pessoa certa demonstrar abertura para conversa.",
     successCriteria: ["Score gerado", "Proximo passo definido", "Resumo comercial registrado"],
     nextAction: "conversao",
     maxMessages: 1
@@ -37,9 +37,9 @@ const DEFAULT_STAGES = [
     name: "Conversao e handoff",
     agentKey: "handoff_closer",
     agentName: "Agente de Conversao",
-    goal: "Converter interesse em reuniao, visita, ligacao ou transferencia para humano.",
-    prompt: "Se o lead estiver qualificado, proponha um proximo passo concreto e transfira para humano quando houver intencao forte.",
-    successCriteria: ["Reuniao marcada", "Pedido de contato humano", "Lead quente identificado"],
+    goal: "Transferir para humano somente quando houver abertura clara.",
+    prompt: "Se o lead estiver qualificado, peca permissao para alguem do time continuar. Nao force agenda e nao venda; apenas confirme o melhor contato e o contexto para o humano.",
+    successCriteria: ["Permissao para humano", "Contato correto confirmado", "Lead quente identificado"],
     nextAction: "human_handoff",
     maxMessages: 3,
     isHumanHandoff: true
@@ -65,15 +65,96 @@ const DEFAULT_SAFETY_RULES = {
   businessHours: "08:00-19:00",
   maxDailyMessagesPerLead: 4,
   stopWords: ["parar", "remover", "nao quero", "não quero", "cancelar"],
-  requireHumanFor: ["reclamacao", "juridico", "dados sensiveis", "promessa comercial"]
+  requireHumanFor: ["reclamacao", "juridico", "dados sensiveis", "promessa comercial"],
+  approachMode: "gatekeeper_named_owner",
+  campaignName: "Prospeccao ativa",
+  agentName: "Paulo"
 };
 
-function buildFirstMessage(lead: any) {
-  const name = lead.businessName || "tudo bem";
-  const context = [lead.category, lead.city, lead.state].filter(Boolean).join(" em ");
-  const contextText = context ? ` sobre ${context}` : "";
+function normalizeText(value?: string | null): string {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
 
-  return `Oi, ${name}! Tudo bem? Vi seu contato${contextText} e queria entender se faz sentido conversarmos rapidamente. Posso te fazer duas perguntas para ver se conseguimos ajudar?`;
+function toTitleCaseName(value?: string | null): string | null {
+  const cleaned = String(value || "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned || /\b(ltda|eireli|empresa|farmacia|clinica|comercio)\b/i.test(cleaned)) return null;
+
+  const firstName = cleaned.split(" ").find(part => part.length > 2) || cleaned.split(" ")[0];
+  if (!firstName) return null;
+
+  return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
+}
+
+function pickTargetOwner(lead: any): string | null {
+  const rawOwners = String(lead.owners || "");
+  const candidates = rawOwners
+    .split(/[,;|\n]+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  if (!candidates.length) return null;
+
+  const preferred = candidates.find(candidate => {
+    const normalized = normalizeText(candidate);
+    return normalized.includes("socio") || normalized.includes("administrador") || normalized.includes("proprietario");
+  });
+
+  return toTitleCaseName(preferred || candidates[0]);
+}
+
+function getFunnelConfig(funnel: any) {
+  const rules = typeof funnel?.safetyRules === "object" && funnel.safetyRules ? funnel.safetyRules as any : {};
+  return {
+    campaignName: String(rules.campaignName || "Prospeccao ativa"),
+    agentName: String(rules.agentName || "Paulo"),
+    firstStagePrompt: String(rules.firstStagePrompt || "")
+  };
+}
+
+function buildQualificationSeed(lead: any, config: ReturnType<typeof getFunnelConfig>) {
+  const targetOwner = pickTargetOwner(lead);
+
+  return {
+    campaignName: config.campaignName,
+    agentName: config.agentName,
+    targetOwner,
+    approachMode: "gatekeeper_named_owner",
+    fallbackFlow: [
+      targetOwner ? `Pedir para falar com ${targetOwner}.` : "Pedir para falar com a pessoa responsavel pelo comercial.",
+      "Se a pessoa alvo nao estiver, perguntar com quem esta falando.",
+      targetOwner ? `Perguntar se, alem de ${targetOwner}, existe outra pessoa que cuida do comercial.` : "Perguntar se existe outra pessoa que cuida do comercial.",
+      "Se a pessoa certa estiver disponivel, iniciar qualificacao com uma pergunta objetiva."
+    ]
+  };
+}
+
+function serializeFunnel(funnel: any) {
+  const config = getFunnelConfig(funnel);
+
+  return {
+    ...funnel,
+    campaignName: config.campaignName,
+    agentName: config.agentName,
+    firstStagePrompt: config.firstStagePrompt
+  };
+}
+
+function buildFirstMessage(lead: any, config = getFunnelConfig(null)) {
+  const targetOwner = pickTargetOwner(lead);
+  const agentName = config.agentName || "Paulo";
+
+  if (targetOwner) {
+    return `Oi, meu nome e ${agentName}. Quero falar com ${targetOwner}, por gentileza.`;
+  }
+
+  return `Oi, meu nome e ${agentName}. Quero falar com a pessoa responsavel pelo comercial, por gentileza.`;
 }
 
 export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: string) {
@@ -82,15 +163,51 @@ export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: 
     include: { stages: { orderBy: { order: "asc" } } }
   });
 
-  if (existing) return existing;
+  if (existing) {
+    const config = getFunnelConfig(existing);
+    if ((existing.safetyRules as any)?.approachMode !== "gatekeeper_named_owner") {
+      await prisma.prospectingFunnel.update({
+        where: { id: existing.id },
+        data: {
+          description: "Funil padrao para receber leads captados, localizar o socio/administrador pelo nome, qualificar sem vender e transferir oportunidades quentes para o time comercial.",
+          objective: "Transformar leads validados em conversas qualificadas sem pitch na primeira abordagem.",
+          safetyRules: { ...DEFAULT_SAFETY_RULES, campaignName: config.campaignName, agentName: config.agentName }
+        }
+      });
+
+      for (const stage of DEFAULT_STAGES) {
+        await prisma.prospectingFunnelStage.updateMany({
+          where: { funnelId: existing.id, order: DEFAULT_STAGES.indexOf(stage) },
+          data: {
+            name: stage.name,
+            agentKey: stage.agentKey,
+            agentName: stage.agentName,
+            goal: stage.goal,
+            prompt: stage.prompt,
+            successCriteria: stage.successCriteria as any,
+            nextAction: stage.nextAction,
+            maxMessages: stage.maxMessages,
+            isHumanHandoff: "isHumanHandoff" in stage ? Boolean(stage.isHumanHandoff) : false
+          }
+        });
+      }
+
+      return prisma.prospectingFunnel.findFirstOrThrow({
+        where: { id: existing.id },
+        include: { stages: { orderBy: { order: "asc" } } }
+      });
+    }
+
+    return existing;
+  }
 
   return prisma.prospectingFunnel.create({
     data: {
       organizationId,
       name: "WhatsApp SDR IA",
-      description: "Funil padrao para receber leads captados, abordar via WhatsApp, qualificar com IA e transferir oportunidades quentes para o time comercial.",
+      description: "Funil padrao para receber leads captados, localizar o socio/administrador pelo nome, qualificar sem vender e transferir oportunidades quentes para o time comercial.",
       channel: "WHATSAPP",
-      objective: "Transformar leads validados em conversas qualificadas e proximos passos comerciais.",
+      objective: "Transformar leads validados em conversas qualificadas sem pitch na primeira abordagem.",
       qualificationRules: DEFAULT_QUALIFICATION_RULES,
       handoffRules: DEFAULT_HANDOFF_RULES,
       safetyRules: DEFAULT_SAFETY_RULES,
@@ -128,6 +245,7 @@ export async function enrollCapturedLeadsInFunnel(
 
   const firstStage = funnel.stages[0];
   if (!firstStage) throw Object.assign(new Error("Funil sem etapas configuradas"), { status: 400 });
+  const funnelConfig = getFunnelConfig(funnel);
 
   const leads = await prisma.capturedLead.findMany({
     where: { organizationId, id: { in: leadIds } }
@@ -137,6 +255,8 @@ export async function enrollCapturedLeadsInFunnel(
 
   for (const lead of leads) {
     const score = lead.scoreOpportunity || 0;
+    const firstMessage = buildFirstMessage(lead, funnelConfig);
+    const qualificationSeed = buildQualificationSeed(lead, funnelConfig);
     const run = await prisma.prospectingRun.upsert({
       where: {
         funnelId_capturedLeadId: {
@@ -150,8 +270,9 @@ export async function enrollCapturedLeadsInFunnel(
         score,
         leadPhone: lead.phoneNormalized || lead.phone,
         leadSnapshot: lead as any,
-        firstMessage: lead.whatsappMessage || buildFirstMessage(lead),
-        nextAction: "send_first_whatsapp_message"
+        qualification: qualificationSeed,
+        firstMessage,
+        nextAction: "ask_for_named_decision_maker"
       },
       create: {
         organizationId,
@@ -164,8 +285,9 @@ export async function enrollCapturedLeadsInFunnel(
         leadPhone: lead.phoneNormalized || lead.phone,
         leadSnapshot: lead as any,
         score,
-        firstMessage: lead.whatsappMessage || buildFirstMessage(lead),
-        nextAction: "send_first_whatsapp_message"
+        qualification: qualificationSeed,
+        firstMessage,
+        nextAction: "ask_for_named_decision_maker"
       }
     });
 
@@ -204,7 +326,7 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
       orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }]
     });
 
-    res.json(funnels);
+    res.json(funnels.map(serializeFunnel));
   });
 
   router.post("/funnels/default", async (req: AuthRequest, res) => {
@@ -212,38 +334,49 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     const funnel = await ensureDefaultFunnel(prisma, orgId);
-    res.status(201).json(funnel);
+    res.status(201).json(serializeFunnel(funnel));
   });
 
   router.post("/funnels", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { name, description, objective } = req.body;
+    const { name, description, objective, campaignName, agentName, firstStagePrompt } = req.body;
     if (!name) return res.status(400).json({ error: "Nome do funil e obrigatorio" });
+
+    const safeCampaignName = String(campaignName || name).trim();
+    const safeAgentName = String(agentName || "Paulo").trim();
+    const safeFirstStagePrompt = String(firstStagePrompt || "").trim();
+    const stages = DEFAULT_STAGES.map((stage, index) => ({
+      ...stage,
+      ...(index === 0 && safeFirstStagePrompt ? { prompt: safeFirstStagePrompt, goal: "Executar a primeira abordagem configurada sem pitch e sem texto longo." } : {}),
+      order: index,
+      successCriteria: stage.successCriteria as any
+    }));
 
     const funnel = await prisma.prospectingFunnel.create({
       data: {
         organizationId: orgId,
         name,
         description,
-        objective,
+        objective: objective || `Campanha: ${safeCampaignName}`,
         channel: "WHATSAPP",
         qualificationRules: DEFAULT_QUALIFICATION_RULES,
         handoffRules: DEFAULT_HANDOFF_RULES,
-        safetyRules: DEFAULT_SAFETY_RULES,
+        safetyRules: {
+          ...DEFAULT_SAFETY_RULES,
+          campaignName: safeCampaignName,
+          agentName: safeAgentName,
+          firstStagePrompt: safeFirstStagePrompt
+        },
         stages: {
-          create: DEFAULT_STAGES.map((stage, index) => ({
-            ...stage,
-            order: index,
-            successCriteria: stage.successCriteria as any
-          }))
+          create: stages
         }
       },
       include: { stages: { orderBy: { order: "asc" } } }
     });
 
-    res.status(201).json(funnel);
+    res.status(201).json(serializeFunnel(funnel));
   });
 
   router.get("/runs", async (req: AuthRequest, res) => {

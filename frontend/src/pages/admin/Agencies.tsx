@@ -627,6 +627,7 @@ export default function AdminAgencies() {
                 <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nova Senha</label>
                 <input 
                   type="password"
+                  autoComplete="new-password"
                   className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono"
                   value={editData.password || ''}
                   onChange={e => setEditData({...editData, password: e.target.value})}

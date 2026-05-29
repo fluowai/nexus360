@@ -148,8 +148,11 @@ export function adminRoutes(prisma: PrismaClient) {
   router.patch("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { id } = req.params;
-    const { name, domain, plan, planId, slug, adminEmail, password, isTestAccount, betaAccess } = req.body;
-    if (password && password.trim() !== "") {
+    const { name, domain, plan, planId, slug, adminEmail, isTestAccount, betaAccess } = req.body;
+    const password = typeof req.body.password === "string" ? req.body.password.trim() : req.body.password;
+    const shouldUpdatePassword = typeof password === "string" && password !== "" && !/^\*+$/.test(password);
+
+    if (shouldUpdatePassword) {
       const passwordError = assertStrongPassword(password);
       if (passwordError) return res.status(400).json({ error: passwordError });
     }
@@ -175,7 +178,7 @@ export function adminRoutes(prisma: PrismaClient) {
         });
 
         // 3. Atualizar Usuário Admin se solicitado
-        if (adminEmail || (password && password.trim() !== "")) {
+        if (adminEmail || shouldUpdatePassword) {
           const admin = await tx.user.findFirst({
             where: { organizationId: id, role: 'ORG_ADMIN' }
           });
@@ -190,7 +193,7 @@ export function adminRoutes(prisma: PrismaClient) {
               if (emailConflict) throw new Error("Este e-mail já está em uso por outro usuário.");
               userUpdateData.email = adminEmail;
             }
-            if (password && password.trim() !== "") {
+            if (shouldUpdatePassword) {
               userUpdateData.password = await bcrypt.hash(password, 10);
             }
 

@@ -7,6 +7,34 @@ export function onboardingRoutes(prisma: PrismaClient) {
   const router = Router();
   const aiService = new OnboardingAIService(prisma);
 
+  const suggestModules = (businessType: string, answers: any) => {
+    const normalized = String(businessType || "").toLowerCase();
+    const base = ["dashboard", "crm", "sales", "proposals"];
+    const modules = new Set(base);
+
+    if (normalized.includes("consult")) {
+      ["agenda", "ai"].forEach((module) => modules.add(module));
+    } else if (normalized.includes("ind") || normalized.includes("represent")) {
+      ["prospecting", "whatsapp_funnels", "whatsapp", "ai"].forEach((module) => modules.add(module));
+    } else if (normalized.includes("agenc") || normalized.includes("marketing")) {
+      ["ads", "landing_pages", "projects", "delivery", "finance", "assets"].forEach((module) => modules.add(module));
+    } else if (normalized.includes("saas")) {
+      ["prospecting", "automations", "health_score", "ai", "knowledge_base"].forEach((module) => modules.add(module));
+    } else {
+      ["prospecting", "ai"].forEach((module) => modules.add(module));
+    }
+
+    if (answers?.leadChannels?.includes("WhatsApp")) {
+      modules.add("whatsapp");
+      modules.add("whatsapp_funnels");
+    }
+    if (answers?.needsMeeting) modules.add("agenda");
+    if (answers?.hasRecurrence || answers?.hasPostSales) modules.add("health_score");
+    if (answers?.hasOnboarding || answers?.hasChecklist) modules.add("projects");
+
+    return Array.from(modules);
+  };
+
   router.get("/status", async (req: AuthRequest, res, next) => {
     try {
       const orgId = req.user!.orgId;
@@ -43,6 +71,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
         where: { organizationId: orgId },
       });
 
+      const recommendedModules = suggestModules(businessType, req.body);
       const data = {
         businessName,
         businessType,
@@ -64,7 +93,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
         hasChecklist: !!hasChecklist,
         hasRenewal: !!hasRenewal,
         hasUpsell: !!hasUpsell,
-        rawAnswers: req.body,
+        rawAnswers: { ...req.body, recommendedModules },
         organizationId: orgId,
         appliedAt: null,
       };
@@ -81,7 +110,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
         },
       });
 
-      res.json({ success: true, response });
+      res.json({ success: true, response, recommendedModules });
     } catch (error) {
       next(error);
     }

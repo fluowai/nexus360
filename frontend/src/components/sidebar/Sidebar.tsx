@@ -1,26 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, useLocation, useParams } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  LayoutDashboard, 
-  CalendarDays, 
-  Wallet, 
-  Users, 
-  FileText, 
-  Zap, 
-  Megaphone, 
-  Globe, 
-  ClipboardList, 
-  FolderKanban, 
-  KanbanSquare, 
-  UsersRound, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  CalendarDays,
+  Wallet,
+  Users,
+  FileText,
+  Zap,
+  Globe,
+  FolderKanban,
+  KanbanSquare,
+  UsersRound,
+  BarChart3,
   Search,
-  ListFilter,
-  CheckSquare, 
-  Sparkles, 
+  Sparkles,
   Settings,
-  Layout,
   Shield,
   ChevronDown,
   X,
@@ -55,20 +50,20 @@ interface SidebarItemProps {
   collapsed?: boolean;
 }
 
-const SidebarItem: React.FC<SidebarItemProps> = ({ 
-  icon: Icon, 
-  label, 
-  path, 
-  isActive, 
-  isAi, 
-  badge, 
+const SidebarItem: React.FC<SidebarItemProps> = ({
+  icon: Icon,
+  label,
+  path,
+  isActive,
+  isAi,
+  badge,
   children,
-  collapsed 
+  collapsed
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
 
-  const isChildActive = React.Children.toArray(children).some((child) => 
+  const isChildActive = React.Children.toArray(children).some((child) =>
     React.isValidElement(child) && (child.props as any)?.path === location.pathname
   );
 
@@ -84,10 +79,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
           <span className="sidebar-item-label">{label}</span>
           {badge && <span className="ai-badge">{badge}</span>}
           {children && (
-            <motion.div
-              animate={{ rotate: isOpen ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
-            >
+            <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
               <ChevronDown size={14} className="ml-auto opacity-50" />
             </motion.div>
           )}
@@ -132,8 +124,8 @@ const SidebarGroup: React.FC<{ label: string; children: React.ReactNode; collaps
   </div>
 );
 
-export const Sidebar: React.FC<{ 
-  onLogout: () => void; 
+export const Sidebar: React.FC<{
+  onLogout: () => void;
   user: any;
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
@@ -141,45 +133,156 @@ export const Sidebar: React.FC<{
   setCollapsed: (collapsed: boolean) => void;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
- }> = ({ 
-  onLogout, 
-  user, 
-  isMobileOpen, 
-  setIsMobileOpen, 
-  collapsed, 
+}> = ({
+  onLogout,
+  user,
+  isMobileOpen,
+  setIsMobileOpen,
+  collapsed,
   setCollapsed,
   selectedClientId,
   onSelectClient
 }) => {
   const location = useLocation();
+  const access = useAccess(user);
+  const isSuper = user?.role === 'SUPER_ADMIN';
 
-  // Pegar o slug da URL manualmente (useParams não funciona aqui pois Sidebar está fora do Routes)
   const getSlugFromPath = () => {
     const parts = location.pathname.split('/').filter(Boolean);
     const firstPart = parts[0] || '';
     const reserved = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports'];
     if (firstPart && !reserved.includes(firstPart)) return firstPart;
-    // Fallback: pegar do localStorage (salvo durante o login)
     return localStorage.getItem('nexus_org_slug') || '';
   };
 
   const currentSlug = getSlugFromPath();
-  const access = useAccess(user);
-
-  // Função auxiliar para construir caminhos com slug
   const getPath = (basePath: string) => {
     if (basePath.startsWith('/admin')) return basePath;
     if (currentSlug) return `/${currentSlug}${basePath}`;
     return basePath;
   };
 
-  const isSuper = user?.role === 'SUPER_ADMIN';
+  const canSeeModule = (moduleKey: string) => isSuper || access.hasModule(moduleKey);
+  const canSeeAny = (moduleKeys: string[]) => isSuper || access.hasAnyModule(moduleKeys);
+
+  const workspaceItems = [
+    { module: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', active: (path: string) => path === getPath('/dashboard') || path === '/' },
+  ];
+
+  const menuGroups = [
+    {
+      label: 'Comercial',
+      modules: ['prospecting', 'whatsapp_funnels', 'whatsapp', 'crm', 'sales', 'proposals'],
+      items: [
+        { module: 'prospecting', icon: Search, label: 'Captacao de Leads', path: '/prospecting/capture' },
+        { module: 'prospecting', icon: CalendarDays, label: 'Missoes Agendadas', path: '/prospecting/missions' },
+        { module: 'whatsapp_funnels', icon: MessageCircle, label: 'Funis IA WhatsApp', path: '/prospecting/funnels' },
+        { module: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
+        { module: 'crm', icon: Users, label: 'CRM & Pipelines', path: '/crm', startsWith: true },
+        { module: 'sales', icon: Zap, label: 'Sales Machine', path: '/sales-machine' },
+        { module: 'proposals', icon: FileText, label: 'Propostas', path: '/proposals' },
+      ],
+    },
+    {
+      label: 'Operacao',
+      modules: ['projects', 'delivery', 'service_catalog', 'time_tracking'],
+      items: [
+        { module: 'projects', icon: KanbanSquare, label: 'Projetos & Demandas', path: '/projects', startsWith: true },
+        { module: 'delivery', icon: Truck, label: 'Entregas & Aprovacoes', path: '/delivery' },
+        { module: 'service_catalog', icon: Package, label: 'Catalogo de Servicos', path: '/service-catalog' },
+        { module: 'time_tracking', icon: Clock, label: 'Apontamento de Horas', path: '/time-tracking' },
+      ],
+    },
+    {
+      label: 'Marketing',
+      modules: ['ads', 'landing_pages', 'assets'],
+      items: [
+        { module: 'ads', icon: Monitor, label: 'Trafego (Ads)', path: '/ad-accounts' },
+        { module: 'landing_pages', icon: Globe, label: 'Landing Pages', path: '/landing-pages' },
+        { module: 'assets', icon: FolderKanban, label: 'Criativos & Assets', path: '/assets' },
+      ],
+    },
+    {
+      label: 'Automacao',
+      modules: ['automations', 'notifications', 'knowledge_base'],
+      items: [
+        { module: 'automations', icon: GitBranch, label: 'Automacoes', path: '/automations' },
+        { module: 'notifications', icon: Bell, label: 'Notificacoes', path: '/notifications' },
+        { module: 'knowledge_base', icon: BookOpen, label: 'Base de Conhecimento', path: '/knowledge-base' },
+      ],
+    },
+    {
+      label: 'Inteligencia Artificial',
+      modules: ['ai', 'prompt_architect'],
+      items: [
+        { module: 'ai', icon: Sparkles, label: 'Central de Agentes', path: '/agents-hub', isAi: true, badge: 'AI' },
+        { module: 'prompt_architect', icon: Zap, label: 'Arquiteto de Prompts', path: '/prompt-architect', isAi: true },
+      ],
+    },
+    {
+      label: 'Gestao',
+      modules: ['reports', 'finance', 'health_score', 'agenda'],
+      items: [
+        { module: 'reports', icon: BarChart3, label: 'Relatorios', path: '/reports' },
+        { module: 'finance', icon: Wallet, label: 'Financeiro', path: '/finance' },
+        { module: 'health_score', icon: Activity, label: 'Health Score', path: '/client-health' },
+      ],
+      children: [
+        {
+          module: 'agenda',
+          icon: CalendarDays,
+          label: 'Agenda',
+          items: [
+            { label: 'Calendario', path: '/calendar' },
+            { label: 'Tarefas', path: '/tasks' },
+          ],
+        },
+      ],
+    },
+    {
+      label: 'Administracao',
+      modules: ['team', 'clients', 'billing', 'settings'],
+      items: [
+        { module: 'clients', icon: UsersRound, label: 'Meus Clientes', path: '/clients', startsWith: true },
+        { module: 'team', icon: UsersRound, label: 'Equipe e Acessos', path: '/team' },
+        { module: 'billing', icon: CreditCard, label: 'Assinatura e Uso', path: '/billing' },
+      ],
+      children: [
+        {
+          module: 'settings',
+          icon: Settings,
+          label: 'Configuracoes',
+          items: [
+            { label: 'Dados Gerais', path: '/settings' },
+            { label: 'Configuracoes de IA', path: '/ai-settings' },
+          ],
+        },
+      ],
+    },
+  ];
+
+  const renderMenuItem = (item: any) => {
+    if (!canSeeModule(item.module)) return null;
+    const path = getPath(item.path);
+    const active = item.active ? item.active(location.pathname) : item.startsWith ? location.pathname.startsWith(path) : location.pathname === path;
+    return (
+      <SidebarItem
+        key={`${item.module}-${item.path}`}
+        icon={item.icon}
+        label={item.label}
+        path={path}
+        isActive={active}
+        isAi={item.isAi}
+        badge={item.badge}
+        collapsed={collapsed}
+      />
+    );
+  };
 
   return (
     <>
-      {/* Mobile Overlay */}
       {isMobileOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[999] md:hidden"
           onClick={() => setIsMobileOpen?.(false)}
         />
@@ -193,13 +296,13 @@ export const Sidebar: React.FC<{
             </div>
             <span className="logo-text">Nexus360</span>
           </div>
-          <button 
+          <button
             className="hidden md:flex p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors"
             onClick={() => setCollapsed(!collapsed)}
           >
             <ChevronRight size={18} style={{ transform: collapsed ? '' : 'rotate(180deg)', transition: '0.3s' }} />
           </button>
-          <button 
+          <button
             className="md:hidden p-1.5 hover:bg-gray-100 rounded-lg text-gray-400"
             onClick={() => setIsMobileOpen?.(false)}
           >
@@ -208,375 +311,75 @@ export const Sidebar: React.FC<{
         </div>
 
         <div className="sidebar-scroll custom-scrollbar">
-          <ClientSelector 
+          <ClientSelector
             user={user}
-            selectedClientId={selectedClientId} 
-            onSelectClient={onSelectClient} 
+            selectedClientId={selectedClientId}
+            onSelectClient={onSelectClient}
             collapsed={collapsed}
           />
 
           {user?.role === 'SUPER_ADMIN' && selectedClientId && (
             <div className="px-4 mb-4">
-              <button 
+              <button
                 onClick={() => onSelectClient(null)}
                 className="w-full flex items-center justify-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-2xl text-xs font-bold border border-amber-100 hover:bg-amber-100 transition-all shadow-sm"
               >
                 <Shield size={16} />
-                {!collapsed && "Voltar ao Modo Admin"}
+                {!collapsed && 'Voltar ao Modo Admin'}
               </button>
             </div>
           )}
 
           {user?.role === 'SUPER_ADMIN' && !selectedClientId ? (
-            <>
-              <SidebarGroup label="Menu Super Admin" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={LayoutDashboard} 
-                  label="Dashboard" 
-                  path="/admin" 
-                  isActive={location.pathname === '/admin'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Zap} 
-                  label="Monitoramento" 
-                  path="/admin/monitor" 
-                  isActive={location.pathname === '/admin/monitor'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Building2} 
-                  label="Clientes" 
-                  path="/admin/agencies" 
-                  isActive={location.pathname === '/admin/agencies'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Users} 
-                  label="Equipe Sistema" 
-                  path="/admin/team" 
-                  isActive={location.pathname === '/admin/team'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Ticket} 
-                  label="Planos SaaS" 
-                  path="/admin/plans" 
-                  isActive={location.pathname === '/admin/plans'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={FileText} 
-                  label="Log de Auditoria" 
-                  path="/admin/audit" 
-                  isActive={location.pathname === '/admin/audit'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={CreditCard} 
-                  label="Faturas SaaS" 
-                  path="/admin/billing" 
-                  isActive={location.pathname === '/admin/billing'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Ticket} 
-                  label="Chamados Globais" 
-                  path="/admin/tickets" 
-                  isActive={location.pathname === '/admin/tickets'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Globe} 
-                  label="Domínios" 
-                  path="/admin/domains" 
-                  isActive={location.pathname === '/admin/domains'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Rocket} 
-                  label="Controle de Lançamento" 
-                  path="/admin/releases" 
-                  isActive={location.pathname === '/admin/releases'}
-                  collapsed={collapsed}
-                />
-              </SidebarGroup>
-            </>
+            <SidebarGroup label="Menu Super Admin" collapsed={collapsed}>
+              <SidebarItem icon={LayoutDashboard} label="Dashboard" path="/admin" isActive={location.pathname === '/admin'} collapsed={collapsed} />
+              <SidebarItem icon={Zap} label="Monitoramento" path="/admin/monitor" isActive={location.pathname === '/admin/monitor'} collapsed={collapsed} />
+              <SidebarItem icon={Building2} label="Clientes" path="/admin/agencies" isActive={location.pathname === '/admin/agencies'} collapsed={collapsed} />
+              <SidebarItem icon={Users} label="Equipe Sistema" path="/admin/team" isActive={location.pathname === '/admin/team'} collapsed={collapsed} />
+              <SidebarItem icon={Ticket} label="Planos SaaS" path="/admin/plans" isActive={location.pathname === '/admin/plans'} collapsed={collapsed} />
+              <SidebarItem icon={FileText} label="Log de Auditoria" path="/admin/audit" isActive={location.pathname === '/admin/audit'} collapsed={collapsed} />
+              <SidebarItem icon={CreditCard} label="Faturas SaaS" path="/admin/billing" isActive={location.pathname === '/admin/billing'} collapsed={collapsed} />
+              <SidebarItem icon={Ticket} label="Chamados Globais" path="/admin/tickets" isActive={location.pathname === '/admin/tickets'} collapsed={collapsed} />
+              <SidebarItem icon={Globe} label="Dominios" path="/admin/domains" isActive={location.pathname === '/admin/domains'} collapsed={collapsed} />
+              <SidebarItem icon={Rocket} label="Controle de Lancamento" path="/admin/releases" isActive={location.pathname === '/admin/releases'} collapsed={collapsed} />
+            </SidebarGroup>
           ) : (
             <>
-              {/* Menu da Agência (Mostrado para ORG_ADMIN ou para SUPER_ADMIN em modo impersonificação) */}
               <SidebarGroup label="Workspace" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={LayoutDashboard} 
-                  label="Dashboard" 
-                  path={user?.role === 'SUPER_ADMIN' && !selectedClientId ? "/admin" : getPath("/dashboard")} 
-                  isActive={location.pathname === '/admin' || location.pathname === getPath('/dashboard') || location.pathname === '/'}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={BarChart3} 
-                  label="Relatórios" 
-                  path={getPath("/reports")} 
-                  isActive={location.pathname === getPath('/reports')}
-                  collapsed={collapsed}
-                />
+                {workspaceItems.map(renderMenuItem)}
               </SidebarGroup>
 
-              {(isSuper || access.hasModule('crm') || access.hasModule('prospecting')) && (
-                <SidebarGroup label="🚀 Growth Hub" collapsed={collapsed}>
-                  {(isSuper || access.hasModule('prospecting')) && (
-                    <SidebarItem 
-                      icon={Search} 
-                      label="Captação de Leads" 
-                      path={getPath("/prospecting/capture")} 
-                      isActive={location.pathname === getPath('/prospecting/capture')}
-                      collapsed={collapsed}
-                    />
-                   )}
-                   {(isSuper || access.hasModule('prospecting')) && (
-                     <SidebarItem 
-                       icon={CalendarDays}
-                       label="Missões Agendadas" 
-                       path={getPath("/prospecting/missions")} 
-                       isActive={location.pathname === getPath('/prospecting/missions')}
-                       collapsed={collapsed}
-                     />
-                   )}
-                   {(isSuper || access.hasModule('prospecting')) && (
-                     <SidebarItem 
-                       icon={MessageCircle} 
-                       label="Funis IA WhatsApp" 
-                       path={getPath("/prospecting/funnels")} 
-                       isActive={location.pathname === getPath('/prospecting/funnels')}
-                       collapsed={collapsed}
-                     />
-                   )}
-                  {(isSuper || access.hasModule('prospecting')) && (
-                    <SidebarItem 
-                      icon={MessageCircle} 
-                      label="WhatsApp" 
-                      path={getPath("/whatsapp")} 
-                      isActive={location.pathname === getPath('/whatsapp')}
-                      collapsed={collapsed}
-                    />
-                  )}
-                  {(isSuper || access.hasModule('crm')) && (
-                    <SidebarItem 
-                      icon={Users} 
-                      label="CRM & Pipelines" 
-                      path={getPath("/crm")} 
-                      isActive={location.pathname === getPath('/crm')}
-                      collapsed={collapsed}
-                    />
-                  )}
-                  {(isSuper || access.hasModule('sales')) && (
-                    <SidebarItem 
-                      icon={Zap} 
-                      label="Sales Machine" 
-                      path={getPath("/sales-machine")} 
-                      isActive={location.pathname === getPath('/sales-machine')}
-                      collapsed={collapsed}
-                    />
-                  )}
-                  {(isSuper || access.hasModule('proposals')) && (
-                    <SidebarItem 
-                      icon={FileText} 
-                      label="Propostas" 
-                      path={getPath("/proposals")} 
-                      isActive={location.pathname === getPath('/proposals')}
-                      collapsed={collapsed}
-                    />
-                  )}
-                </SidebarGroup>
-              )}
-
-              <SidebarGroup label="⚙️ Delivery Hub" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={Monitor} 
-                  label="Tráfego (Ads)" 
-                  path={getPath("/ad-accounts")} 
-                  isActive={location.pathname === getPath('/ad-accounts')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={KanbanSquare} 
-                  label="Projetos & Demandas" 
-                  path={getPath("/projects")} 
-                  isActive={location.pathname === getPath('/projects')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Globe} 
-                  label="Landing Pages" 
-                  path={getPath("/landing-pages")} 
-                  isActive={location.pathname === getPath('/landing-pages')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={FolderKanban} 
-                  label="Criativos & Assets" 
-                  path={getPath("/assets")} 
-                  isActive={location.pathname === getPath('/assets')}
-                  collapsed={collapsed}
-                />
-              </SidebarGroup>
-
-              <SidebarGroup label="🏢 Agency Hub" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={UsersRound} 
-                  label="Meus Clientes" 
-                  path={getPath("/clients")} 
-                  isActive={location.pathname.startsWith(getPath('/clients'))}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={UsersRound} 
-                  label="Equipe e Acessos" 
-                  path={getPath("/team")} 
-                  isActive={location.pathname === getPath('/team')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={CreditCard} 
-                  label="Assinatura e Uso" 
-                  path={getPath("/billing")} 
-                  isActive={location.pathname === getPath('/billing')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Wallet} 
-                  label="Financeiro" 
-                  path={getPath("/finance")} 
-                  isActive={location.pathname === getPath('/finance')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={CalendarDays} 
-                  label="Agenda" 
-                  collapsed={collapsed}
-                >
-                  <SidebarItem 
-                    icon={ChevronRight} 
-                    label="Calendário" 
-                    path={getPath("/calendar")} 
-                    isActive={location.pathname === getPath('/calendar')}
-                  />
-                  <SidebarItem 
-                    icon={ChevronRight} 
-                    label="Tarefas" 
-                    path={getPath("/tasks")} 
-                    isActive={location.pathname === getPath('/tasks')}
-                  />
-                </SidebarItem>
-              </SidebarGroup>
-
-              <SidebarGroup label="🤖 Automation Hub" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={GitBranch} 
-                  label="Automações" 
-                  path={getPath("/automations")} 
-                  isActive={location.pathname === getPath('/automations')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Bell} 
-                  label="Notificações" 
-                  path={getPath("/notifications")} 
-                  isActive={location.pathname === getPath('/notifications')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Truck} 
-                  label="Entregas & Aprovações" 
-                  path={getPath("/delivery")} 
-                  isActive={location.pathname === getPath('/delivery')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Package} 
-                  label="Catálogo de Serviços" 
-                  path={getPath("/service-catalog")} 
-                  isActive={location.pathname === getPath('/service-catalog')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Clock} 
-                  label="Apontamento de Horas" 
-                  path={getPath("/time-tracking")} 
-                  isActive={location.pathname === getPath('/time-tracking')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={Activity} 
-                  label="Health Score" 
-                  path={getPath("/client-health")} 
-                  isActive={location.pathname === getPath('/client-health')}
-                  collapsed={collapsed}
-                />
-                <SidebarItem 
-                  icon={BookOpen} 
-                  label="Base de Conhecimento" 
-                  path={getPath("/knowledge-base")} 
-                  isActive={location.pathname === getPath('/knowledge-base')}
-                  collapsed={collapsed}
-                />
-              </SidebarGroup>
-
-              {(isSuper || access.hasModule('ai')) && (
-                <SidebarGroup label="🧠 Nexus AI" collapsed={collapsed}>
-                  <SidebarItem 
-                    icon={Sparkles} 
-                    label="Central de Agentes" 
-                    path={getPath("/agents-hub")} 
-                    isActive={location.pathname === getPath('/agents-hub')}
-                    isAi
-                    badge="AI"
-                    collapsed={collapsed}
-                  />
-                  {(isSuper || access.hasFeature('ai.prompt_architect')) && (
-                    <SidebarItem 
-                      icon={Zap} 
-                      label="Arquiteto de Prompts" 
-                      path={getPath("/prompt-architect")} 
-                      isActive={location.pathname === getPath('/prompt-architect')}
-                      isAi
-                      collapsed={collapsed}
-                    />
-                  )}
-                </SidebarGroup>
-              )}
-
-              <SidebarGroup label="Configurações" collapsed={collapsed}>
-                <SidebarItem 
-                  icon={Settings} 
-                  label="Configurações" 
-                  path={getPath("/settings")} 
-                  isActive={location.pathname === getPath('/settings') || location.pathname === getPath('/ai-settings')}
-                  collapsed={collapsed}
-                >
-                  <SidebarItem 
-                    icon={ChevronRight} 
-                    label="Dados Gerais" 
-                    path={getPath("/settings")} 
-                    isActive={location.pathname === getPath('/settings')}
-                  />
-                  <SidebarItem 
-                    icon={Sparkles} 
-                    label="Configurações de IA" 
-                    path={getPath("/ai-settings")} 
-                    isActive={location.pathname === getPath('/ai-settings')}
-                  />
-                </SidebarItem>
-              </SidebarGroup>
+              {menuGroups.map((group) => {
+                if (!canSeeAny(group.modules)) return null;
+                return (
+                  <SidebarGroup key={group.label} label={group.label} collapsed={collapsed}>
+                    {group.items.map(renderMenuItem)}
+                    {group.children?.map((child: any) => {
+                      if (!canSeeModule(child.module)) return null;
+                      return (
+                        <SidebarItem key={child.module} icon={child.icon} label={child.label} collapsed={collapsed}>
+                          {child.items.map((subItem: any) => (
+                            <SidebarItem
+                              key={subItem.path}
+                              icon={ChevronRight}
+                              label={subItem.label}
+                              path={getPath(subItem.path)}
+                              isActive={location.pathname === getPath(subItem.path)}
+                            />
+                          ))}
+                        </SidebarItem>
+                      );
+                    })}
+                  </SidebarGroup>
+                );
+              })}
             </>
           )}
         </div>
 
         <div className="sidebar-footer">
           <div className="user-profile-mini">
-            <div className="user-avatar">
-              {user?.name?.substring(0, 1) || 'U'}
-            </div>
+            <div className="user-avatar">{user?.name?.substring(0, 1) || 'U'}</div>
             {!collapsed && (
               <div className="user-info">
                 <div className="user-name">{user?.name}</div>
@@ -585,7 +388,7 @@ export const Sidebar: React.FC<{
             )}
           </div>
           {!collapsed && (
-            <button 
+            <button
               onClick={onLogout}
               className="w-full mt-4 flex items-center justify-center gap-2 p-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors text-sm font-semibold"
             >

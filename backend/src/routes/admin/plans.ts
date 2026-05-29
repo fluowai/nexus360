@@ -17,6 +17,14 @@ export function adminPlansRoutes(prisma: PrismaClient) {
     return Number.isFinite(parsed) ? parsed : undefined;
   };
 
+  const toOptionalBoolean = (value: unknown) => {
+    if (typeof value === "boolean") return value;
+    if (typeof value !== "string") return undefined;
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return undefined;
+  };
+
   const toNumberOrDefault = (value: unknown, fallback: number) => {
     const parsed = toOptionalNumber(value);
     return parsed === undefined ? fallback : parsed;
@@ -54,28 +62,48 @@ export function adminPlansRoutes(prisma: PrismaClient) {
       if (value !== undefined) data[field] = value;
     }
 
-    if (typeof body.isActive === "boolean") data.isActive = body.isActive;
-    if (typeof body.isPublic === "boolean") data.isPublic = body.isPublic;
+    const isActive = toOptionalBoolean(body.isActive);
+    const isPublic = toOptionalBoolean(body.isPublic);
+    if (isActive !== undefined) data.isActive = isActive;
+    if (isPublic !== undefined) data.isPublic = isPublic;
 
     return data;
   };
 
   const ensureFeatureCatalog = async () => {
     const modules = [
-      { key: "dashboard", name: "Dashboard", category: "Geral" },
-      { key: "crm", name: "CRM & Pipelines", category: "Vendas" },
-      { key: "prospecting", name: "Captacao de Leads", category: "Vendas" },
-      { key: "sales", name: "Maquina de Vendas", category: "Vendas" },
-      { key: "proposals", name: "Propostas", category: "Vendas" },
-      { key: "ai", name: "Inteligencia Artificial", category: "IA" },
-      { key: "finance", name: "Financeiro", category: "Operacao" },
-      { key: "projects", name: "Projetos", category: "Operacao" },
-      { key: "marketing", name: "Marketing", category: "Growth" },
+      { key: "dashboard", name: "Dashboard", category: "Workspace" },
+      { key: "reports", name: "Relatorios", category: "Gestao" },
+      { key: "prospecting", name: "Captacao de Leads", category: "Comercial" },
+      { key: "whatsapp_funnels", name: "Funis IA WhatsApp", category: "Comercial" },
+      { key: "whatsapp", name: "WhatsApp", category: "Comercial" },
+      { key: "crm", name: "CRM & Pipelines", category: "Comercial" },
+      { key: "sales", name: "Sales Machine", category: "Comercial" },
+      { key: "proposals", name: "Propostas", category: "Comercial" },
+      { key: "projects", name: "Projetos & Demandas", category: "Operacao" },
+      { key: "delivery", name: "Entregas & Aprovacoes", category: "Operacao" },
+      { key: "service_catalog", name: "Catalogo de Servicos", category: "Operacao" },
+      { key: "time_tracking", name: "Apontamento de Horas", category: "Operacao" },
+      { key: "ads", name: "Trafego", category: "Marketing" },
+      { key: "landing_pages", name: "Landing Pages", category: "Marketing" },
+      { key: "assets", name: "Criativos & Assets", category: "Marketing" },
       { key: "automations", name: "Automacoes", category: "Automacao" },
+      { key: "notifications", name: "Notificacoes", category: "Automacao" },
+      { key: "knowledge_base", name: "Base de Conhecimento", category: "Automacao" },
+      { key: "ai", name: "Central de Agentes", category: "Inteligencia Artificial" },
+      { key: "prompt_architect", name: "Arquiteto de Prompts", category: "Inteligencia Artificial" },
+      { key: "finance", name: "Financeiro", category: "Gestao" },
+      { key: "health_score", name: "Health Score", category: "Gestao" },
+      { key: "agenda", name: "Agenda", category: "Gestao" },
+      { key: "team", name: "Equipe e Acessos", category: "Administracao" },
+      { key: "clients", name: "Meus Clientes", category: "Administracao" },
+      { key: "billing", name: "Assinatura e Uso", category: "Administracao" },
+      { key: "settings", name: "Configuracoes", category: "Administracao" },
     ];
 
     const features = [
       { moduleKey: "dashboard", key: "dashboard.view", name: "Visualizar Dashboard" },
+      { moduleKey: "reports", key: "reports.view", name: "Visualizar Relatorios" },
       { moduleKey: "crm", key: "crm.view", name: "Visualizar CRM" },
       { moduleKey: "crm", key: "crm.create_lead", name: "Criar Leads" },
       { moduleKey: "crm", key: "crm.manage_boards", name: "Gerenciar Funis CRM" },
@@ -83,16 +111,36 @@ export function adminPlansRoutes(prisma: PrismaClient) {
       { moduleKey: "prospecting", key: "prospecting.capture", name: "Captar Leads" },
       { moduleKey: "prospecting", key: "prospecting.enrich", name: "Enriquecer Leads" },
       { moduleKey: "prospecting", key: "prospecting.schedule", name: "Agendar Captacao" },
-      { moduleKey: "prospecting", key: "prospecting.funnels", name: "Funis IA WhatsApp" },
+      { moduleKey: "whatsapp_funnels", key: "whatsapp_funnels.view", name: "Visualizar Funis IA WhatsApp" },
+      { moduleKey: "whatsapp_funnels", key: "whatsapp_funnels.manage", name: "Gerenciar Funis IA WhatsApp" },
+      { moduleKey: "whatsapp", key: "whatsapp.view", name: "Visualizar WhatsApp" },
+      { moduleKey: "whatsapp", key: "whatsapp.instances", name: "Gerenciar Instancias WhatsApp" },
+      { moduleKey: "whatsapp", key: "whatsapp.messages", name: "Visualizar Mensagens WhatsApp" },
       { moduleKey: "ai", key: "ai.sdr", name: "Agente SDR Automatico" },
       { moduleKey: "ai", key: "ai.agents", name: "Central de Agentes" },
+      { moduleKey: "prompt_architect", key: "prompt_architect.view", name: "Visualizar Arquiteto de Prompts" },
       { moduleKey: "automations", key: "automations.view", name: "Visualizar Automacoes" },
       { moduleKey: "automations", key: "automations.create", name: "Criar Automacoes" },
+      { moduleKey: "notifications", key: "notifications.view", name: "Visualizar Notificacoes" },
+      { moduleKey: "knowledge_base", key: "knowledge_base.view", name: "Visualizar Base de Conhecimento" },
       { moduleKey: "finance", key: "finance.view", name: "Visualizar Financeiro" },
       { moduleKey: "projects", key: "projects.view", name: "Visualizar Projetos" },
-      { moduleKey: "marketing", key: "marketing.view", name: "Visualizar Marketing" },
+      { moduleKey: "delivery", key: "delivery.view", name: "Visualizar Entregas e Aprovacoes" },
+      { moduleKey: "service_catalog", key: "service_catalog.view", name: "Visualizar Catalogo de Servicos" },
+      { moduleKey: "time_tracking", key: "time_tracking.view", name: "Visualizar Apontamento de Horas" },
+      { moduleKey: "ads", key: "ads.view", name: "Visualizar Trafego" },
+      { moduleKey: "landing_pages", key: "landing_pages.view", name: "Visualizar Landing Pages" },
+      { moduleKey: "assets", key: "assets.view", name: "Visualizar Criativos e Assets" },
       { moduleKey: "sales", key: "sales.view", name: "Visualizar Vendas" },
       { moduleKey: "proposals", key: "proposals.view", name: "Visualizar Propostas" },
+      { moduleKey: "health_score", key: "health_score.view", name: "Visualizar Health Score" },
+      { moduleKey: "agenda", key: "agenda.calendar", name: "Visualizar Calendario" },
+      { moduleKey: "agenda", key: "agenda.tasks", name: "Visualizar Tarefas" },
+      { moduleKey: "team", key: "team.view", name: "Visualizar Equipe e Acessos" },
+      { moduleKey: "clients", key: "clients.view", name: "Visualizar Meus Clientes" },
+      { moduleKey: "billing", key: "billing.view", name: "Visualizar Assinatura e Uso" },
+      { moduleKey: "settings", key: "settings.view", name: "Visualizar Configuracoes" },
+      { moduleKey: "settings", key: "settings.ai", name: "Configurar IA" },
     ];
 
     for (const module of modules) {
@@ -124,6 +172,7 @@ export function adminPlansRoutes(prisma: PrismaClient) {
 
   // Listar Planos
   router.get("/", async (req, res) => {
+    await ensureFeatureCatalog();
     const plans = await prisma.plan.findMany({
       include: { planFeatures: true }
     });
@@ -152,12 +201,113 @@ export function adminPlansRoutes(prisma: PrismaClient) {
           maxReports: toNumberOrDefault(limits.maxReports, 10),
           maxIntegrations: toNumberOrDefault(limits.maxIntegrations, 3),
           maxMessages: toNumberOrDefault(limits.maxMessages, 1000),
+          maxContacts: toNumberOrDefault(limits.maxContacts, 1000),
+          maxDeals: toNumberOrDefault(limits.maxDeals, 100),
+          maxPipelines: toNumberOrDefault(limits.maxPipelines, 3),
+          maxLandingPages: toNumberOrDefault(limits.maxLandingPages, 5),
+          maxInboxes: toNumberOrDefault(limits.maxInboxes, 1),
+          maxAIRequests: toNumberOrDefault(limits.maxAIRequests, 1000),
         }
       });
       res.json(plan);
     } catch (error: any) {
       console.error("[ADMIN_PLAN_CREATE_ERROR]", error?.message || error);
       res.status(500).json({ error: "Erro ao criar plano.", details: error?.message });
+    }
+  });
+
+  router.post("/:id/duplicate", async (req, res) => {
+    try {
+      const source = await prisma.plan.findUnique({
+        where: { id: req.params.id },
+        include: { planFeatures: true },
+      });
+
+      if (!source) {
+        return res.status(404).json({ error: "Plano nao encontrado." });
+      }
+
+      const sourceFeatures = source.features && typeof source.features === "object" && !Array.isArray(source.features)
+        ? (source.features as Record<string, any>)
+        : {};
+      const suffix = Date.now().toString().slice(-6);
+
+      const plan = await prisma.plan.create({
+        data: {
+          name: `${source.name} Copia`,
+          slug: `${source.slug}-copy-${suffix}`,
+          description: source.description,
+          priceMonthly: source.priceMonthly,
+          priceYearly: source.priceYearly,
+          isPublic: false,
+          isActive: true,
+          maxUsers: source.maxUsers,
+          maxContacts: source.maxContacts,
+          maxDeals: source.maxDeals,
+          maxPipelines: source.maxPipelines,
+          maxAutomations: source.maxAutomations,
+          maxLandingPages: source.maxLandingPages,
+          maxInboxes: source.maxInboxes,
+          maxMessages: source.maxMessages,
+          maxAIRequests: source.maxAIRequests,
+          maxLeads: source.maxLeads,
+          maxClients: source.maxClients,
+          maxReports: source.maxReports,
+          maxIntegrations: source.maxIntegrations,
+          features: { ...sourceFeatures, duplicatedFromPlanId: source.id },
+          planFeatures: {
+            create: source.planFeatures.map((feature) => ({
+              featureKey: feature.featureKey,
+              isEnabled: feature.isEnabled,
+              limit: feature.limit,
+            })),
+          },
+        },
+        include: { planFeatures: true },
+      });
+
+      res.json(plan);
+    } catch (error: any) {
+      console.error("[ADMIN_PLAN_DUPLICATE_ERROR]", error?.message || error);
+      res.status(500).json({ error: "Erro ao duplicar plano.", details: error?.message });
+    }
+  });
+
+  router.post("/:id/archive", async (req, res) => {
+    try {
+      const source = await prisma.plan.findUnique({ where: { id: req.params.id } });
+      if (!source) return res.status(404).json({ error: "Plano nao encontrado." });
+
+      const sourceFeatures = source.features && typeof source.features === "object" && !Array.isArray(source.features)
+        ? (source.features as Record<string, any>)
+        : {};
+      const plan = await prisma.plan.update({
+        where: { id: req.params.id },
+        data: {
+          isActive: false,
+          isPublic: false,
+          features: { ...sourceFeatures, archivedAt: new Date().toISOString() },
+        },
+        include: { planFeatures: true },
+      });
+      res.json(plan);
+    } catch (error: any) {
+      console.error("[ADMIN_PLAN_ARCHIVE_ERROR]", error?.message || error);
+      res.status(500).json({ error: "Erro ao arquivar plano.", details: error?.message });
+    }
+  });
+
+  router.post("/:id/activate", async (req, res) => {
+    try {
+      const plan = await prisma.plan.update({
+        where: { id: req.params.id },
+        data: { isActive: true },
+        include: { planFeatures: true },
+      });
+      res.json(plan);
+    } catch (error: any) {
+      console.error("[ADMIN_PLAN_ACTIVATE_ERROR]", error?.message || error);
+      res.status(500).json({ error: "Erro ao ativar plano.", details: error?.message });
     }
   });
 

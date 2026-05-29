@@ -54,6 +54,7 @@ import { privacyRoutes } from "./routes/privacy.js";
 import { prospectRoutes } from "./routes/prospect.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { omnichannelRoutes } from "./routes/omnichannel.js";
+import { whatsappRoutes, whatsappInternalRoutes } from "./routes/whatsapp.js";
 
 const app = express();
 
@@ -241,6 +242,7 @@ const protectedRoutes = [
   { path: "/api/nexus-prospect", router: prospectRoutes },
   { path: "/api/onboarding", router: onboardingRoutes },
   { path: "/api/omnichannel", router: omnichannelRoutes },
+  { path: "/api/whatsapp", router: whatsappRoutes },
 ];
 
 protectedRoutes.forEach(route => {
@@ -254,6 +256,7 @@ app.use("/api/admin/plans", authenticateToken, adminPlansRoutes(prisma));
 app.use("/api/billing", billingRoutes(prisma));
 app.use("/api/livekit", livekitRoutes(prisma));
 app.use("/api/client-portal", clientPortalRoutes(prisma));
+app.use("/api/internal/whatsapp", whatsappInternalRoutes(prisma));
 
 // ==================== DASHBOARD E FALLBACKS ====================
 

@@ -28,6 +28,7 @@ interface StepData {
   needsProposal: boolean;
   needsContract: boolean;
   hasRecurrence: boolean;
+  salesMotions: string[];
   leadChannels: string[];
   hasSdr: boolean;
   hasCloser: boolean;
@@ -51,6 +52,7 @@ const initialData: StepData = {
   needsProposal: false,
   needsContract: false,
   hasRecurrence: false,
+  salesMotions: [],
   leadChannels: [],
   hasSdr: false,
   hasCloser: false,
@@ -125,8 +127,18 @@ export default function OnboardingWizard() {
     }));
   };
 
+  const toggleSalesMotion = (motion: string) => {
+    setFormData(prev => ({
+      ...prev,
+      salesMotions: prev.salesMotions.includes(motion)
+        ? prev.salesMotions.filter(item => item !== motion)
+        : [...prev.salesMotions, motion],
+    }));
+  };
+
   const businessTypes = [
-    "Marketing Digital", "SaaS", "Consultoria", "Infoprodutos",
+    "Consultoria", "Agencia", "Servicos", "Industria",
+    "Representacao Comercial", "SaaS", "Educacao", "Franquia", "Outro",
     "Software House", "Design", "Educação", "E-commerce",
   ];
 
@@ -141,6 +153,15 @@ export default function OnboardingWizard() {
     "2-4 semanas",
     "1-3 meses",
     "3+ meses",
+  ];
+
+  const salesMotionOptions = [
+    "Recebo leads e vendo pelo WhatsApp",
+    "Faco reunioes antes de vender",
+    "Trabalho com propostas comerciais",
+    "Tenho equipe de vendas",
+    "Vendo servicos recorrentes",
+    "Vendo produtos de alto ticket",
   ];
 
   return (
@@ -326,6 +347,25 @@ export default function OnboardingWizard() {
                             }`}
                           >
                             {c}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Como voce vende?</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {salesMotionOptions.map(item => (
+                          <button
+                            key={item}
+                            onClick={() => toggleSalesMotion(item)}
+                            className={`p-4 rounded-xl border-2 transition-all text-left font-bold text-sm ${
+                              formData.salesMotions.includes(item)
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-white/5 bg-white/5 text-gray-400 hover:border-white/20"
+                            }`}
+                          >
+                            {item}
                           </button>
                         ))}
                       </div>

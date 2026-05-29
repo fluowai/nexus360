@@ -7,18 +7,52 @@ export function useAccess(user: any) {
     const userPermissions = user?.permissions || {};
     const role = user?.role;
     const subscriptionStatus = user?.subscriptionStatus || 'TRIAL';
+    const moduleAliases: Record<string, string[]> = {
+      whatsapp_funnels: ['whatsapp_funnels', 'prospecting.funnels', 'prospecting'],
+      prompt_architect: ['prompt_architect', 'ai.prompt_architect', 'ai'],
+      landing_pages: ['landing_pages', 'marketing.landing_pages', 'marketing'],
+      service_catalog: ['service_catalog', 'delivery.service_catalog', 'projects'],
+      time_tracking: ['time_tracking', 'delivery.time_tracking', 'projects'],
+      health_score: ['health_score', 'client_health', 'finance'],
+      agenda: ['agenda', 'calendar', 'tasks'],
+      ads: ['ads', 'marketing'],
+      assets: ['assets', 'marketing'],
+    };
+
+    const candidatesFor = (moduleKey: string) => {
+      const aliases = moduleAliases[moduleKey] || [];
+      return Array.from(new Set([moduleKey, ...aliases]));
+    };
+
+    const isPlanFeatureEnabled = (key: string) => planFeatures.some((f: any) => {
+      if (!f?.isEnabled || typeof f.featureKey !== 'string') return false;
+      return f.featureKey === key || f.featureKey.startsWith(`${key}.`);
+    });
 
     return {
       hasModule: (moduleKey: string) => {
         if (role === 'SUPER_ADMIN' || role === 'ORG_ADMIN' || role === 'AGENCY_ADMIN') return true;
 
-        const modulePermissions = userPermissions[moduleKey];
-        if (modulePermissions === '*' || (Array.isArray(modulePermissions) && modulePermissions.length > 0)) {
-          return true;
-        }
+        return candidatesFor(moduleKey).some((candidate) => {
+          const [permissionModule, permissionAction] = candidate.split('.');
+          const modulePermissions = userPermissions[permissionModule];
+          if (modulePermissions === '*' || (Array.isArray(modulePermissions) && modulePermissions.length > 0)) return true;
+          if (permissionAction && Array.isArray(modulePermissions) && modulePermissions.includes(permissionAction)) return true;
 
-        return planFeatures.some((f: any) => f.featureKey.startsWith(moduleKey) && f.isEnabled);
+          return isPlanFeatureEnabled(candidate);
+        });
       },
+
+      hasAnyModule: (moduleKeys: string[]) => moduleKeys.some((moduleKey) => {
+        if (role === 'SUPER_ADMIN' || role === 'ORG_ADMIN' || role === 'AGENCY_ADMIN') return true;
+        return candidatesFor(moduleKey).some((candidate) => {
+          const [permissionModule, permissionAction] = candidate.split('.');
+          const modulePermissions = userPermissions[permissionModule];
+          if (modulePermissions === '*' || (Array.isArray(modulePermissions) && modulePermissions.length > 0)) return true;
+          if (permissionAction && Array.isArray(modulePermissions) && modulePermissions.includes(permissionAction)) return true;
+          return isPlanFeatureEnabled(candidate);
+        });
+      }),
 
       hasFeature: (featureKey: string) => {
         if (role === 'SUPER_ADMIN' || role === 'ORG_ADMIN' || role === 'AGENCY_ADMIN') return true;
@@ -53,6 +87,12 @@ export function useAccess(user: any) {
         maxLeads: plan?.maxLeads || 100,
         maxClients: plan?.maxClients || 10,
         maxUsers: plan?.maxUsers || 5,
+        maxContacts: plan?.maxContacts || 1000,
+        maxPipelines: plan?.maxPipelines || 3,
+        maxDeals: plan?.maxDeals || 100,
+        maxAutomations: plan?.maxAutomations || 5,
+        maxLandingPages: plan?.maxLandingPages || 5,
+        maxAIRequests: plan?.maxAIRequests || 1000,
       },
     };
   }, [user]);

@@ -51,6 +51,7 @@ import { usageRoutes } from "./routes/usage.js";
 import { proposalRoutes } from "./routes/proposals.js";
 import { privacyRoutes } from "./routes/privacy.js";
 import { prospectRoutes } from "./routes/prospect.js";
+import { onboardingRoutes } from "./routes/onboarding.js";
 
 const app = express();
 
@@ -235,6 +236,7 @@ const protectedRoutes = [
   { path: "/api/proposals", router: proposalRoutes },
   { path: "/api/privacy", router: privacyRoutes },
   { path: "/api/nexus-prospect", router: prospectRoutes },
+  { path: "/api/onboarding", router: onboardingRoutes },
 ];
 
 protectedRoutes.forEach(route => {

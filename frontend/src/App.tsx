@@ -30,7 +30,8 @@ const ClientsPage = lazy(() => import("./pages/Clients"));
 const ClientDetailPage = lazy(() => import("./pages/ClientDetail"));
 const SoldServicesPage = lazy(() => import("./pages/SoldServices"));
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
-const Onboarding = lazy(() => import("./pages/Onboarding"));
+const Onboarding = lazy(() => import("./pages/OnboardingWizard"));
+const OnboardingPreview = lazy(() => import("./pages/OnboardingPreview"));
 const AgentsHub = lazy(() => import("./pages/AgentsHub"));
 const AISettings = lazy(() => import("./pages/AISettings"));
 const Finance = lazy(() => import("./pages/Finance"));
@@ -60,6 +61,7 @@ const CapturedLists = lazy(() => import("./pages/prospecting/CapturedLists"));
 const ProspectingFunnels = lazy(() => import("./pages/prospecting/ProspectingFunnels"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const Login = lazy(() => import("./pages/Login"));
+const CRMSalesPage = lazy(() => import("./pages/CRMSalesPage"));
 
 // Novas páginas de automação de agência
 const AutomationBuilder = lazy(() => import("./pages/AutomationBuilder"));
@@ -101,13 +103,13 @@ const Layout = ({
     const isLoginPath = location.pathname === '/login';
     const isOnboardingPath = location.pathname === '/onboarding';
     const isMeetPath = location.pathname.startsWith('/meet');
-    const isLandingPage = location.pathname === '/site';
+    const isLandingPage = location.pathname === '/site' || location.pathname === '/vendas';
     const isAdminPath = location.pathname.startsWith('/admin');
 
     // Detectar se a URL contém um slug de agência
     const pathParts = location.pathname.split('/').filter(Boolean);
     const firstPart = pathParts[0] || '';
-    const reservedWords = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports', 'api'];
+    const reservedWords = ['admin', 'site', 'vendas', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports', 'api'];
     const urlHasSlug = firstPart && !reservedWords.includes(firstPart);
 
     const isPublicProposal = location.pathname.startsWith('/p/');
@@ -152,7 +154,7 @@ const Layout = ({
     }
   }, [location.pathname, user, navigate, authLoading, selectedClientId]);
 
-  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site' || location.pathname.startsWith('/p/') || location.pathname.startsWith('/client-portal')) {
+  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site' || location.pathname === '/vendas' || location.pathname.startsWith('/p/') || location.pathname.startsWith('/client-portal')) {
     return <>{children}</>;
   }
 
@@ -235,7 +237,7 @@ export default function App() {
 
   useEffect(() => {
     const fetchUser = async () => {
-      const publicPaths = ['/login', '/onboarding', '/site'];
+      const publicPaths = ['/login', '/onboarding', '/site', '/vendas'];
       const isPublicPath =
         publicPaths.includes(window.location.pathname) ||
         window.location.pathname.startsWith('/meet') ||
@@ -303,8 +305,10 @@ export default function App() {
           <Route path="/prospecting/funnels" element={<ProspectingFunnels />} />
           <Route path="/team" element={<Team />} />
           <Route path="/site" element={<LandingPage />} />
+          <Route path="/vendas" element={<CRMSalesPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/onboarding/preview" element={<OnboardingPreview />} />
           <Route path="/meet/:roomName" element={<MeetingRoom />} />
           <Route path="/landing-demo" element={<LandingDemo />} />
           <Route path="/landing-editor" element={<LandingEditor />} />

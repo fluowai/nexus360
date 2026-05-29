@@ -127,6 +127,12 @@ model Organization {
 
   // Nexus Prospect AI
   prospectMissions  ProspectMission[]
+
+  // Autonomus CRM: verticalização por tipo de negócio
+  businessType        String?  // B2B, B2C, SaaS, Consultoria, Indústria, E-commerce, Varejo, etc.
+  businessDescription String?  // Descrição livre do que o cliente vende
+
+  onboardingResponse OnboardingResponse?
 }
 
 model Workspace {
@@ -587,6 +593,9 @@ model Client {
 
   // Status
   status String @default("prospect") // prospect, onboarding, ativo, inativo, churned
+  renewalDate DateTime?
+  churnRisk   String   @default("LOW") // LOW, MEDIUM, HIGH, CRITICAL
+  lastNpsScore Int?
 
   // Origem (Raio-X)
   source       String? // Google Ads, Instagram, Indicação, Prospecção Ativa
@@ -674,6 +683,8 @@ model Opportunity {
 
   status      String  @default("OPEN") // OPEN, WON, LOST, FROZEN
   lostReason  String?
+  lostReasonId String?
+  wonReasonId  String?
   
   temperature String  @default("COLD") // COLD, WARM, HOT
   score       Int     @default(0)
@@ -1699,6 +1710,7 @@ model PipelineStage {
   // Regras de Negócio
   sla            Int?         // SLA em horas
   probability    Int?         @default(0)
+  isDefault      Boolean      @default(false)
   requiredFields Json?        // Array de nomes de campos obrigatórios
   checklist      Json?        // Itens que o vendedor deve marcar
   
@@ -2163,41 +2175,223 @@ model ProspectMission {
   @@index([organizationId])
 }
 
-model ProspectLead {
+model ProspectBlockedContact {
   id                  String    @id @default(uuid())
-  missionId           String
-  mission             ProspectMission @relation(fields: [missionId], references: [id])
-  companyName         String
-  category            String?
-  phone               String?
-  whatsapp            String?
-  website             String?
-  instagram           String?
-  address             String?
-  city                String?
-  state               String?
-  country             String?
-  latitude            Float?
-  longitude           Float?
-  googleRating        Float?
-  googleReviewsCount  Int?
-  openingHours        Json?
-  googleMapsUrl       String?
-  dataSource          String?
-  captureDate         DateTime  @default(now())
-  status              String    @default("captado") // captado, validado, aprovado_para_contato, pendente_revisao, reprovado, call_agendada
-  
+  organizationId      String
+  phone               String
+  reason              String?
   createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
 
-  validation          ProspectValidation?
-  dossier             ProspectDossier?
-  messages            ProspectOutreachMessage[]
-  conversations       ProspectConversation[]
-  appointment         ProspectAppointment?
-  logs                ProspectAgentLog[]
+  @@unique([organizationId, phone])
+}
 
-  @@index([missionId])
+model ProspectLearningMetric {
+  id                  String    @id @default(uuid())
+  organizationId      String
+  niche               String
+  city                String
+  approachType        String
+  leadsContacted      Int       @default(0)
+  responsesReceived   Int       @default(0)
+  appointmentsBooked  Int       @default(0)
+  responseRate        Float     @default(0)
+  bookingRate         Float     @default(0)
+  createdAt           DateTime  @default(now())
+
+  @@index([organizationId])
+}
+
+// ==================== ONBOARDING INTELIGENTE ====================
+
+model OnboardingResponse {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  businessName      String
+  businessType      String       // SERVICO, PRODUTO, CONSULTORIA, TREINAMENTO, ASSINATURA, B2B
+  targetAudience    String       // B2B, B2C, AMBOS
+  averageTicket     Float?
+  salesCycle        String?      // CURTO, MEDIO, LONGO
+  needsMeeting      Boolean      @default(false)
+  needsProposal     Boolean      @default(false)
+  needsContract     Boolean      @default(false)
+  hasRecurrence     Boolean      @default(false)
+
+  leadChannels      Json         // ["WHATSAPP", "INSTAGRAM", "SITE", "INDICACAO", etc]
+  hasSdr            Boolean      @default(false)
+  hasCloser         Boolean      @default(false)
+  hasPostSales      Boolean      @default(false)
+
+  painPoints        String?      @db.Text
+  biggestProblem    String?      @db.Text
+
+  deliveryProcess   String?      @db.Text
+  hasOnboarding     Boolean      @default(false)
+  hasChecklist      Boolean      @default(false)
+  hasRenewal        Boolean      @default(false)
+  hasUpsell         Boolean      @default(false)
+
+  rawAnswers        Json         // Todas as respostas originais
+  recommendedTemplate String?    // Template recomendado pela IA
+  aiDiagnosis       Json?        // Diagnóstico completo da IA
+  appliedAt         DateTime?
+
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+}
+
+model BusinessTemplate {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  description   String?
+  isActive      Boolean  @default(true)
+
+  pipelineConfig Json    // Pipeline stages com nomes, cores, probabilidades
+  customFields  Json     // Campos recomendados
+  tasks         Json     // Tarefas padrão
+  scripts       Json     // Scripts de atendimento
+  playbook      Json     // Playbook comercial
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ==================== CAMPOS PERSONALIZADOS ====================
+
+model CustomField {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name           String
+  key            String
+  type           String       // TEXT, NUMBER, DATE, SELECT, MULTI_SELECT, BOOLEAN
+  options        Json?        // Para SELECT/MULTI_SELECT
+  model          String       // LEAD, OPPORTUNITY, CLIENT
+  isRequired     Boolean      @default(false)
+  order          Int          @default(0)
+  isActive       Boolean      @default(true)
+
+  values         CustomFieldValue[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, key, model])
+  @@index([organizationId])
+}
+
+model CustomFieldValue {
+  id             String       @id @default(uuid())
+  fieldId        String
+  field          CustomField  @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  recordId       String       // ID do registro (lead_id, opportunity_id, client_id)
+  value          String       @db.Text
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([fieldId, recordId])
+  @@index([recordId])
+}
+
+// ==================== MOTIVOS DE PERDA/GANHO ====================
+
+model LostReason {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name           String
+  isActive       Boolean      @default(true)
+
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model WonReason {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name           String
+  isActive       Boolean      @default(true)
+
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+// ==================== RETENÇÃO E NPS ====================
+
+model NpsSurvey {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id])
+
+  score          Int          // 0-10
+  comment        String?      @db.Text
+  respondedAt    DateTime     @default(now())
+
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([clientId])
+}
+
+model RenewalOpportunity {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id])
+
+  type           String       // RENEWAL, UPSELL, CROSS_SELL, REACTIVATION
+  value          Float        @default(0)
+  status         String       @default("OPEN") // OPEN, WON, LOST
+  expectedDate   DateTime?
+
+  assignedToId   String?
+  notes          String?      @db.Text
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+}
+
+// ==================== LOGS DE IA ====================
+
+model AiLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+
+  agentType      String   // "diagnosis", "sdr", "proposal", "retention"
+  prompt         String   @db.Text
+  response       String   @db.Text
+  model          String
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0)
+  durationMs     Int      @default(0)
+  success        Boolean  @default(true)
+  errorMessage   String?
+
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([agentType])
 }
 
 model ProspectValidation {

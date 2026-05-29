@@ -73,38 +73,75 @@ export default function Team() {
   }, []);
 
   // --- MEMBER HANDLERS ---
+  const validatePassword = (password: string) => {
+    if (password.length < 10) return "A senha deve ter no minimo 10 caracteres.";
+    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      return "A senha deve conter letras maiusculas, minusculas e numeros.";
+    }
+    return null;
+  };
+
   const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
+      const password = memberForm.password.trim();
+      if (!memberForm.id && !password) {
+        alert("Informe uma senha temporaria para o novo usuario.");
+        return;
+      }
+      if (password) {
+        const passwordError = validatePassword(password);
+        if (passwordError) {
+          alert(passwordError);
+          return;
+        }
+      }
+
       if (memberForm.id) {
-        // Atualiza (PATCH /api/team/members/:id/permissions)
-        await apiFetch(`/api/team/members/${memberForm.id}/permissions`, {
+        const payload: Record<string, any> = {
+          name: memberForm.name,
+          email: memberForm.email,
+          role: memberForm.role,
+          accessProfileId: memberForm.accessProfileId || null
+        };
+        if (password) payload.password = password;
+
+        const res = await apiFetch(`/api/team/members/${memberForm.id}/permissions`, {
           method: 'PATCH',
-          body: JSON.stringify({
-            role: memberForm.role,
-            accessProfileId: memberForm.accessProfileId || null
-          })
+          body: JSON.stringify(payload)
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Erro ao atualizar usuario");
+          return;
+        }
         // Se houver necessidade de atualizar outros dados (como status ou permissões manuais), também manda. 
         // Assumindo que criamos a rota flexível no backend.
       } else {
         // Cria
-        await apiFetch('/api/team/members', {
+        const res = await apiFetch('/api/team/members', {
           method: 'POST',
           body: JSON.stringify({
             name: memberForm.name,
             email: memberForm.email,
-            password: memberForm.password,
+            password,
             role: memberForm.role,
             accessProfileId: memberForm.accessProfileId || null
           })
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || "Erro ao criar usuario");
+          return;
+        }
       }
       setIsMemberModalOpen(false);
+      setMemberForm({ id: '', name: '', email: '', role: 'USER', accessProfileId: '', password: '' });
       fetchData();
     } catch (error) {
       console.error("Error saving member:", error);
+      alert("Erro ao conectar com o servidor.");
     } finally {
       setIsSaving(false);
     }
@@ -311,16 +348,16 @@ export default function Team() {
             <form onSubmit={handleSaveMember} className="p-6 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">Nome</label>
-                <input required className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.name} onChange={e => setMemberForm({...memberForm, name: e.target.value})} disabled={!!memberForm.id} />
+                <input required className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.name} onChange={e => setMemberForm({...memberForm, name: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-bold text-gray-700">E-mail</label>
-                <input required type="email" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.email} onChange={e => setMemberForm({...memberForm, email: e.target.value})} disabled={!!memberForm.id} />
+                <input required type="email" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.email} onChange={e => setMemberForm({...memberForm, email: e.target.value})} />
               </div>
-              {!memberForm.id && (
+              {(
                 <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-700">Senha temporária forte</label>
-                  <input type="password" placeholder="Mínimo 10 caracteres, com maiúscula, minúscula e número" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.password} onChange={e => setMemberForm({...memberForm, password: e.target.value})} />
+                  <label className="text-sm font-bold text-gray-700">{memberForm.id ? "Nova senha (opcional)" : "Senha temporaria forte"}</label>
+                  <input required={!memberForm.id} type="password" placeholder="Minimo 10 caracteres, com maiuscula, minuscula e numero" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.password} onChange={e => setMemberForm({...memberForm, password: e.target.value})} />
                 </div>
               )}
               <div className="space-y-2">

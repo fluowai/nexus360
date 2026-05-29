@@ -70,10 +70,35 @@ export default function SystemTeam() {
     try {
       const method = formData.id ? 'PATCH' : 'POST';
       const url = formData.id ? `/api/admin/users/${formData.id}` : '/api/admin/users';
+      const password = formData.password.trim();
+      if (!formData.id && !password) {
+        alert("Informe uma senha para o novo usuario");
+        return;
+      }
+      if (password) {
+        if (password.length < 10) {
+          alert("A senha deve ter no minimo 10 caracteres.");
+          return;
+        }
+        if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+          alert("A senha deve conter letras maiusculas, minusculas e numeros.");
+          return;
+        }
+      }
+
+      const payload: Record<string, any> = {
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        status: formData.status,
+        permissions: formData.permissions,
+        organizationId: formData.organizationId || null,
+      };
+      if (password) payload.password = password;
       
       const res = await apiFetch(url, {
         method,
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {

@@ -265,7 +265,9 @@ export function adminRoutes(prisma: PrismaClient) {
   // Editar Usuário (SUPER_ADMIN)
   router.patch("/users/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, email, role, password, status, permissions, organizationId } = req.body;
+    const { name, email, role, status, permissions } = req.body;
+    const password = typeof req.body.password === "string" ? req.body.password.trim() : req.body.password;
+    const organizationId = req.body.organizationId || null;
     if (password) {
       const passwordError = assertStrongPassword(password);
       if (passwordError) return res.status(400).json({ error: passwordError });
@@ -324,7 +326,9 @@ export function adminRoutes(prisma: PrismaClient) {
   // Criar Usuário (SUPER_ADMIN)
   router.post("/users", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, email, role, password } = req.body;
+    const { name, email, role, status, permissions } = req.body;
+    const password = typeof req.body.password === "string" ? req.body.password.trim() : req.body.password;
+    const organizationId = req.body.organizationId || null;
     const passwordError = assertStrongPassword(password);
     if (passwordError) return res.status(400).json({ error: passwordError });
     
@@ -339,7 +343,9 @@ export function adminRoutes(prisma: PrismaClient) {
           email,
           password: hashedPassword,
           role: role || 'USER',
-          status: 'ACTIVE'
+          status: status || 'ACTIVE',
+          permissions: permissions || {},
+          organizationId
         }
       });
       const { password: _password, ...safeUser } = user;

@@ -123,6 +123,52 @@ export default function AdminAgencies() {
     }
   };
 
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editData) return;
+
+    const password = typeof editData.password === 'string' ? editData.password.trim() : '';
+    if (password) {
+      if (password.length < 10) {
+        alert("A senha deve ter no minimo 10 caracteres.");
+        return;
+      }
+      if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+        alert("A senha deve conter letras maiusculas, minusculas e numeros.");
+        return;
+      }
+    }
+
+    const payload: Record<string, any> = {
+      name: editData.name,
+      slug: editData.slug,
+      plan: editData.plan,
+      planId: editData.planId,
+    };
+
+    const adminEmail = typeof editData.adminEmail === 'string' ? editData.adminEmail.trim() : '';
+    if (adminEmail) payload.adminEmail = adminEmail;
+    if (password) payload.password = password;
+
+    try {
+      const res = await apiFetch(`/api/admin/orgs/${editData.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setIsEditing(false);
+        setEditData(null);
+        fetchAgencies();
+      } else {
+        alert(data.details || data.error || "Erro ao atualizar agencia");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao conectar com o servidor.");
+    }
+  };
+
   useEffect(() => {
     fetchAgencies();
   }, []);
@@ -227,7 +273,15 @@ export default function AdminAgencies() {
                       </button>
                       <button 
                         onClick={() => {
-                          setEditData(org);
+                          setEditData({
+                            id: org.id,
+                            name: org.name || '',
+                            slug: org.slug || '',
+                            plan: org.planObj?.name || org.plan || '',
+                            planId: org.planId || '',
+                            adminEmail: '',
+                            password: ''
+                          });
                           setIsEditing(true);
                         }}
                         className="p-2 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-900 transition-all"
@@ -506,19 +560,7 @@ export default function AdminAgencies() {
             className="bg-white rounded-[32px] p-8 w-full max-w-md shadow-2xl"
           >
             <h2 className="text-xl font-bold text-gray-900 mb-6">Editar Agência</h2>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              try {
-                const res = await apiFetch(`/api/admin/orgs/${editData.id}`, {
-                  method: 'PATCH',
-                  body: JSON.stringify(editData)
-                });
-                if (res.ok) {
-                  setIsEditing(false);
-                  fetchAgencies();
-                }
-              } catch (err) { console.error(err); }
-            }} className="flex flex-col gap-4">
+            <form onSubmit={handleEditSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome da Agência</label>
                 <input 

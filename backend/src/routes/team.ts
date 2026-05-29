@@ -43,6 +43,7 @@ export function teamRoutes(prisma: PrismaClient) {
     }
 
     let { name, email, password, role, permissions, accessProfileId } = req.body;
+    password = typeof password === "string" ? password.trim() : password;
     const passwordError = assertStrongPassword(password);
     if (passwordError) return res.status(400).json({ error: passwordError });
 
@@ -83,7 +84,13 @@ export function teamRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    let { permissions, accessProfileId, role, status } = req.body;
+    let { name, email, password, permissions, accessProfileId, role, status } = req.body;
+    password = typeof password === "string" ? password.trim() : password;
+
+    if (password) {
+      const passwordError = assertStrongPassword(password);
+      if (passwordError) return res.status(400).json({ error: passwordError });
+    }
 
     // Prevenção de Escalabilidade de Privilégios
     if (role === 'SUPER_ADMIN' && req.user?.role !== 'SUPER_ADMIN') {
@@ -97,14 +104,29 @@ export function teamRoutes(prisma: PrismaClient) {
 
       if (!user) return res.status(404).json({ error: "Membro não encontrado." });
 
+      if (email && email !== user.email) {
+        const emailConflict = await prisma.user.findFirst({
+          where: { email, NOT: { id: req.params.id } }
+        });
+        if (emailConflict) return res.status(400).json({ error: "E-mail jÃ¡ cadastrado." });
+      }
+
+      const data: any = {
+        ...(name !== undefined && { name }),
+        ...(email !== undefined && { email }),
+        ...(permissions !== undefined && { permissions }),
+        ...(accessProfileId !== undefined && { accessProfileId }),
+        ...(role !== undefined && { role }),
+        ...(status !== undefined && { status }),
+      };
+
+      if (password) {
+        data.password = await bcrypt.hash(password, 10);
+      }
+
       const updatedUser = await prisma.user.update({
         where: { id: req.params.id },
-        data: { 
-          ...(permissions !== undefined && { permissions }),
-          ...(accessProfileId !== undefined && { accessProfileId }),
-          ...(role !== undefined && { role }),
-          ...(status !== undefined && { status }),
-        }
+        data
       });
 
       const { password: _password, ...safeUser } = updatedUser;

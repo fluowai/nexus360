@@ -57,9 +57,7 @@ export function authRoutes(prisma: PrismaClient) {
         include: {
           organization: {
             include: {
-              planObj: {
-                include: { planFeatures: true },
-              },
+              planObj: true,
               _count: {
                 select: { leads: true },
               },
@@ -135,15 +133,23 @@ export function authRoutes(prisma: PrismaClient) {
         .update(refreshToken)
         .digest("hex");
 
-      await prisma.refreshToken.create({
-        data: {
-          token: refreshTokenHash,
-          userId: user.id,
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
-          ip: getClientIp(req),
-          userAgent: getClientUA(req),
-        },
-      });
+      prisma.refreshToken
+        .create({
+          data: {
+            token: refreshTokenHash,
+            userId: user.id,
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+            ip: getClientIp(req),
+            userAgent: getClientUA(req),
+          },
+        })
+        .catch((error) => {
+          console.error("[REFRESH_TOKEN_CREATE_ERROR]", {
+            userId: user.id,
+            errorMessage: error.message,
+            prismaCode: error.code,
+          });
+        });
 
       // Limpar tokens expirados do usuário (limpeza assíncrona)
       prisma.refreshToken
@@ -242,7 +248,7 @@ export function authRoutes(prisma: PrismaClient) {
             include: {
               organization: {
                 include: {
-                  planObj: { include: { planFeatures: true } },
+                  planObj: true,
                   _count: { select: { leads: true } },
                 },
               },

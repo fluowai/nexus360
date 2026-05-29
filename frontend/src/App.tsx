@@ -1,21 +1,17 @@
-import { BrowserRouter, Routes, Route, useLocation, useNavigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { 
-  LogOut, 
   Menu,
   Monitor
 } from "lucide-react";
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
-// Components
 import { Sidebar } from "./components/sidebar/Sidebar";
-import { apiFetch, clearAuthSession, hasAccessToken } from "./lib/api";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { useAuth } from "./lib/useAuth";
 
-// Only eagerly load Dashboard (most visited page)
 import Dashboard from "./pages/Dashboard";
 
-// Lazy load all other pages for code splitting
 const CRM = lazy(() => import("./pages/CRM"));
 const Content = lazy(() => import("./pages/Content"));
 const Projects = lazy(() => import("./pages/Projects"));
@@ -63,7 +59,6 @@ const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const Login = lazy(() => import("./pages/Login"));
 const CRMSalesPage = lazy(() => import("./pages/CRMSalesPage"));
 
-// Novas páginas de automação de agência
 const AutomationBuilder = lazy(() => import("./pages/AutomationBuilder"));
 const NotificationsCenter = lazy(() => import("./pages/NotificationsCenter"));
 const DeliveryKanban = lazy(() => import("./pages/DeliveryKanban"));
@@ -73,18 +68,40 @@ const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
 const ClientHealthDashboard = lazy(() => import("./pages/ClientHealthDashboard"));
 const Billing = lazy(() => import("./pages/Billing"));
 
+const RESERVED_WORDS = new Set([
+  'admin', 'site', 'vendas', 'login', 'onboarding', 'meet',
+  'dashboard', 'crm', 'finance', 'settings', 'team', 'projects',
+  'reports', 'api', 'automations', 'notifications', 'delivery',
+  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health'
+]);
+
+function isPublicPath(pathname: string) {
+  return (
+    pathname === '/login' ||
+    pathname === '/onboarding' ||
+    pathname === '/site' ||
+    pathname === '/vendas' ||
+    pathname.startsWith('/meet') ||
+    pathname.startsWith('/p/') ||
+    pathname.startsWith('/client-portal')
+  );
+}
+
+function hasUrlSlug(pathname: string) {
+  const firstPart = pathname.split('/').filter(Boolean)[0] || '';
+  return firstPart && !RESERVED_WORDS.has(firstPart);
+}
+
 const Layout = ({ 
   children, 
   onLogout, 
   user,
-  authLoading,
   selectedClientId,
   onSelectClient
 }: { 
   children: React.ReactNode; 
   onLogout: () => void; 
   user: any;
-  authLoading: boolean;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
 }) => {
@@ -92,69 +109,8 @@ const Layout = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { slug } = useParams();
 
-  useEffect(() => {
-    if (authLoading) return;
-
-    const token = hasAccessToken();
-    const onboardingDone = localStorage.getItem('nexus_onboarding_done') === 'true';
-    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-    const isLoginPath = location.pathname === '/login';
-    const isOnboardingPath = location.pathname === '/onboarding';
-    const isMeetPath = location.pathname.startsWith('/meet');
-    const isLandingPage = location.pathname === '/site' || location.pathname === '/vendas';
-    const isAdminPath = location.pathname.startsWith('/admin');
-
-    // Detectar se a URL contém um slug de agência
-    const pathParts = location.pathname.split('/').filter(Boolean);
-    const firstPart = pathParts[0] || '';
-    const reservedWords = ['admin', 'site', 'vendas', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports', 'api'];
-    const urlHasSlug = firstPart && !reservedWords.includes(firstPart);
-
-    const isPublicProposal = location.pathname.startsWith('/p/');
-    const isClientPortal = location.pathname.startsWith('/client-portal');
-
-    // Páginas públicas: nunca redirecionar
-    if (isLoginPath || isMeetPath || isLandingPage || isOnboardingPath || isPublicProposal || isClientPortal) return;
-
-    // Se não tem token e NÃO está em página pública, manda para login
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
-    // Se tem token mas está na raiz "/", redireciona baseado no papel
-    if (location.pathname === '/') {
-      if (isSuperAdmin && !selectedClientId) {
-        navigate('/admin');
-      } else {
-        const savedSlug = localStorage.getItem('nexus_org_slug');
-        if (savedSlug) {
-          navigate(`/${savedSlug}/dashboard`);
-        } else {
-          navigate('/dashboard');
-        }
-      }
-      return;
-    }
-
-    // Se está em uma rota com slug de agência, DEIXA EM PAZ (nunca redireciona)
-    if (urlHasSlug) return;
-
-    // Se é Super Admin sem cliente selecionado e não está em /admin, manda para /admin
-    if (isSuperAdmin && !selectedClientId && !isAdminPath) {
-      navigate('/admin');
-      return;
-    }
-
-    // Se não fez onboarding
-    if (!onboardingDone && !isSuperAdmin && !isOnboardingPath) {
-      navigate('/onboarding');
-    }
-  }, [location.pathname, user, navigate, authLoading, selectedClientId]);
-
-  if (location.pathname === '/login' || location.pathname === '/onboarding' || location.pathname.startsWith('/meet') || location.pathname === '/site' || location.pathname === '/vendas' || location.pathname.startsWith('/p/') || location.pathname.startsWith('/client-portal')) {
+  if (isPublicPath(location.pathname)) {
     return <>{children}</>;
   }
 
@@ -213,65 +169,51 @@ const Layout = ({
   );
 };
 
+function useNavigationGuard(user: any, selectedClientId: string | null) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const { pathname } = location;
+
+  if (isPublicPath(pathname)) return;
+  if (hasUrlSlug(pathname)) return;
+
+  const onboardingDone = localStorage.getItem('nexus_onboarding_done') === 'true';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+  if (pathname === '/') {
+    if (isSuperAdmin && !selectedClientId) {
+      navigate('/admin', { replace: true });
+    } else {
+      const savedSlug = localStorage.getItem('nexus_org_slug');
+      navigate(savedSlug ? `/${savedSlug}/dashboard` : '/dashboard', { replace: true });
+    }
+    return;
+  }
+
+  if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin')) {
+    navigate('/admin', { replace: true });
+    return;
+  }
+
+  if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding') {
+    navigate('/onboarding', { replace: true });
+  }
+}
+
 export default function App() {
-  const [user, setUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [selectedClientId, setSelectedClientId] = useState<string | null>(localStorage.getItem('nexus_selected_client'));
+  const { user, authLoading, handleLogout } = useAuth();
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(
+    localStorage.getItem('nexus_selected_client')
+  );
 
   const handleSelectClient = (clientId: string | null) => {
     setSelectedClientId(clientId);
     if (clientId) {
       localStorage.setItem('nexus_selected_client', clientId);
-      // Se for Super Admin, redireciona para o Dashboard da agência selecionada
-      if (user?.role === 'SUPER_ADMIN') {
-        window.location.href = '/dashboard';
-      }
     } else {
       localStorage.removeItem('nexus_selected_client');
-      // Se for Super Admin e voltar para Global, redireciona para o Painel Admin
-      if (user?.role === 'SUPER_ADMIN') {
-        window.location.href = '/admin';
-      }
     }
-  };
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      const publicPaths = ['/login', '/onboarding', '/site', '/vendas'];
-      const isPublicPath =
-        publicPaths.includes(window.location.pathname) ||
-        window.location.pathname.startsWith('/meet') ||
-        window.location.pathname.startsWith('/p/') ||
-        window.location.pathname.startsWith('/client-portal');
-
-      if (isPublicPath && !hasAccessToken()) {
-        setAuthLoading(false);
-        return;
-      }
-
-      try {
-        const res = await apiFetch('/api/auth/me');
-        if (!res.ok) throw new Error("Invalid session");
-        const data = await res.json();
-        setUser(data);
-      } catch (error) {
-        setUser(null);
-        clearAuthSession();
-        if (!isPublicPath && window.location.pathname !== '/login') {
-          window.location.href = '/login';
-        }
-      } finally {
-        setAuthLoading(false);
-      }
-    };
-    fetchUser();
-  }, []);
-
-  const handleLogout = () => {
-    apiFetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
-    clearAuthSession();
-    localStorage.clear();
-    window.location.href = '/login';
   };
 
   if (authLoading) {
@@ -289,15 +231,14 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <Guard user={user} selectedClientId={selectedClientId} />
       <Layout 
         user={user} 
-        authLoading={authLoading}
         onLogout={handleLogout}
         selectedClientId={selectedClientId}
         onSelectClient={handleSelectClient}
       >
         <Routes>
-          {/* Public & Auth */}
           <Route path="/" element={<Dashboard />} />
           <Route path="/crm" element={<CRM />} />
           <Route path="/prospecting/capture" element={<LeadCapture />} />
@@ -315,7 +256,6 @@ export default function App() {
           <Route path="/p/:slug" element={<PublicProposal />} />
           <Route path="/client-portal" element={<ClientPortal />} />
 
-          {/* Super Admin */}
           <Route path="/admin" element={<SuperAdmin />} />
           <Route path="/admin/agencies" element={<AdminAgencies />} />
           <Route path="/admin/team" element={<SystemTeam />} />
@@ -328,7 +268,6 @@ export default function App() {
           <Route path="/admin/whitelabel" element={<WhiteLabel />} />
           <Route path="/admin/releases" element={<ReleaseControl />} />
 
-          {/* Agências com Slug: nexus.woopanel.com.br/slug/dashboard */}
           <Route path="/:slug" element={<Dashboard />} /> 
           <Route path="/:slug/dashboard" element={<Dashboard />} />
           <Route path="/:slug/admin" element={<Dashboard />} />
@@ -359,7 +298,6 @@ export default function App() {
           <Route path="/:slug/prompt-architect" element={<PromptArchitect />} />
           <Route path="/:slug/billing" element={<Billing />} />
 
-          {/* Novas Rotas de Automação */}
           <Route path="/:slug/automations" element={<AutomationBuilder />} />
           <Route path="/:slug/notifications" element={<NotificationsCenter />} />
           <Route path="/:slug/delivery" element={<DeliveryKanban />} />
@@ -367,6 +305,7 @@ export default function App() {
           <Route path="/:slug/time-tracking" element={<TimeTracking />} />
           <Route path="/:slug/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/:slug/client-health" element={<ClientHealthDashboard />} />
+
           <Route path="/automations" element={<AutomationBuilder />} />
           <Route path="/notifications" element={<NotificationsCenter />} />
           <Route path="/delivery" element={<DeliveryKanban />} />
@@ -375,7 +314,6 @@ export default function App() {
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/client-health" element={<ClientHealthDashboard />} />
 
-          {/* Fallback Legacy Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/crm" element={<CRM />} />
           <Route path="/billing" element={<Billing />} />
@@ -383,4 +321,9 @@ export default function App() {
       </Layout>
     </BrowserRouter>
   );
+}
+
+function Guard({ user, selectedClientId }: { user: any; selectedClientId: string | null }) {
+  useNavigationGuard(user, selectedClientId);
+  return null;
 }

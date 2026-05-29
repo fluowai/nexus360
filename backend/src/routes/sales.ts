@@ -5,6 +5,7 @@ import { proposalAI } from "../services/proposalAI.js";
 import { v4 as uuidv4 } from 'uuid';
 import { sanitizeBody } from "../utils/sanitizer.js";
 import { auditFromRequest } from "../utils/auditLogger.js";
+import { emitAutomationEvent } from "../workers/automationWorker.js";
 
 export function salesRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -132,6 +133,7 @@ export function salesRoutes(prisma: PrismaClient) {
       });
 
       auditFromRequest(req, "PROPOSAL_SENT", "Proposal", proposal.id);
+      emitAutomationEvent("proposal.sent", { organizationId: orgId, proposalId: proposal.id });
       res.json(proposal);
     } catch (error) {
       next(error);

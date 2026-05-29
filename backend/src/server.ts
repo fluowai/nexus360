@@ -10,6 +10,7 @@ import { authenticateToken } from "./middleware/auth.js";
 import { resolveTenant } from "./middleware/tenant.js";
 import { sanitizeStoredHtml } from "./utils/security.js";
 import { MissionScheduler } from "./services/prospect/MissionScheduler.js";
+import { emitAutomationEvent } from "./workers/automationWorker.js";
 
 // Import Rotas
 import { authRoutes } from "./routes/auth.js";
@@ -52,6 +53,7 @@ import { proposalRoutes } from "./routes/proposals.js";
 import { privacyRoutes } from "./routes/privacy.js";
 import { prospectRoutes } from "./routes/prospect.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
+import { omnichannelRoutes } from "./routes/omnichannel.js";
 
 const app = express();
 
@@ -178,6 +180,7 @@ app.post("/api/public/proposals/:slug/accept", async (req, res, next) => {
     if (!proposal) return res.status(404).json({ error: "Proposta não encontrada" });
 
     await prisma.proposal.update({ where: { id: proposal.id }, data: { status: 'accepted' } });
+    emitAutomationEvent("proposal.accepted", { organizationId: proposal.organizationId, proposalId: proposal.id });
 
     if (proposal.leadId) {
       await prisma.$transaction(async (tx) => {
@@ -237,6 +240,7 @@ const protectedRoutes = [
   { path: "/api/privacy", router: privacyRoutes },
   { path: "/api/nexus-prospect", router: prospectRoutes },
   { path: "/api/onboarding", router: onboardingRoutes },
+  { path: "/api/omnichannel", router: omnichannelRoutes },
 ];
 
 protectedRoutes.forEach(route => {
@@ -305,6 +309,14 @@ const PORT = process.env.PORT || 10000;
 // Inicialização dos Serviços em Background (Agentes)
 const missionScheduler = new MissionScheduler(prisma);
 missionScheduler.start();
+
+// Workers de Automação e Follow-up
+import { AutomationWorker } from "./workers/automationWorker.js";
+import { FollowUpWorker } from "./workers/followUpWorker.js";
+const automationWorker = new AutomationWorker(prisma);
+automationWorker.start();
+const followUpWorker = new FollowUpWorker(prisma);
+followUpWorker.start();
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Nexus360 Core rodando na porta ${PORT}`);

@@ -4,6 +4,7 @@ import { getPagination } from "../utils/pagination.js";
 import { AuthRequest, authenticateToken } from "../middleware/auth.js";
 import { sanitizeBody } from "../utils/sanitizer.js";
 import { auditFromRequest } from "../utils/auditLogger.js";
+import { emitAutomationEvent } from "../workers/automationWorker.js";
 
 export function crmRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -93,13 +94,35 @@ export function crmRoutes(prisma: PrismaClient) {
     if (!title) return res.status(400).json({ error: "Título é obrigatório" });
 
     try {
+      if (!clientId) return res.status(400).json({ error: "clientId e obrigatorio para criar oportunidade" });
+      const client = await prisma.client.findFirst({ where: { id: clientId, organizationId: orgId }, select: { id: true } });
+      if (!client) return res.status(400).json({ error: "Cliente invalido para esta organizacao" });
+
+      if (pipelineId) {
+        const pipeline = await prisma.pipeline.findFirst({ where: { id: pipelineId, organizationId: orgId }, select: { id: true } });
+        if (!pipeline) return res.status(400).json({ error: "Pipeline invalido para esta organizacao" });
+      }
+
+      if (assignedToId) {
+        const assignee = await prisma.user.findFirst({ where: { id: assignedToId, organizationId: orgId }, select: { id: true } });
+        if (!assignee) return res.status(400).json({ error: "Responsavel invalido para esta organizacao" });
+      }
+
       let targetStageId = stageId;
       if (pipelineId && !stageId) {
         const defaultStage = await prisma.pipelineStage.findFirst({
-          where: { pipelineId, isDefault: true },
+          where: { pipelineId, pipeline: { organizationId: orgId }, isDefault: true },
           orderBy: { order: "asc" },
         });
         targetStageId = defaultStage?.id;
+      }
+
+      if (targetStageId) {
+        const stage = await prisma.pipelineStage.findFirst({
+          where: { id: targetStageId, pipeline: { organizationId: orgId, ...(pipelineId ? { id: pipelineId } : {}) } },
+          select: { id: true },
+        });
+        if (!stage) return res.status(400).json({ error: "Etapa invalida para esta organizacao" });
       }
 
       const opportunity = await prisma.opportunity.create({
@@ -134,6 +157,7 @@ export function crmRoutes(prisma: PrismaClient) {
       });
 
       auditFromRequest(req, "CREATE", "Opportunity", opportunity.id);
+      emitAutomationEvent("opportunity.created", { organizationId: orgId, opportunityId: opportunity.id, opportunity });
       res.json(opportunity);
     } catch (error) { next(error); }
   });
@@ -159,10 +183,30 @@ export function crmRoutes(prisma: PrismaClient) {
       if (temperature !== undefined) data.temperature = temperature;
       if (score !== undefined) data.score = parseInt(score);
 
+      if (clientId) {
+        const client = await prisma.client.findFirst({ where: { id: clientId, organizationId: orgId }, select: { id: true } });
+        if (!client) return res.status(400).json({ error: "Cliente invalido para esta organizacao" });
+      }
+      if (pipelineId) {
+        const pipeline = await prisma.pipeline.findFirst({ where: { id: pipelineId, organizationId: orgId }, select: { id: true } });
+        if (!pipeline) return res.status(400).json({ error: "Pipeline invalido para esta organizacao" });
+      }
+      if (assignedToId) {
+        const assignee = await prisma.user.findFirst({ where: { id: assignedToId, organizationId: orgId }, select: { id: true } });
+        if (!assignee) return res.status(400).json({ error: "Responsavel invalido para esta organizacao" });
+      }
+      if (stageId) {
+        const stage = await prisma.pipelineStage.findFirst({
+          where: { id: stageId, pipeline: { organizationId: orgId, ...(pipelineId ? { id: pipelineId } : {}) } },
+          select: { id: true },
+        });
+        if (!stage) return res.status(400).json({ error: "Etapa invalida para esta organizacao" });
+      }
+
       const oldStageId = existing.stageId;
       if (stageId && stageId !== oldStageId) {
-        const oldStage = oldStageId ? await prisma.pipelineStage.findUnique({ where: { id: oldStageId } }) : null;
-        const newStage = await prisma.pipelineStage.findUnique({ where: { id: stageId } });
+        const oldStage = oldStageId ? await prisma.pipelineStage.findFirst({ where: { id: oldStageId, pipeline: { organizationId: orgId } } }) : null;
+        const newStage = await prisma.pipelineStage.findFirst({ where: { id: stageId, pipeline: { organizationId: orgId } } });
         await prisma.dealStageHistory.create({
           data: {
             dealId: existing.id,
@@ -182,6 +226,12 @@ export function crmRoutes(prisma: PrismaClient) {
             userId: req.user?.id,
             dealId: existing.id,
           },
+        });
+        emitAutomationEvent("opportunity.stage_changed", {
+          organizationId: orgId,
+          opportunityId: existing.id,
+          fromStage: oldStageId,
+          toStage: stageId,
         });
       }
 
@@ -271,6 +321,7 @@ export function crmRoutes(prisma: PrismaClient) {
       });
 
       auditFromRequest(req, "DEAL_WON", "Opportunity", req.params.id, result);
+      emitAutomationEvent("opportunity.won", { organizationId: orgId, opportunityId: existing.id, ...result });
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   });
@@ -301,6 +352,7 @@ export function crmRoutes(prisma: PrismaClient) {
       });
 
       auditFromRequest(req, "DEAL_LOST", "Opportunity", req.params.id, { lostReasonId, lostReason });
+      emitAutomationEvent("opportunity.lost", { organizationId: orgId, opportunityId: existing.id, lostReasonId, lostReason });
       res.json({ success: true });
     } catch (error) { next(error); }
   });
@@ -369,6 +421,7 @@ export function crmRoutes(prisma: PrismaClient) {
         }
       });
       auditFromRequest(req, "CREATE", "Lead", lead.id);
+      emitAutomationEvent("lead.created", { organizationId: orgId, leadId: lead.id, lead });
       res.json(lead);
     } catch (error) { next(error); }
   });
@@ -383,6 +436,7 @@ export function crmRoutes(prisma: PrismaClient) {
       if (data.score !== undefined) data.score = parseInt(data.score) || 0;
       const lead = await prisma.lead.update({ where: { id: req.params.id }, data });
       auditFromRequest(req, "UPDATE", "Lead", lead.id, { fields: Object.keys(data) });
+      emitAutomationEvent("lead.updated", { organizationId: orgId, leadId: lead.id, lead });
       res.json(lead);
     } catch (error) { next(error); }
   });
@@ -427,6 +481,7 @@ export function crmRoutes(prisma: PrismaClient) {
         return { clientId: client.id, soldProductId: soldProduct.id };
       });
       auditFromRequest(req, "DEAL_WON", "Lead", req.params.id, result);
+      emitAutomationEvent("lead.won", { organizationId: orgId, leadId: req.params.id, ...result });
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   });

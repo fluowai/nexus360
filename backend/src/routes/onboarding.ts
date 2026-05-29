@@ -12,7 +12,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
       const orgId = req.user!.orgId;
       const response = await prisma.onboardingResponse.findUnique({
         where: { organizationId: orgId },
-        select: { id: true, appliedAt: true, recommendedTemplate: true, createdAt: true },
+        select: { id: true, appliedAt: true, recommendedTemplate: true, aiDiagnosis: true, createdAt: true },
       });
       res.json({
         completed: !!response?.appliedAt,
@@ -66,6 +66,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
         hasUpsell: !!hasUpsell,
         rawAnswers: req.body,
         organizationId: orgId,
+        appliedAt: null,
       };
 
       const response = existing
@@ -152,6 +153,10 @@ export function onboardingRoutes(prisma: PrismaClient) {
 
       if (!response || !response.aiDiagnosis) {
         return res.status(400).json({ error: "Gere o diagnóstico primeiro (POST /api/onboarding/analyze)" });
+      }
+
+      if (response.appliedAt) {
+        return res.json({ success: true, message: "Ambiente comercial ja estava configurado." });
       }
 
       const diagnosis = response.aiDiagnosis as any;

@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../modules/lead-capture/lead-ai.service.js";
+import { emitAutomationEvent } from "../workers/automationWorker.js";
 
 export function leadCaptureRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -115,13 +116,16 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
   router.post("/leads/:id/send-to-crm", async (req: AuthRequest, res) => {
     try {
       // 1. Localizar o lead capturado (sem depender exclusivamente do orgId do token, caso seja admin)
-      const capturedLead = await prisma.capturedLead.findUnique({
-        where: { id: req.params.id }
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+
+      const capturedLead = await prisma.capturedLead.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
       });
 
       if (!capturedLead) return res.status(404).json({ error: "Lead não encontrado" });
 
-      const targetOrgId = capturedLead.organizationId;
+      const targetOrgId = orgId;
       let { boardId, stageId } = req.body;
 
       // 2. Fallback para Pipeline (Board)
@@ -136,10 +140,26 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       // 3. Fallback para Estágio
       if (boardId && (!stageId || stageId === '')) {
         const firstStage = await prisma.pipelineStage.findFirst({
-          where: { pipelineId: boardId },
+          where: { pipelineId: boardId, pipeline: { organizationId: targetOrgId } },
           orderBy: { order: 'asc' }
         });
         stageId = firstStage?.id;
+      }
+
+      if (boardId) {
+        const pipeline = await prisma.pipeline.findFirst({
+          where: { id: boardId, organizationId: targetOrgId },
+          select: { id: true }
+        });
+        if (!pipeline) return res.status(400).json({ error: "Pipeline invÃ¡lido para esta organizaÃ§Ã£o" });
+      }
+
+      if (stageId) {
+        const stage = await prisma.pipelineStage.findFirst({
+          where: { id: stageId, pipeline: { organizationId: targetOrgId, ...(boardId ? { id: boardId } : {}) } },
+          select: { id: true }
+        });
+        if (!stage) return res.status(400).json({ error: "Etapa invÃ¡lida para esta organizaÃ§Ã£o" });
       }
 
       // 4. Criar o Lead no CRM
@@ -168,6 +188,8 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
         where: { id: req.params.id },
         data: { sentToCrm: true, crmLeadId: newLead.id }
       });
+
+      emitAutomationEvent("lead.created", { organizationId: targetOrgId, leadId: newLead.id, lead: newLead });
 
       res.json(updatedCapturedLead); // Retornamos o captured lead atualizado para o frontend manter o estado consistente
     } catch (error: any) {

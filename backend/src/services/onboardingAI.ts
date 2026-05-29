@@ -167,48 +167,200 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
   }
 
   async applyDiagnosis(orgId: string, diagnosis: AiDiagnosis, userId?: string): Promise<void> {
-    const pipeline = await this.prisma.pipeline.create({
-      data: {
-        name: diagnosis.pipelineName,
-        organizationId: orgId,
-        type: "SALES",
-        stages: {
-          create: diagnosis.stages.map((s) => ({
-            name: s.name,
-            order: s.order,
-            probability: s.probability,
-            isDefault: s.isDefault,
-            color: s.color || "#3B82F6",
-          })),
-        },
-      },
+    if (!diagnosis?.pipelineName || !Array.isArray(diagnosis.stages) || diagnosis.stages.length === 0) {
+      throw new Error("Diagnostico invalido: pipelineName e stages sao obrigatorios.");
+    }
+    diagnosis.customFields = Array.isArray(diagnosis.customFields) ? diagnosis.customFields : [];
+    diagnosis.tasks = Array.isArray(diagnosis.tasks) ? diagnosis.tasks : [];
+    diagnosis.scripts = Array.isArray(diagnosis.scripts) ? diagnosis.scripts : [];
+    diagnosis.playbook = Array.isArray(diagnosis.playbook) ? diagnosis.playbook : [];
+
+    let pipeline = await this.prisma.pipeline.findFirst({
+      where: { organizationId: orgId, name: diagnosis.pipelineName, type: "SALES" },
+      include: { stages: { orderBy: { order: "asc" } } },
     });
 
-    const defaultStage = diagnosis.stages.find((s) => s.isDefault) || diagnosis.stages[0];
-
-    const tasksToCreate = diagnosis.tasks.map((t) => ({
-      title: t.title,
-      description: t.description || null,
-      status: "pendente",
-      priority: "media",
-      organizationId: orgId,
-      assignedToId: userId || null,
-    }));
-
-    for (const task of tasksToCreate) {
-      await this.prisma.task.create({ data: task });
+    if (!pipeline) {
+      pipeline = await this.prisma.pipeline.create({
+        data: {
+          name: diagnosis.pipelineName,
+          organizationId: orgId,
+          type: "SALES",
+          stages: {
+            create: diagnosis.stages.map((s) => ({
+              name: s.name,
+              order: s.order,
+              probability: s.probability,
+              isDefault: s.isDefault,
+              color: s.color || "#3B82F6",
+            })),
+          },
+        },
+        include: { stages: { orderBy: { order: "asc" } } },
+      });
+    } else {
+      const existingStageNames = new Set(pipeline.stages.map((stage) => stage.name.toLowerCase()));
+      for (const stage of diagnosis.stages) {
+        if (!existingStageNames.has(stage.name.toLowerCase())) {
+          await this.prisma.pipelineStage.create({
+            data: {
+              pipelineId: pipeline.id,
+              name: stage.name,
+              order: stage.order,
+              probability: stage.probability,
+              isDefault: stage.isDefault,
+              color: stage.color || "#3B82F6",
+            },
+          });
+        }
+      }
+      pipeline = await this.prisma.pipeline.findUnique({
+        where: { id: pipeline.id },
+        include: { stages: { orderBy: { order: "asc" } } },
+      });
     }
 
+    if (!pipeline) throw new Error("Nao foi possivel criar ou localizar o pipeline recomendado.");
+
+    const defaultDiagnosisStage = diagnosis.stages.find((s) => s.isDefault) || diagnosis.stages[0];
+    const defaultStage =
+      pipeline.stages.find((stage) => stage.name === defaultDiagnosisStage?.name) ||
+      pipeline.stages.find((stage) => stage.isDefault) ||
+      pipeline.stages[0];
+
+    // 1. Criar tarefas padrão
+    for (const task of diagnosis.tasks) {
+      const existingTask = await this.prisma.task.findFirst({
+        where: { organizationId: orgId, title: task.title, assignedToId: userId || null },
+      });
+      if (existingTask) continue;
+
+      await this.prisma.task.create({
+        data: {
+          title: task.title,
+          description: task.description || null,
+          status: "pendente",
+          priority: "media",
+          organizationId: orgId,
+          assignedToId: userId || null,
+        },
+      });
+    }
+
+    // 2. Criar campos personalizados
     for (const field of diagnosis.customFields) {
       const key = field.key.toLowerCase().replace(/[^a-z0-9_]/g, "_");
-      await this.prisma.customField.create({
-        data: {
+      await this.prisma.customField.upsert({
+        where: {
+          organizationId_key_model: {
+            organizationId: orgId,
+            key,
+            model: field.model,
+          },
+        },
+        update: {
+          name: field.name,
+          type: field.type,
+          options: field.options || undefined,
+          isActive: true,
+        },
+        create: {
           organizationId: orgId,
           name: field.name,
           key,
           type: field.type,
           options: field.options || undefined,
           model: field.model,
+        },
+      });
+    }
+
+    await this.prisma.onboardingGeneratedItem.deleteMany({
+      where: { organizationId: orgId, type: { in: ["SCRIPT", "PLAYBOOK"] } },
+    });
+
+    // 3. Salvar scripts de atendimento gerados pela IA
+    if (diagnosis.scripts && Array.isArray(diagnosis.scripts)) {
+      for (const script of diagnosis.scripts) {
+        await this.prisma.onboardingGeneratedItem.create({
+          data: {
+            organizationId: orgId,
+            type: "SCRIPT",
+            name: script.name,
+            content: script.text,
+            stage: script.stage || null,
+            userId: userId || null,
+            isActive: true,
+          },
+        });
+      }
+    }
+
+    // 4. Salvar playbook comercial gerado pela IA
+    if (diagnosis.playbook && Array.isArray(diagnosis.playbook)) {
+      for (const item of diagnosis.playbook) {
+        await this.prisma.onboardingGeneratedItem.create({
+          data: {
+            organizationId: orgId,
+            type: "PLAYBOOK",
+            name: item.title,
+            content: item.content,
+            userId: userId || null,
+            isActive: true,
+          },
+        });
+      }
+    }
+
+    // 5. Criar automações iniciais baseadas nas configurações
+    const baseAutomations = [
+      {
+        name: "Lead → Oportunidade automática",
+        description: "Quando um lead for criado com status 'novo', criar automaticamente uma oportunidade no pipeline",
+        triggerType: "lead.created",
+        triggerConfig: { conditions: { status: "novo" } },
+        actions: [
+          { type: "create_opportunity", params: { pipelineId: pipeline.id, stageId: defaultStage?.id } },
+          { type: "notify", params: { title: "Novo lead capturado", message: "Um novo lead foi criado e uma oportunidade foi gerada" } },
+        ],
+      },
+      {
+        name: "Follow-up de proposta",
+        description: "Quando uma proposta for enviada, criar follow-up automático para 3 dias depois",
+        triggerType: "proposal.sent",
+        triggerConfig: {},
+        actions: [
+          { type: "create_followup", params: { daysAfter: 3, content: "Verificar se o cliente recebeu e analisou a proposta" } },
+        ],
+      },
+      {
+        name: "Onboarding pós-venda",
+        description: "Quando uma oportunidade for ganha, criar tarefas de onboarding",
+        triggerType: "opportunity.won",
+        triggerConfig: {},
+        actions: [
+          { type: "create_task", params: { title: "Iniciar onboarding do cliente", description: "Passar lead para equipe de operação", priority: "alta" } },
+          { type: "create_task", params: { title: "Agendar kickoff", description: "Agendar reunião inicial com o cliente", priority: "alta" } },
+          { type: "notify", params: { title: "Nova venda fechada!", message: "Uma oportunidade foi convertida em cliente" } },
+        ],
+      },
+    ];
+
+    for (const automation of baseAutomations) {
+      const existingAutomation = await this.prisma.automation.findFirst({
+        where: { organizationId: orgId, name: automation.name, triggerType: automation.triggerType },
+      });
+      if (existingAutomation) continue;
+
+      await this.prisma.automation.create({
+        data: {
+          name: automation.name,
+          description: automation.description,
+          triggerType: automation.triggerType,
+          triggerConfig: automation.triggerConfig as any,
+          actions: automation.actions as any,
+          organizationId: orgId,
+          isActive: true,
         },
       });
     }

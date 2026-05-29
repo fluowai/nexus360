@@ -107,6 +107,10 @@ model Organization {
   
   inboxes           Inbox[]
   usageEvents       UsageEvent[]
+  proposalTemplates ProposalTemplate[]
+  onboardingGeneratedItems OnboardingGeneratedItem[]
+  quickReplies      QuickReply[]
+  automationLogs    AutomationLog[]
   
   leadCaptureSources    LeadCaptureSource[]
   capturedLeads         CapturedLead[]
@@ -133,6 +137,13 @@ model Organization {
   businessDescription String?  // Descrição livre do que o cliente vende
 
   onboardingResponse OnboardingResponse?
+
+  customFields          CustomField[]
+  lostReasons           LostReason[]
+  wonReasons            WonReason[]
+  npsSurveys            NpsSurvey[]
+  renewalOpportunities  RenewalOpportunity[]
+  aiLogs                AiLog[]
 }
 
 model Workspace {
@@ -620,6 +631,8 @@ model Client {
   demands       Demand[]
   projects      Project[]
   leads         Lead[]
+  npsSurveys            NpsSurvey[]
+  renewalOpportunities  RenewalOpportunity[]
 
   notes String?
   tags  String?
@@ -740,6 +753,7 @@ model Proposal {
   
   content         Json     
   items           ProposalItem[]
+  statusHistory   ProposalStatusHistory[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -1882,6 +1896,7 @@ model Inbox {
   
   channels       Channel[]
   conversations  Conversation[]
+  sla            InboxSla?
   
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -2175,6 +2190,43 @@ model ProspectMission {
   @@index([organizationId])
 }
 
+model ProspectLead {
+  id                  String    @id @default(uuid())
+  missionId           String
+  mission             ProspectMission @relation(fields: [missionId], references: [id])
+  companyName         String
+  category            String?
+  phone               String?
+  whatsapp            String?
+  website             String?
+  instagram           String?
+  address             String?
+  city                String?
+  state               String?
+  country             String?
+  latitude            Float?
+  longitude           Float?
+  googleRating        Float?
+  googleReviewsCount  Int?
+  openingHours        Json?
+  googleMapsUrl       String?
+  dataSource          String?
+  captureDate         DateTime  @default(now())
+  status              String    @default("captado")
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  validation          ProspectValidation?
+  dossier             ProspectDossier?
+  messages            ProspectOutreachMessage[]
+  conversations       ProspectConversation[]
+  appointment         ProspectAppointment?
+  logs                ProspectAgentLog[]
+
+  @@index([missionId])
+}
+
 model ProspectBlockedContact {
   id                  String    @id @default(uuid())
   organizationId      String
@@ -2376,6 +2428,7 @@ model RenewalOpportunity {
 model AiLog {
   id             String   @id @default(uuid())
   organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
   userId         String?
 
   agentType      String   // "diagnosis", "sdr", "proposal", "retention"
@@ -2486,6 +2539,115 @@ model ProspectAppointment {
   @@index([missionId])
 }
 
+// ==================== NOVOS MODELOS V1 ====================
+
+model ProposalTemplate {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name        String
+  description String?
+  content     Json          // Estrutura do template
+  isActive    Boolean       @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+}
+
+model OnboardingGeneratedItem {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  type    String   // SCRIPT, PLAYBOOK, AUTOMATION, MESSAGE
+  name    String
+  content String   @db.Text
+  stage   String?  // Etapa do pipeline relacionada
+  isActive Boolean @default(true)
+
+  contactId String?  // Lead/Client ID opcional
+  userId    String?  // Quem gerou
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([type])
+}
+
+model AutomationLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  automationId   String?
+  event          String   // trigger type
+  resourceType   String   // Lead, Opportunity, etc
+  resourceId     String?
+  action         String
+  result         Json?
+  status         String   @default("success") // success, error, skipped
+  errorMessage   String?  @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([event])
+  @@index([resourceType, resourceId])
+}
+
+model QuickReply {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  title    String
+  content  String   @db.Text
+  category String?
+  shortcut String?
+  isActive Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([category])
+}
+
+model InboxSla {
+  id             String  @id @default(uuid())
+  inboxId        String
+  inbox          Inbox   @relation(fields: [inboxId], references: [id], onDelete: Cascade)
+
+  firstResponseTime   Int     // Minutos para primeira resposta
+  resolutionTime      Int     // Minutos para resolução
+  businessHoursOnly   Boolean @default(true)
+  workingDays         Json?   // [1,2,3,4,5]
+  workingHours        Json?   // {start: "08:00", end: "18:00"}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([inboxId])
+}
+
+model ProposalStatusHistory {
+  id             String       @id @default(uuid())
+  proposalId     String
+  proposal       Proposal     @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  fromStatus   String?
+  toStatus     String
+  changedById  String?
+  metadata     Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([proposalId])
+}
+
 model ProspectAgentLog {
   id                  String    @id @default(uuid())
   missionId           String?
@@ -2501,30 +2663,4 @@ model ProspectAgentLog {
 
   @@index([missionId])
   @@index([leadId])
-}
-
-model ProspectBlockedContact {
-  id                  String    @id @default(uuid())
-  organizationId      String
-  phone               String
-  reason              String?
-  createdAt           DateTime  @default(now())
-
-  @@unique([organizationId, phone])
-}
-
-model ProspectLearningMetric {
-  id                  String    @id @default(uuid())
-  organizationId      String
-  niche               String
-  city                String
-  approachType        String
-  leadsContacted      Int       @default(0)
-  responsesReceived   Int       @default(0)
-  appointmentsBooked  Int       @default(0)
-  responseRate        Float     @default(0)
-  bookingRate         Float     @default(0)
-  createdAt           DateTime  @default(now())
-
-  @@index([organizationId])
 }

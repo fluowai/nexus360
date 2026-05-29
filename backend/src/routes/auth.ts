@@ -264,6 +264,13 @@ export function authRoutes(prisma: PrismaClient) {
         },
       });
 
+      if (storedToken && storedToken.user.organizationId !== decoded.orgId) {
+        return res.status(401).json({
+          error: "REFRESH_TOKEN_ORG_MISMATCH",
+          message: "Token não pertence a esta organização. Faça login novamente.",
+        });
+      }
+
       if (!storedToken || storedToken.revokedAt) {
         clearRefreshTokenCookie(res);
         return res.status(401).json({

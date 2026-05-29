@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-import { AuthRequest, requirePermission } from "../middleware/auth.js";
+import { AuthRequest } from "../middleware/auth.js";
 import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../modules/lead-capture/lead-ai.service.js";
 
@@ -8,6 +8,31 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
   const router = Router();
   const leadService = new LeadCaptureService(prisma);
   const aiService = new LeadAiService(prisma);
+
+  const canViewCapturedLeads = (req: AuthRequest, res: any, next: any) => {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Nao autenticado." });
+
+    if (["SUPER_ADMIN", "ORG_ADMIN", "AGENCY_ADMIN"].includes(user.role)) {
+      return next();
+    }
+
+    const permissions = user.permissions || {};
+    const hasLeadsView =
+      permissions.leads === "*" ||
+      (Array.isArray(permissions.leads) && permissions.leads.includes("view"));
+    const hasProspectingAccess =
+      permissions.prospecting === "*" ||
+      (Array.isArray(permissions.prospecting) &&
+        (permissions.prospecting.includes("view") || permissions.prospecting.includes("capture")));
+
+    if (hasLeadsView || hasProspectingAccess) return next();
+
+    return res.status(403).json({
+      error: "FORBIDDEN",
+      message: "Sem permissao para visualizar leads capturados.",
+    });
+  };
 
   // Search Leads
   router.post("/search", async (req: AuthRequest, res) => {
@@ -173,7 +198,7 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
   });
 
   // List Captured Leads
-  router.get("/leads", requirePermission('leads', 'view'), async (req: AuthRequest, res) => {
+  router.get("/leads", canViewCapturedLeads, async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     const { sourceId } = req.query;
     

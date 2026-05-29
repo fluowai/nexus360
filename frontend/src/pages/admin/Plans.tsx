@@ -61,19 +61,31 @@ export default function AdminPlans() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget as HTMLFormElement);
-    
-    const planData = {
-      name: data.get('name') as string,
-      slug: data.get('slug') as string,
-      description: data.get('description') as string,
-      priceMonthly: parseInt(data.get('priceMonthly') as string) || 0,
-      priceYearly: parseInt(data.get('priceYearly') as string) || 0,
-      maxUsers: parseInt(data.get('maxUsers') as string) || 0,
-      maxClients: parseInt(data.get('maxClients') as string) || 0,
-      maxLeads: parseInt(data.get('maxLeads') as string) || 0,
-      maxAutomations: parseInt(data.get('maxAutomations') as string) || 0,
-      maxMessages: parseInt(data.get('maxMessages') as string) || 0,
+    const textValue = (key: string) => {
+      const value = data.get(key);
+      return typeof value === 'string' && value.trim() ? value.trim() : undefined;
     };
+    const numberValue = (key: string) => {
+      const raw = data.get(key);
+      if (raw === null || raw === '') return undefined;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    };
+    
+    const planData = Object.fromEntries(
+      Object.entries({
+        name: textValue('name'),
+        slug: textValue('slug'),
+        description: textValue('description'),
+        priceMonthly: numberValue('priceMonthly'),
+        priceYearly: numberValue('priceYearly'),
+        maxUsers: numberValue('maxUsers'),
+        maxClients: numberValue('maxClients'),
+        maxLeads: numberValue('maxLeads'),
+        maxAutomations: numberValue('maxAutomations'),
+        maxMessages: numberValue('maxMessages'),
+      }).filter(([, value]) => value !== undefined)
+    );
 
     try {
       const method = editingPlan ? 'PATCH' : 'POST';

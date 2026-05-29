@@ -26,6 +26,12 @@ const getJwtSecret = () => {
   return process.env.JWT_SECRET;
 };
 
+const planWithFeatures = {
+  include: {
+    planFeatures: true,
+  },
+};
+
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
 
@@ -57,7 +63,7 @@ export function authRoutes(prisma: PrismaClient) {
         include: {
           organization: {
             include: {
-              planObj: true,
+              planObj: planWithFeatures,
               _count: {
                 select: { leads: true },
               },
@@ -248,7 +254,7 @@ export function authRoutes(prisma: PrismaClient) {
             include: {
               organization: {
                 include: {
-                  planObj: true,
+                  planObj: planWithFeatures,
                   _count: { select: { leads: true } },
                 },
               },
@@ -487,7 +493,7 @@ export function authRoutes(prisma: PrismaClient) {
         include: {
           organization: {
             include: {
-              planObj: true,
+              planObj: planWithFeatures,
               _count: {
                 select: { leads: true },
               },

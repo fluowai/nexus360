@@ -23,7 +23,6 @@ export class LeadAiService {
   }
 
   async runDiagnosis(leadId: string, orgId: string) {
-    const groq = await this.getGroqClient(orgId);
     const lead = await this.prisma.capturedLead.findFirst({
       where: { id: leadId, organizationId: orgId }
     });
@@ -70,22 +69,33 @@ export class LeadAiService {
       }
     `;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-versatile",
-      response_format: { type: "json_object" }
-    });
+    let result = this.buildFallbackDiagnosis(lead);
+    let fallbackReason: string | null = null;
 
-    const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+    try {
+      const groq = await this.getGroqClient(orgId);
+      const chatCompletion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "llama-3.3-70b-versatile",
+        response_format: { type: "json_object" }
+      });
+
+      result = this.parseJsonObject(chatCompletion.choices[0].message.content) || result;
+    } catch (error: any) {
+      fallbackReason = error?.message || "Falha ao gerar diagnostico com IA.";
+      console.warn("[LEAD_DIAGNOSIS_FALLBACK]", { leadId, reason: fallbackReason });
+    }
 
     return await this.prisma.capturedLead.update({
       where: { id: leadId },
       data: {
-        aiDiagnosis: result.diagnosis,
-        aiWeaknesses: result.weaknesses,
-        aiOpportunities: result.opportunities,
-        suggestedOffer: result.suggested_offer,
-        opportunityLevel: result.priority_level,
+        aiDiagnosis: fallbackReason
+          ? `${result.diagnosis}\n\nNota interna: analise gerada por fallback porque a IA externa nao respondeu (${fallbackReason}).`
+          : result.diagnosis,
+        aiWeaknesses: Array.isArray(result.weaknesses) ? result.weaknesses : [],
+        aiOpportunities: Array.isArray(result.opportunities) ? result.opportunities : [],
+        suggestedOffer: result.suggested_offer || "Estruturacao comercial para aumentar previsibilidade e receita.",
+        opportunityLevel: result.priority_level || lead.opportunityLevel || "Media",
         // Optional: you can add more fields or merge them into diagnosis
       }
     });
@@ -223,7 +233,6 @@ export class LeadAiService {
   }
 
   async enrichLead(leadId: string, orgId: string) {
-    const groq = await this.getGroqClient(orgId);
     const lead = await this.prisma.capturedLead.findFirst({
       where: { id: leadId, organizationId: orgId }
     });
@@ -238,10 +247,32 @@ export class LeadAiService {
 
     const serperApiKey = org?.serperApiKey || process.env.SERPER_API_KEY;
 
-    if (!serperApiKey) throw new Error("Serper API Key not configured for this organization or environment.");
-
     try {
-      const cnpj = this.cleanCnpj(lead.cnpj) || await this.findCnpjWithSearch(groq, serperApiKey, lead);
+      if (!serperApiKey && !this.cleanCnpj(lead.cnpj)) {
+        return await this.prisma.capturedLead.update({
+          where: { id: leadId },
+          data: {
+            notes: this.appendNote(
+              lead.notes,
+              "Enriquecimento pendente: configure SERPER_API_KEY ou a chave Serper da organizacao para buscar CNPJ/socios automaticamente."
+            )
+          }
+        });
+      }
+
+      const cnpj = this.cleanCnpj(lead.cnpj) || await this.findCnpjWithSearch(serperApiKey!, lead);
+      if (!cnpj) {
+        return await this.prisma.capturedLead.update({
+          where: { id: leadId },
+          data: {
+            notes: this.appendNote(
+              lead.notes,
+              "Enriquecimento: nao foi possivel identificar CNPJ confiavel para este lead."
+            )
+          }
+        });
+      }
+
       const registry = cnpj ? await this.fetchCnpjRegistry(cnpj) : null;
 
       if (cnpj && registry && !this.matchesLeadLocation(registry, lead)) {
@@ -271,11 +302,19 @@ export class LeadAiService {
       });
     } catch (err: any) {
       console.error("[ENRICH_LEAD_ERROR]", err.message);
-      throw err;
+      return await this.prisma.capturedLead.update({
+        where: { id: leadId },
+        data: {
+          notes: this.appendNote(
+            lead.notes,
+            `Enriquecimento pendente: ${err.message || "falha ao consultar dados externos."}`
+          )
+        }
+      });
     }
   }
 
-  private async findCnpjWithSearch(groq: Groq, serperApiKey: string, lead: any): Promise<string | null> {
+  private async findCnpjWithSearch(serperApiKey: string, lead: any): Promise<string | null> {
     const searchQuery = `${lead.businessName} ${lead.city || ""} ${lead.state || ""} CNPJ`;
     const searchRes = await axios.post('https://google.serper.dev/search', {
       q: searchQuery,
@@ -286,26 +325,8 @@ export class LeadAiService {
     });
 
     const searchData = JSON.stringify(searchRes.data);
-    const prompt = `
-      Abaixo estao resultados de busca sobre a empresa "${lead.businessName}" em "${lead.city || ""}/${lead.state || ""}".
-      Extraia APENAS o CNPJ mais provavel da empresa dessa cidade. Nao extraia socios.
-      Se os resultados misturarem empresas homonimas de outra cidade/UF, retorne null.
-
-      Resultados:
-      ${searchData.substring(0, 5000)}
-
-      Responda exclusivamente em JSON:
-      { "cnpj": "string ou null" }
-    `;
-
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-versatile",
-      response_format: { type: "json_object" }
-    });
-
-    const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
-    return this.cleanCnpj(result.cnpj);
+    const cnpjMatch = searchData.match(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/);
+    return this.cleanCnpj(cnpjMatch?.[0]);
   }
 
   private async fetchCnpjRegistry(cnpj: string) {
@@ -383,6 +404,51 @@ export class LeadAiService {
       .replace(/[\u0300-\u036f]/g, "")
       .trim()
       .toUpperCase();
+  }
+
+  private parseJsonObject(content?: string | null) {
+    if (!content) return null;
+
+    try {
+      return JSON.parse(content);
+    } catch {
+      const match = content.match(/\{[\s\S]*\}/);
+      if (!match) return null;
+      try {
+        return JSON.parse(match[0]);
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  private buildFallbackDiagnosis(lead: any) {
+    const hasWebsite = Boolean(lead.website);
+    const hasPhone = Boolean(lead.phone || lead.phoneNormalized);
+    const rating = Number(lead.rating || 0);
+    const reviewsCount = Number(lead.reviewsCount || 0);
+    const opportunities = [
+      "Localizar o decisor comercial antes de qualquer apresentacao.",
+      "Mapear como entram novos clientes hoje e onde ha perda de oportunidades.",
+      "Organizar uma estrutura comercial mais previsivel para aumentar receita."
+    ];
+    const weaknesses = [
+      !hasPhone ? "Telefone nao identificado na captacao." : null,
+      !hasWebsite ? "Site nao identificado na captacao." : null,
+      reviewsCount < 20 ? "Baixo volume de avaliacoes publicas pode limitar prova social." : null,
+      rating > 0 && rating < 4 ? "Nota publica abaixo do ideal pode prejudicar conversao." : null
+    ].filter(Boolean);
+
+    return {
+      diagnosis: `Analise comercial preliminar de ${lead.businessName}. O foco recomendado e confirmar quem decide pelo comercial, entender como a empresa gera oportunidades hoje e avaliar se existe espaco para uma estrutura comercial que aumente previsibilidade e caixa.`,
+      weaknesses: weaknesses.length ? weaknesses : ["Diagnostico limitado ate conversar com o decisor."],
+      opportunities,
+      suggested_offer: "Estruturacao comercial para melhorar aquisicao, conversao e previsibilidade de receita.",
+      priority_level: lead.opportunityLevel || (lead.scoreOpportunity >= 70 ? "Alta" : lead.scoreOpportunity >= 40 ? "Media" : "Baixa"),
+      main_argument: "Conversa sobre estrutura comercial para vender melhor e colocar mais dinheiro no caixa.",
+      probable_objections: ["Nao sou eu que cuido disso", "Ja temos alguem olhando comercial", "Pode mandar por mensagem"],
+      next_action: "Falar primeiro com socio, proprietario, administrador ou responsavel comercial."
+    };
   }
 
   async researchManagement(leadId: string, orgId: string) {

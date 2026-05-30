@@ -452,7 +452,6 @@ export class LeadAiService {
   }
 
   async researchManagement(leadId: string, orgId: string) {
-    const groq = await this.getGroqClient(orgId);
     const lead = await this.prisma.capturedLead.findFirst({
       where: { id: leadId, organizationId: orgId }
     });
@@ -466,7 +465,17 @@ export class LeadAiService {
 
     const serperApiKey = org?.serperApiKey || process.env.SERPER_API_KEY;
 
-    if (!serperApiKey) throw new Error("Serper API Key not configured for this organization or environment.");
+    if (!serperApiKey) {
+      return await this.prisma.capturedLead.update({
+        where: { id: leadId },
+        data: {
+          notes: this.appendNote(
+            lead.notes,
+            "Pesquisa de decisores pendente: configure SERPER_API_KEY ou a chave Serper da organizacao para buscar gestores automaticamente."
+          )
+        }
+      });
+    }
 
     const searchQuery = `site:linkedin.com/in "${lead.businessName}" (CEO OR Diretor OR Gerente OR Proprietário OR Founder)`;
     
@@ -480,6 +489,7 @@ export class LeadAiService {
       });
 
       const searchData = JSON.stringify(searchRes.data);
+      const groq = await this.getGroqClient(orgId);
 
       const prompt = `
         Abaixo estão resultados de busca do LinkedIn para a empresa "${lead.businessName}".
@@ -501,7 +511,7 @@ export class LeadAiService {
         response_format: { type: "json_object" }
       });
 
-      const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+      const result = this.parseJsonObject(chatCompletion.choices[0].message.content) || {};
 
       return await this.prisma.capturedLead.update({
         where: { id: leadId },
@@ -511,7 +521,15 @@ export class LeadAiService {
       });
     } catch (err: any) {
       console.error("[RESEARCH_MANAGEMENT_ERROR]", err.message);
-      throw err;
+      return await this.prisma.capturedLead.update({
+        where: { id: leadId },
+        data: {
+          notes: this.appendNote(
+            lead.notes,
+            `Pesquisa de decisores pendente: ${err.message || "falha ao consultar dados externos."}`
+          )
+        }
+      });
     }
   }
 }

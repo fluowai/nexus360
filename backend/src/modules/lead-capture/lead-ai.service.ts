@@ -32,7 +32,8 @@ export class LeadAiService {
 
     const prompt = `
       Você é um agente de análise comercial da Nexus360.
-      Analise a empresa abaixo como potencial cliente para uma solução de crescimento previsível (Método ACP), CRM, automação, marketing e estruturação comercial.
+      Analise a empresa abaixo como potencial cliente para uma solução de crescimento previsível, CRM, automação e estruturação comercial.
+      Esta análise é interna. Não transforme diagnóstico em primeira mensagem de WhatsApp.
 
       Dados da empresa:
       Nome: ${lead.businessName}
@@ -52,7 +53,7 @@ export class LeadAiService {
       5. Oportunidades de melhoria
       6. Oferta ideal para abordar esse cliente
       7. Nível de prioridade comercial
-      8. Argumento principal para abordagem
+      8. Argumento principal para abordagem, sempre focado em estrutura comercial e mais dinheiro no caixa, nunca em "somos agência"
       9. Objeções prováveis
       10. Próxima ação recomendada
 
@@ -100,21 +101,30 @@ export class LeadAiService {
 
     const prompt = `
       Você é um especialista em SDR, BDR e cold call B2B.
-      Crie um roteiro de ligação (Cold Call) e uma mensagem de WhatsApp para abordar a empresa abaixo:
+      Crie um roteiro de ligação (Cold Call) e uma mensagem de WhatsApp para abordar a empresa abaixo.
+      Objetivo real: chegar ao decisor (sócio, proprietário, administrador ou alguém da área comercial), abrir uma conversa humana e levar para uma call quando houver abertura.
 
       Nome: ${lead.businessName}
       Categoria: ${lead.category}
       Diagnóstico: ${lead.aiDiagnosis}
 
+      REGRAS OBRIGATÓRIAS:
+      - Nunca diga que somos agência.
+      - Nunca comece falando de marketing, presença digital, site, diagnóstico ou avaliação da empresa.
+      - A primeira mensagem deve apenas localizar o decisor ou responsável comercial.
+      - Se perguntarem o assunto, explique como humano: "trabalho com estrutura comercial para ajudar empresas a vender melhor e colocar mais dinheiro no caixa".
+      - Só fale da avaliação/diagnóstico depois de confirmar que está falando com quem decide e a pessoa deu abertura.
+      - Escreva como conversa real de WhatsApp, curta, natural, sem tom robótico e sem texto longo.
+
       IMPORTANTE: O roteiro de Cold Call NÃO DEVE ser um único bloco de texto gigante. 
       Ele DEVE ser dividido e estruturado em partes (passo a passo) para que o vendedor não fale tudo de uma vez, permitindo a interação com o lead e confirmando se está falando com a pessoa certa.
       
       Exemplo de estrutura desejada (use quebras de linha):
-      [Passo 1 - Filtro Inicial]: "Oi, bom dia! Tudo bem? Gostaria de falar com o responsável pelo comercial/marketing da empresa."
-      [Passo 2 - Permissão]: "Para eu não tomar muito seu tempo, deixa eu te explicar rapidamente o meu trabalho para ver se falo com você mesmo ou com outra pessoa..."
-      [Passo 3 - Elevator Pitch / Quebra de Padrão]: ...
-      [Passo 4 - Pergunta de Diagnóstico]: ...
-      [Passo 5 - Gancho para Reunião]: ...
+      [Passo 1 - Filtro Inicial]: "Oi, tudo bem? Aqui é o Paulo. Quem cuida do comercial ou das decisões de crescimento por aí?"
+      [Passo 2 - Se perguntar o assunto]: "É sobre estrutura comercial. Eu ajudo empresas a organizar melhor a entrada de oportunidades e vender mais. Queria entender se falo com você ou com outra pessoa."
+      [Passo 3 - Confirmar decisor]: ...
+      [Passo 4 - Sondagem curta]: ...
+      [Passo 5 - Gancho para Call]: ...
 
       A mensagem de WhatsApp deve ser curta, humana, consultiva e terminar com uma pergunta que gere resposta.
 
@@ -140,15 +150,17 @@ export class LeadAiService {
       ? ownerCandidate.split(/\s+/).find(part => part.length > 2)
       : null;
     const gatekeeperMessage = targetName
-      ? `Oi, meu nome e Paulo. Quero falar com ${targetName.charAt(0).toUpperCase() + targetName.slice(1).toLowerCase()}, por gentileza.`
-      : "Oi, meu nome e Paulo. Quero falar com a pessoa responsavel pelo comercial, por gentileza.";
+      ? `Oi, tudo bem? Aqui e o Paulo. Consegue me ajudar a falar com ${targetName.charAt(0).toUpperCase() + targetName.slice(1).toLowerCase()} ou com quem cuida do comercial por ai?`
+      : "Oi, tudo bem? Aqui e o Paulo. Quem seria a pessoa que cuida do comercial ou das decisoes de crescimento por ai?";
     const gatekeeperScript = [
       `[Passo 1 - Pessoa certa]: "${gatekeeperMessage}"`,
-      `[Passo 2 - Se nao estiver]: "Claro. Com quem eu falo?"`,
+      `[Passo 2 - Se perguntarem o assunto]: "E sobre estrutura comercial. Eu ajudo empresas a organizar melhor a entrada de oportunidades e vender mais. Queria entender se falo com voce ou com outra pessoa."`,
+      `[Passo 3 - Se nao estiver]: "Perfeito. Com quem eu falo sobre isso?"`,
       targetName
-        ? `[Passo 3 - Mapear responsavel]: "Certo. Alem de ${targetName.charAt(0).toUpperCase() + targetName.slice(1).toLowerCase()}, tem mais alguma pessoa que cuida do comercial?"`
-        : `[Passo 3 - Mapear responsavel]: "Certo. Tem alguma pessoa especifica que cuida do comercial?"`,
-      `[Passo 4 - Se estiver com a pessoa certa]: fazer uma pergunta objetiva de qualificacao, sem vender.`
+        ? `[Passo 4 - Mapear responsavel]: "Certo. Alem de ${targetName.charAt(0).toUpperCase() + targetName.slice(1).toLowerCase()}, tem mais alguma pessoa que cuida do comercial?"`
+        : `[Passo 4 - Mapear responsavel]: "Certo. Tem alguma pessoa especifica que cuida do comercial?"`,
+      `[Passo 5 - Se estiver com a pessoa certa]: fazer uma pergunta objetiva de qualificacao, sem vender e sem abrir diagnostico ainda.`,
+      `[Regra fixa]: so falar sobre avaliacao da empresa depois que o decisor der abertura.`
     ].join("\n");
 
     return await this.prisma.capturedLead.update({
@@ -169,12 +181,13 @@ export class LeadAiService {
     ]);
 
     if (!lead) throw new Error("Lead not found");
-    const agencyName = org?.name || "Nossa Agência";
+    const agencyName = org?.name || "Nexus360";
 
     const prompt = `
-      Você é um Consultor de Inteligência de Negócios Sênior da agência ${agencyName}.
+      Você é um Consultor de Inteligência de Negócios Sênior da ${agencyName}, com foco em estrutura comercial.
       Sua tarefa é gerar um DOSSIÊ COMPLETO e PROFUNDO sobre a empresa abaixo. 
-      Este dossiê será usado pela ${agencyName} para apresentar oportunidades de crescimento para esse lead.
+      Este dossiê é interno e só deve ser usado depois que houver abertura com decisor.
+      Não posicione a ${agencyName} como agência. Posicione como estrutura comercial para vender melhor e aumentar caixa.
 
       Dados Disponíveis:
       Nome: ${lead.businessName}
@@ -184,14 +197,14 @@ export class LeadAiService {
       Avaliações Google: ${lead.rating} (${lead.reviewsCount} reviews)
 
       O Dossiê deve conter:
-      1. APRESENTAÇÃO: A ${agencyName} analisou seu negócio e identificou o seguinte perfil...
+      1. APRESENTAÇÃO INTERNA: perfil comercial provável do negócio...
       2. PERFIL DA EMPRESA: Quem são, o que provavelemente fazem de melhor.
       3. ANÁLISE DE PRESENÇA DIGITAL: Avaliação do site e reputação no Google.
-      4. PONTOS FORTES E FRACOS: Onde a ${agencyName} pode atuar.
-      5. OPORTUNIDADES DE CRESCIMENTO: Plano de ação sugerido pela ${agencyName}.
-      6. RECOMENDAÇÃO ESTRATÉGICA: Como a ${agencyName} vai ajudar esse lead a vender mais.
+      4. PONTOS FORTES E FRACOS: Onde existe oportunidade comercial.
+      5. OPORTUNIDADES DE CRESCIMENTO: Plano de ação sugerido para vender melhor.
+      6. RECOMENDAÇÃO ESTRATÉGICA: Como uma estrutura comercial pode ajudar esse lead a vender mais.
 
-      Responda em formato Markdown profissional, usando o nome da agência (${agencyName}) em todo o texto para gerar autoridade.
+      Responda em formato Markdown profissional. Evite linguagem de pitch e não use "agência".
     `;
 
     const chatCompletion = await groq.chat.completions.create({

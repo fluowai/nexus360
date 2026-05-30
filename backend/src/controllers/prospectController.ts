@@ -99,7 +99,7 @@ export const createMission = async (req: any, res: Response, next: NextFunction,
         minScore: Number(minScore || 50),
         dailyMessageLimit: Number(dailyMessageLimit || 50),
         messageIntervalMinutes: Number(messageIntervalMinutes || 15),
-        initialApproach: initialApproach || "Abordagem consultiva e personalizada com foco em diagnostico rapido.",
+        initialApproach: initialApproach || "Abordagem humana para localizar socio, proprietario ou responsavel comercial. Nao dizer que somos agencia e nao abrir diagnostico antes de conversar com o decisor.",
         status: "agendada"
       }
     });

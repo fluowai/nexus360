@@ -49,9 +49,9 @@ interface Lead {
 }
 
 const toneTemplates: Record<string, string> = {
-  consultive: "Oi, meu nome e Paulo. Quero falar com a pessoa responsavel pelo comercial, por gentileza.",
-  direct: "Oi, meu nome e Paulo. Quero falar com o socio ou administrador da {businessName}, por gentileza.",
-  friendly: "Oi, meu nome e Paulo. Consegue me dizer quem cuida do comercial da {businessName}, por gentileza?"
+  consultive: "Oi, tudo bem? Aqui e o Paulo. Quem seria a pessoa que cuida do comercial ou das decisoes de crescimento por ai?",
+  direct: "Oi, tudo bem? Aqui e o Paulo. Consegue me ajudar a falar com o socio, proprietario ou responsavel comercial da {businessName}?",
+  friendly: "Oi, tudo bem? Aqui e o Paulo. Quem e a melhor pessoa pra eu falar sobre estrutura comercial e crescimento na {businessName}?"
 };
 
 export default function LeadCapture() {
@@ -291,7 +291,7 @@ export default function LeadCapture() {
           executionTime: missionForm.executionTime,
           recurrence: missionForm.recurrence,
           minScore: missionForm.minScore,
-          initialApproach: 'Abordagem consultiva, personalizada pelo diagnostico do lead, com objetivo de qualificar e agendar uma reuniao de 30 minutos.'
+          initialApproach: 'Abordagem humana para localizar socio, proprietario ou responsavel comercial. Nao falar que somos agencia e nao abrir diagnostico antes de conversar com o decisor. Posicionar como estrutura comercial para vender melhor e aumentar caixa.'
         })
       });
 

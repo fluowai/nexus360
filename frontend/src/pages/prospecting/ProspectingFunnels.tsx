@@ -65,6 +65,8 @@ const statusLabels: Record<string, string> = {
   stopped: 'Pausado'
 };
 
+const DEFAULT_FIRST_STAGE_PROMPT = 'Primeira etapa: falar como humano e localizar o decisor antes de qualquer avaliacao. Procurar socio, proprietario, administrador ou alguem da area comercial. Nunca dizer que somos agencia. Nunca abrir falando de marketing, presenca digital, diagnostico ou avaliacao. Se perguntarem o assunto, dizer que e sobre estrutura comercial para vender melhor e colocar mais dinheiro no caixa. So falar da avaliacao depois que o decisor der abertura.';
+
 export default function ProspectingFunnels() {
   const [funnels, setFunnels] = useState<Funnel[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -77,7 +79,7 @@ export default function ProspectingFunnels() {
     campaignName: '',
     agentName: 'Paulo',
     description: '',
-    firstStagePrompt: 'Pedir para falar com o socio/administrador identificado pelo nome. Se ele(a) nao estiver, perguntar com quem fala e se existe outra pessoa que cuida do comercial. Nunca vender na primeira etapa.'
+    firstStagePrompt: DEFAULT_FIRST_STAGE_PROMPT
   });
 
   const defaultFunnel = useMemo(() => funnels.find(funnel => funnel.isDefault) || funnels[0], [funnels]);
@@ -133,7 +135,7 @@ export default function ProspectingFunnels() {
           name: form.name.trim(),
           campaignName: (form.campaignName || form.name).trim(),
           agentName: (form.agentName || 'Paulo').trim(),
-          description: form.description.trim() || 'Funil de abordagem por WhatsApp para localizar o responsavel comercial antes de qualificar.',
+          description: form.description.trim() || 'Funil de abordagem por WhatsApp para localizar socio, proprietario ou responsavel comercial antes de qualificar.',
           firstStagePrompt: form.firstStagePrompt.trim()
         })
       });
@@ -143,7 +145,7 @@ export default function ProspectingFunnels() {
         campaignName: '',
         agentName: 'Paulo',
         description: '',
-        firstStagePrompt: 'Pedir para falar com o socio/administrador identificado pelo nome. Se ele(a) nao estiver, perguntar com quem fala e se existe outra pessoa que cuida do comercial. Nunca vender na primeira etapa.'
+        firstStagePrompt: DEFAULT_FIRST_STAGE_PROMPT
       });
       await fetchData();
     } finally {
@@ -161,7 +163,7 @@ export default function ProspectingFunnels() {
             </div>
             Funis IA WhatsApp
           </h1>
-          <p className="text-gray-500 font-medium text-sm">Esteira de prospeccao para leads captados, com agentes de abordagem, qualificacao, diagnostico e handoff.</p>
+          <p className="text-gray-500 font-medium text-sm">Esteira para localizar decisores, abrir conversas humanas e gerar handoff comercial.</p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">
@@ -340,8 +342,8 @@ export default function ProspectingFunnels() {
                 Contexto operacional
               </h2>
               <div className="mt-4 space-y-3 text-sm text-gray-600">
-                <p>Leads captados entram na fila depois da validacao. A primeira etapa busca o socio/administrador pelo nome e evita qualquer pitch.</p>
-                <p>Se a pessoa alvo nao estiver, o agente pergunta com quem fala e mapeia quem tambem cuida do comercial. Se estiver, segue para qualificacao objetiva.</p>
+                <p>Leads captados entram na fila depois da validacao. A primeira etapa busca socio, proprietario, administrador ou responsavel comercial e evita qualquer pitch.</p>
+                <p>O agente nao se apresenta como agencia e nao abre diagnostico antes de falar com quem decide. Se perguntarem o assunto, posiciona como estrutura comercial para vender melhor e aumentar caixa.</p>
               </div>
               {defaultFunnel && (
                 <div className="mt-5 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">

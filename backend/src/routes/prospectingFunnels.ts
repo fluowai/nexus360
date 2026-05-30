@@ -7,8 +7,8 @@ const DEFAULT_STAGES = [
     name: "Primeiro contato",
     agentKey: "whatsapp_opener",
     agentName: "Agente de Abordagem",
-    goal: "Chegar ao socio ou responsavel comercial pelo nome, sem vender e sem explicar a oferta antes da pessoa certa responder.",
-    prompt: "Voce e um agente de abordagem humana por WhatsApp. A primeira mensagem deve apenas pedir para falar com o socio/administrador identificado. Se a pessoa disser que ele(a) nao esta, pergunte com quem fala e depois pergunte se, alem do socio citado, existe outra pessoa que cuida do comercial. Se o socio estiver disponivel, siga para qualificacao com uma pergunta por vez. Nunca faca pitch, nunca ofereca servico e nunca envie texto longo nesta etapa.",
+    goal: "Chegar ao socio, proprietario, administrador ou responsavel comercial pelo nome, sem vender e sem explicar a avaliacao antes da pessoa certa responder.",
+    prompt: "Voce e um SDR humano por WhatsApp. A primeira etapa serve somente para chegar no decisor: socio, proprietario, administrador ou alguem da area comercial. Nunca diga que somos agencia. Nunca fale de marketing, presenca digital, diagnostico ou avaliacao na primeira mensagem. Nunca despeje contexto sobre a empresa antes de confirmar que esta falando com quem decide. Se perguntarem do que se trata, responda curto e natural: trabalho com estrutura comercial para ajudar empresas a vender melhor e colocar mais dinheiro no caixa, e queria confirmar com quem cuida disso. Uma pergunta por mensagem, tom humano, direto e sem cara de robo.",
     successCriteria: ["Pessoa certa localizada", "Nome do atendente identificado", "Responsavel comercial mapeado"],
     nextAction: "qualificacao",
     maxMessages: 2
@@ -17,8 +17,8 @@ const DEFAULT_STAGES = [
     name: "Qualificacao",
     agentKey: "qualification_sdr",
     agentName: "Agente de Qualificacao",
-    goal: "Entender se a pessoa certa cuida do comercial e mapear contexto antes de qualquer proposta.",
-    prompt: "Conduza a conversa como sondagem. Pergunte uma coisa por mensagem: quem cuida do comercial, como chegam novos clientes hoje, se existe alguma meta ou gargalo e se faz sentido falar com alguem do time. Nunca venda, nunca prometa resultado e nunca envie link antes de permissao clara.",
+    goal: "Confirmar se a pessoa decide ou influencia o comercial e mapear abertura antes de qualquer avaliacao.",
+    prompt: "Conduza a conversa como um humano. Primeiro confirme se a pessoa cuida das decisoes comerciais ou pode te passar ao socio/proprietario/responsavel comercial. So depois de confirmar decisor ou influenciador, pergunte uma coisa por vez sobre como chegam novos clientes hoje, meta comercial e gargalo de vendas. Posicionamento permitido: estrutura comercial, previsibilidade, aumentar receita e colocar mais dinheiro no bolso/caixa da empresa. Posicionamento proibido: somos agencia, marketing digital, avaliamos sua presenca online, diagnostico completo sem permissao.",
     successCriteria: ["Responsavel confirmado", "Canal atual de aquisicao entendido", "Gargalo comercial identificado", "Permissao para proximo passo"],
     nextAction: "diagnostico",
     maxMessages: 5
@@ -27,8 +27,8 @@ const DEFAULT_STAGES = [
     name: "Diagnostico",
     agentKey: "opportunity_analyst",
     agentName: "Agente de Diagnostico",
-    goal: "Interpretar respostas e decidir se existe abertura real para contato humano.",
-    prompt: "Analise o contexto do lead, gere score de 0 a 100 e explique o proximo passo recomendado para o time comercial. Considere forte apenas quando a pessoa certa demonstrar abertura para conversa.",
+    goal: "Interpretar respostas apenas quando houver decisor ou abertura real para conversa comercial.",
+    prompt: "Analise o contexto do lead, gere score de 0 a 100 e explique o proximo passo recomendado para o time comercial. Considere forte apenas quando decisor, socio/proprietario ou area comercial demonstrar abertura. Nao use a avaliacao da empresa como mensagem para recepcionista ou pessoa que nao decide.",
     successCriteria: ["Score gerado", "Proximo passo definido", "Resumo comercial registrado"],
     nextAction: "conversao",
     maxMessages: 1
@@ -58,6 +58,11 @@ const DEFAULT_HANDOFF_RULES = [
   "tenho interesse",
   "quero comprar",
   "quero contratar",
+  "fala comigo",
+  "sou eu que cuido",
+  "sou o responsavel",
+  "sou o responsável",
+  "cuido do comercial",
   "me passa valores"
 ];
 
@@ -67,6 +72,7 @@ const DEFAULT_SAFETY_RULES = {
   stopWords: ["parar", "remover", "nao quero", "não quero", "cancelar"],
   requireHumanFor: ["reclamacao", "juridico", "dados sensiveis", "promessa comercial"],
   approachMode: "gatekeeper_named_owner",
+  approachVersion: "decision_maker_commercial_structure_v2",
   campaignName: "Prospeccao ativa",
   agentName: "Paulo"
 };
@@ -127,10 +133,11 @@ function buildQualificationSeed(lead: any, config: ReturnType<typeof getFunnelCo
     targetOwner,
     approachMode: "gatekeeper_named_owner",
     fallbackFlow: [
-      targetOwner ? `Pedir para falar com ${targetOwner}.` : "Pedir para falar com a pessoa responsavel pelo comercial.",
-      "Se a pessoa alvo nao estiver, perguntar com quem esta falando.",
+      targetOwner ? `Pedir para falar com ${targetOwner} ou com quem decide o comercial.` : "Pedir para falar com o socio, proprietario ou pessoa responsavel pelo comercial.",
+      "Se a pessoa alvo nao estiver, perguntar de forma natural com quem esta falando.",
       targetOwner ? `Perguntar se, alem de ${targetOwner}, existe outra pessoa que cuida do comercial.` : "Perguntar se existe outra pessoa que cuida do comercial.",
-      "Se a pessoa certa estiver disponivel, iniciar qualificacao com uma pergunta objetiva."
+      "Se perguntarem o assunto, dizer que e sobre estrutura comercial para vender melhor e aumentar caixa, sem falar que somos agencia.",
+      "So falar de avaliacao/diagnostico quando estiver com o decisor e houver abertura."
     ]
   };
 }
@@ -151,10 +158,10 @@ function buildFirstMessage(lead: any, config = getFunnelConfig(null)) {
   const agentName = config.agentName || "Paulo";
 
   if (targetOwner) {
-    return `Oi, meu nome e ${agentName}. Quero falar com ${targetOwner}, por gentileza.`;
+    return `Oi, tudo bem? Aqui e o ${agentName}. Consegue me ajudar a falar com ${targetOwner} ou com quem cuida do comercial por ai?`;
   }
 
-  return `Oi, meu nome e ${agentName}. Quero falar com a pessoa responsavel pelo comercial, por gentileza.`;
+  return `Oi, tudo bem? Aqui e o ${agentName}. Quem seria a pessoa que cuida do comercial ou das decisoes de crescimento por ai?`;
 }
 
 export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: string) {
@@ -165,13 +172,19 @@ export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: 
 
   if (existing) {
     const config = getFunnelConfig(existing);
-    if ((existing.safetyRules as any)?.approachMode !== "gatekeeper_named_owner") {
+    const safetyRules = existing.safetyRules as any;
+    if (
+      safetyRules?.approachMode !== DEFAULT_SAFETY_RULES.approachMode ||
+      safetyRules?.approachVersion !== DEFAULT_SAFETY_RULES.approachVersion
+    ) {
       await prisma.prospectingFunnel.update({
         where: { id: existing.id },
         data: {
-          description: "Funil padrao para receber leads captados, localizar o socio/administrador pelo nome, qualificar sem vender e transferir oportunidades quentes para o time comercial.",
-          objective: "Transformar leads validados em conversas qualificadas sem pitch na primeira abordagem.",
-          safetyRules: { ...DEFAULT_SAFETY_RULES, campaignName: config.campaignName, agentName: config.agentName }
+          description: "Funil padrao para receber leads captados, localizar socio/proprietario ou responsavel comercial, conversar sem parecer robo e transferir oportunidades quentes para o time comercial.",
+          objective: "Encontrar o decisor e abrir uma conversa sobre estrutura comercial, previsibilidade e aumento de receita sem pitch na primeira abordagem.",
+          qualificationRules: DEFAULT_QUALIFICATION_RULES,
+          handoffRules: DEFAULT_HANDOFF_RULES,
+          safetyRules: { ...DEFAULT_SAFETY_RULES, campaignName: config.campaignName, agentName: config.agentName, firstStagePrompt: config.firstStagePrompt }
         }
       });
 
@@ -205,9 +218,9 @@ export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: 
     data: {
       organizationId,
       name: "WhatsApp SDR IA",
-      description: "Funil padrao para receber leads captados, localizar o socio/administrador pelo nome, qualificar sem vender e transferir oportunidades quentes para o time comercial.",
+      description: "Funil padrao para receber leads captados, localizar socio/proprietario ou responsavel comercial, conversar sem parecer robo e transferir oportunidades quentes para o time comercial.",
       channel: "WHATSAPP",
-      objective: "Transformar leads validados em conversas qualificadas sem pitch na primeira abordagem.",
+      objective: "Encontrar o decisor e abrir uma conversa sobre estrutura comercial, previsibilidade e aumento de receita sem pitch na primeira abordagem.",
       qualificationRules: DEFAULT_QUALIFICATION_RULES,
       handoffRules: DEFAULT_HANDOFF_RULES,
       safetyRules: DEFAULT_SAFETY_RULES,
@@ -222,6 +235,34 @@ export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: 
     },
     include: { stages: { orderBy: { order: "asc" } } }
   });
+}
+
+async function refreshQueuedFirstMessages(prisma: PrismaClient, organizationId: string, funnel: any) {
+  const config = getFunnelConfig(funnel);
+  const queuedRuns = await prisma.prospectingRun.findMany({
+    where: {
+      organizationId,
+      funnelId: funnel.id,
+      status: "queued",
+      capturedLeadId: { not: null }
+    },
+    include: { capturedLead: true }
+  });
+
+  for (const run of queuedRuns) {
+    if (!run.capturedLead) continue;
+
+    await prisma.prospectingRun.update({
+      where: { id: run.id },
+      data: {
+        firstMessage: buildFirstMessage(run.capturedLead, config),
+        qualification: buildQualificationSeed(run.capturedLead, config),
+        nextAction: "ask_for_decision_maker"
+      }
+    });
+  }
+
+  return queuedRuns.length;
 }
 
 export async function enrollCapturedLeadsInFunnel(
@@ -334,7 +375,8 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     const funnel = await ensureDefaultFunnel(prisma, orgId);
-    res.status(201).json(serializeFunnel(funnel));
+    const refreshedRuns = await refreshQueuedFirstMessages(prisma, orgId, funnel);
+    res.status(201).json({ ...serializeFunnel(funnel), refreshedRuns });
   });
 
   router.post("/funnels", async (req: AuthRequest, res) => {

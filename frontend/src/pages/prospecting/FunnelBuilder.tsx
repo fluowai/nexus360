@@ -46,7 +46,7 @@ export default function FunnelBuilder() {
       title: 'Primeiro Contato',
       agentRole: 'Agente de Abordagem',
       maxMessages: 2,
-      scriptTemplate: 'Oi {contactName}, tudo bem? Aqui é {senderName} da {senderCompany}. Querria conversar rapidinho com você sobre um assunto importante. Tem um tempinho?',
+      scriptTemplate: 'Oi {contactName}, tudo bem? Aqui e o {senderName}. Consegue me ajudar a falar com quem cuida do comercial ou das decisoes de crescimento por ai?',
       conditions: { requiresQualification: false }
     },
     {
@@ -55,7 +55,7 @@ export default function FunnelBuilder() {
       title: 'Qualificação',
       agentRole: 'Agente de Qualificação',
       maxMessages: 3,
-      scriptTemplate: 'Entendi. Você poderia me contar um pouco sobre {leadBusinessName}? Como vocês estão funcionando atualmente em {suggestedTopic}?',
+      scriptTemplate: 'Perfeito. E voce que cuida dessa parte comercial ou tem outra pessoa que decide isso junto?',
       conditions: { requiresQualification: true }
     },
     {
@@ -64,7 +64,7 @@ export default function FunnelBuilder() {
       title: 'Diagnóstico',
       agentRole: 'Agente de Diagnóstico',
       maxMessages: 2,
-      scriptTemplate: 'Analisando o que você me falou, eu vejo algumas oportunidades. Você estaria aberto a conversar com nosso time comercial sobre isso?',
+      scriptTemplate: 'Pelo que voce comentou, talvez faca sentido olhar a estrutura comercial com mais calma. Voce toparia uma conversa rapida pra entender se tem oportunidade real de colocar mais dinheiro no caixa?',
       conditions: { transferToHuman: true }
     }
   ];
@@ -74,7 +74,7 @@ export default function FunnelBuilder() {
       name: 'Novo Funil',
       description: '',
       senderName: 'Paulo',
-      senderCompany: 'TGA MKT',
+      senderCompany: 'Estrutura Comercial',
       contactPeople: [{ id: '1', name: 'Renata', role: '' }],
       stages: defaultStages,
       createdAt: new Date()
@@ -181,7 +181,7 @@ export default function FunnelBuilder() {
                 type="text"
                 value={currentFunnel.senderCompany}
                 onChange={(e) => setCurrentFunnel({ ...currentFunnel, senderCompany: e.target.value })}
-                placeholder="TGA MKT"
+                placeholder="Estrutura Comercial"
                 className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 outline-none"
               />
             </div>
@@ -295,7 +295,7 @@ export default function FunnelBuilder() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-gray-900">Funis Personalizados</h1>
-          <p className="text-gray-500 font-medium text-sm">Crie funis com abordagem natural e sem se identificar como agência</p>
+          <p className="text-gray-500 font-medium text-sm">Crie funis para localizar decisores e conversar sobre estrutura comercial sem parecer robo.</p>
         </div>
         <button
           onClick={handleCreateFunnel}

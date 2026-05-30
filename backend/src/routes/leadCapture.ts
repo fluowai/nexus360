@@ -109,7 +109,35 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       const result = await aiService.researchManagement(req.params.id, orgId!);
       res.json(result);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      console.error("[RESEARCH_MANAGEMENT_ROUTE_FALLBACK]", {
+        leadId: req.params.id,
+        orgId,
+        error: error?.message
+      });
+
+      if (!orgId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const lead = await prisma.capturedLead.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      const fallbackNote = [
+        lead.notes,
+        `Pesquisa de decisores pendente: ${error?.message || "falha inesperada ao consultar dados externos."}`
+      ].filter(Boolean).join("\n\n");
+
+      const updated = await prisma.capturedLead.update({
+        where: { id: lead.id },
+        data: { notes: fallbackNote }
+      });
+
+      res.json(updated);
     }
   });
 

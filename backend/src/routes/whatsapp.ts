@@ -61,6 +61,32 @@ async function ensureWhatsAppInbox(prisma: PrismaClient, organizationId: string,
   return prisma.inbox.create({ data: { organizationId, name } });
 }
 
+function isUnsafeProspectingFirstMessage(message?: string | null) {
+  const normalized = String(message || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return [
+    "marketing",
+    "presenca digital",
+    "presenca online",
+    "solucoes digitais",
+    "solucao digital",
+    "tecnologia",
+    "atrair mais clientes",
+    "captacao de novos clientes",
+    "grande potencial",
+    "diagnostico",
+    "avaliacao",
+    "[seu nome]"
+  ].some(term => normalized.includes(term));
+}
+
+function safeProspectingFirstMessage() {
+  return "Oi, tudo bem? Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?";
+}
+
 async function findProspectingRunByJid(prisma: PrismaClient, organizationId: string, jid: string) {
   const phone = normalizeWhatsAppJid(jid).split("@")[0];
   if (!phone) return null;
@@ -458,16 +484,20 @@ export function whatsappRoutes(prisma: PrismaClient) {
           failed.push({ id: run.id, error: "Lead sem telefone ou mensagem" });
           continue;
         }
+        const firstMessage = isUnsafeProspectingFirstMessage(run.firstMessage)
+          ? safeProspectingFirstMessage()
+          : run.firstMessage;
         try {
           const bridge = await callBridge(`/sessions/${channel.id}/send`, {
             channelId: channel.id,
             to: phone.jid,
-            message: run.firstMessage,
+            message: firstMessage,
           });
           await prisma.prospectingRun.update({
             where: { id: run.id },
             data: {
               status: "sent",
+              firstMessage,
               lastContactAt: new Date(),
               nextAction: "wait_lead_reply",
               qualification: { ...((run.qualification as any) || {}), bridgeMessageId: bridge.messageId || null },

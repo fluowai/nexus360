@@ -65,7 +65,7 @@ const statusLabels: Record<string, string> = {
   stopped: 'Pausado'
 };
 
-const DEFAULT_FIRST_STAGE_PROMPT = 'Primeira etapa: falar como humano e localizar o decisor antes de qualquer avaliacao. Procurar socio, proprietario, administrador ou alguem da area comercial. Nunca dizer que somos agencia. Nunca abrir falando de marketing, presenca digital, diagnostico ou avaliacao. Se perguntarem o assunto, dizer que e sobre estrutura comercial para vender melhor e colocar mais dinheiro no caixa. So falar da avaliacao depois que o decisor der abertura.';
+const DEFAULT_FIRST_STAGE_PROMPT = 'Primeira etapa: falar como humano e localizar o decisor antes de qualquer explicacao. Procurar socio, proprietario, administrador ou alguem da area comercial. Nunca dizer que somos agencia. Nunca abrir falando de marketing, presenca digital, solucao digital, tecnologia, clientes, diagnostico ou avaliacao. A primeira mensagem deve apenas perguntar quem e o responsavel pelo comercial.';
 
 export default function ProspectingFunnels() {
   const [funnels, setFunnels] = useState<Funnel[]>([]);
@@ -343,7 +343,7 @@ export default function ProspectingFunnels() {
               </h2>
               <div className="mt-4 space-y-3 text-sm text-gray-600">
                 <p>Leads captados entram na fila depois da validacao. A primeira etapa busca socio, proprietario, administrador ou responsavel comercial e evita qualquer pitch.</p>
-                <p>O agente nao se apresenta como agencia e nao abre diagnostico antes de falar com quem decide. Se perguntarem o assunto, posiciona como estrutura comercial para vender melhor e aumentar caixa.</p>
+                <p>O agente nao se apresenta como agencia e nao abre diagnostico antes de falar com quem decide. A primeira mensagem serve apenas para chegar ao responsavel comercial.</p>
               </div>
               {defaultFunnel && (
                 <div className="mt-5 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">

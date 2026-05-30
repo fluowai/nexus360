@@ -46,7 +46,7 @@ export default function FunnelBuilder() {
       title: 'Primeiro Contato',
       agentRole: 'Agente de Abordagem',
       maxMessages: 2,
-      scriptTemplate: 'Oi {contactName}, tudo bem? Aqui e o {senderName}. Consegue me ajudar a falar com quem cuida do comercial ou das decisoes de crescimento por ai?',
+      scriptTemplate: 'Oi {contactName}, tudo bem? Aqui e o {senderName}. Consegue me ajudar a falar com a pessoa responsavel pelo comercial da empresa?',
       conditions: { requiresQualification: false }
     },
     {
@@ -295,7 +295,7 @@ export default function FunnelBuilder() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-gray-900">Funis Personalizados</h1>
-          <p className="text-gray-500 font-medium text-sm">Crie funis para localizar decisores e conversar sobre estrutura comercial sem parecer robo.</p>
+          <p className="text-gray-500 font-medium text-sm">Crie funis para localizar o responsavel comercial sem parecer robo.</p>
         </div>
         <button
           onClick={handleCreateFunnel}

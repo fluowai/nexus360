@@ -87,7 +87,9 @@ export function adminRoutes(prisma: PrismaClient) {
       });
       res.json(orgs);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch orgs" });
+      console.error("[ADMIN_ORGS_GET_ERROR]", error);
+      const details = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch orgs", details });
     }
   });
 

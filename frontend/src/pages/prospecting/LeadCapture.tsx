@@ -49,9 +49,9 @@ interface Lead {
 }
 
 const toneTemplates: Record<string, string> = {
-  consultive: "Oi, tudo bem? Aqui e o Paulo. Quem seria a pessoa que cuida do comercial ou das decisoes de crescimento por ai?",
+  consultive: "Oi, tudo bem? Aqui e o Paulo. Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?",
   direct: "Oi, tudo bem? Aqui e o Paulo. Consegue me ajudar a falar com o socio, proprietario ou responsavel comercial da {businessName}?",
-  friendly: "Oi, tudo bem? Aqui e o Paulo. Quem e a melhor pessoa pra eu falar sobre estrutura comercial e crescimento na {businessName}?"
+  friendly: "Oi, tudo bem? Aqui e o Paulo. Quem e a melhor pessoa para eu falar sobre a area comercial da {businessName}?"
 };
 
 export default function LeadCapture() {
@@ -291,7 +291,7 @@ export default function LeadCapture() {
           executionTime: missionForm.executionTime,
           recurrence: missionForm.recurrence,
           minScore: missionForm.minScore,
-          initialApproach: 'Abordagem humana para localizar socio, proprietario ou responsavel comercial. Nao falar que somos agencia e nao abrir diagnostico antes de conversar com o decisor. Posicionar como estrutura comercial para vender melhor e aumentar caixa.'
+          initialApproach: 'Abordagem humana para localizar socio, proprietario ou responsavel comercial. Nao falar que somos agencia, marketing, presenca digital, solucao digital, tecnologia, clientes ou diagnostico antes de conversar com o decisor.'
         })
       });
 

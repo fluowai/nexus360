@@ -81,17 +81,29 @@ export default function AdminAgencies() {
   };
 
   const fetchAgencies = async () => {
+    setLoading(true);
     try {
-      const [orgsRes, plansRes] = await Promise.all([
-        apiFetch('/api/admin/orgs'),
-        apiFetch('/api/admin/plans')
-      ]);
-      if (orgsRes.ok) setAgencies(await orgsRes.json());
-      if (plansRes.ok) setAvailablePlans(await plansRes.json());
+      const orgsRes = await apiFetch('/api/admin/orgs');
+      if (orgsRes.ok) {
+        setAgencies(await orgsRes.json());
+      } else {
+        const data = await orgsRes.json().catch(() => ({}));
+        console.error("Erro ao carregar clientes", data);
+        setAgencies([]);
+      }
     } catch (err) {
       console.error(err);
+      setAgencies([]);
     } finally {
       setLoading(false);
+    }
+
+    try {
+      const plansRes = await apiFetch('/api/admin/plans', {}, 0);
+      if (plansRes.ok) setAvailablePlans(await plansRes.json());
+    } catch (err) {
+      console.error("Erro ao carregar planos", err);
+      setAvailablePlans([]);
     }
   };
 

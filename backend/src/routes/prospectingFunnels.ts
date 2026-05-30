@@ -7,8 +7,8 @@ const DEFAULT_STAGES = [
     name: "Primeiro contato",
     agentKey: "whatsapp_opener",
     agentName: "Agente de Abordagem",
-    goal: "Chegar ao socio, proprietario, administrador ou responsavel comercial pelo nome, sem vender e sem explicar a avaliacao antes da pessoa certa responder.",
-    prompt: "Voce e um SDR humano por WhatsApp. A primeira etapa serve somente para chegar no decisor: socio, proprietario, administrador ou alguem da area comercial. Nunca diga que somos agencia. Nunca fale de marketing, presenca digital, diagnostico ou avaliacao na primeira mensagem. Nunca despeje contexto sobre a empresa antes de confirmar que esta falando com quem decide. Se perguntarem do que se trata, responda curto e natural: trabalho com estrutura comercial para ajudar empresas a vender melhor e colocar mais dinheiro no caixa, e queria confirmar com quem cuida disso. Uma pergunta por mensagem, tom humano, direto e sem cara de robo.",
+    goal: "Chegar ao socio, proprietario, administrador ou responsavel comercial pelo nome, sem vender e sem explicar nada antes da pessoa certa responder.",
+    prompt: "Voce e um SDR humano por WhatsApp. A primeira etapa serve somente para chegar no decisor: socio, proprietario, administrador ou alguem da area comercial. Nunca diga que somos agencia. Nunca fale de marketing, venda, solucao digital, presenca digital, tecnologia, diagnostico, avaliacao, clientes ou crescimento na primeira mensagem. Nunca despeje contexto sobre a empresa antes de confirmar que esta falando com quem decide. A primeira mensagem deve apenas perguntar quem e o responsavel pelo comercial. Uma pergunta por mensagem, tom humano, direto e sem cara de robo.",
     successCriteria: ["Pessoa certa localizada", "Nome do atendente identificado", "Responsavel comercial mapeado"],
     nextAction: "qualificacao",
     maxMessages: 2
@@ -18,7 +18,7 @@ const DEFAULT_STAGES = [
     agentKey: "qualification_sdr",
     agentName: "Agente de Qualificacao",
     goal: "Confirmar se a pessoa decide ou influencia o comercial e mapear abertura antes de qualquer avaliacao.",
-    prompt: "Conduza a conversa como um humano. Primeiro confirme se a pessoa cuida das decisoes comerciais ou pode te passar ao socio/proprietario/responsavel comercial. So depois de confirmar decisor ou influenciador, pergunte uma coisa por vez sobre como chegam novos clientes hoje, meta comercial e gargalo de vendas. Posicionamento permitido: estrutura comercial, previsibilidade, aumentar receita e colocar mais dinheiro no bolso/caixa da empresa. Posicionamento proibido: somos agencia, marketing digital, avaliamos sua presenca online, diagnostico completo sem permissao.",
+    prompt: "Conduza a conversa como um humano. Primeiro confirme se a pessoa cuida das decisoes comerciais ou pode te passar ao socio/proprietario/responsavel comercial. So depois de confirmar decisor ou influenciador, pergunte uma coisa por vez sobre a area comercial. Posicionamento permitido apos abertura: implementacao comercial e estrutura comercial. Posicionamento proibido: somos agencia, marketing digital, avaliamos sua presenca online, diagnostico completo sem permissao.",
     successCriteria: ["Responsavel confirmado", "Canal atual de aquisicao entendido", "Gargalo comercial identificado", "Permissao para proximo passo"],
     nextAction: "diagnostico",
     maxMessages: 5
@@ -136,7 +136,7 @@ function buildQualificationSeed(lead: any, config: ReturnType<typeof getFunnelCo
       targetOwner ? `Pedir para falar com ${targetOwner} ou com quem decide o comercial.` : "Pedir para falar com o socio, proprietario ou pessoa responsavel pelo comercial.",
       "Se a pessoa alvo nao estiver, perguntar de forma natural com quem esta falando.",
       targetOwner ? `Perguntar se, alem de ${targetOwner}, existe outra pessoa que cuida do comercial.` : "Perguntar se existe outra pessoa que cuida do comercial.",
-      "Se perguntarem o assunto, dizer que e sobre estrutura comercial para vender melhor e aumentar caixa, sem falar que somos agencia.",
+      "Se perguntarem o assunto antes do decisor, dizer apenas que e sobre implementacao comercial e confirmar com quem trata esse tema.",
       "So falar de avaliacao/diagnostico quando estiver com o decisor e houver abertura."
     ]
   };
@@ -158,10 +158,10 @@ function buildFirstMessage(lead: any, config = getFunnelConfig(null)) {
   const agentName = config.agentName || "Paulo";
 
   if (targetOwner) {
-    return `Oi, tudo bem? Aqui e o ${agentName}. Consegue me ajudar a falar com ${targetOwner} ou com quem cuida do comercial por ai?`;
+    return `Oi, tudo bem? Aqui e o ${agentName}. Poderia me ajudar a falar com ${targetOwner} ou com a pessoa responsavel pelo comercial da empresa?`;
   }
 
-  return `Oi, tudo bem? Aqui e o ${agentName}. Quem seria a pessoa que cuida do comercial ou das decisoes de crescimento por ai?`;
+  return `Oi, tudo bem? Aqui e o ${agentName}. Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?`;
 }
 
 export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: string) {
@@ -263,6 +263,20 @@ async function refreshQueuedFirstMessages(prisma: PrismaClient, organizationId: 
   }
 
   return queuedRuns.length;
+}
+
+async function refreshAllQueuedFirstMessages(prisma: PrismaClient, organizationId: string) {
+  const funnels = await prisma.prospectingFunnel.findMany({
+    where: { organizationId },
+    include: { stages: { orderBy: { order: "asc" } } }
+  });
+
+  let refreshedRuns = 0;
+  for (const funnel of funnels) {
+    refreshedRuns += await refreshQueuedFirstMessages(prisma, organizationId, funnel);
+  }
+
+  return refreshedRuns;
 }
 
 export async function enrollCapturedLeadsInFunnel(
@@ -424,6 +438,8 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
   router.get("/runs", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    await refreshAllQueuedFirstMessages(prisma, orgId);
 
     const runs = await prisma.prospectingRun.findMany({
       where: { organizationId: orgId },

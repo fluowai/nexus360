@@ -245,12 +245,12 @@ const protectedRoutes = [
   { path: "/api/whatsapp", router: whatsappRoutes },
 ];
 
+// Rotas Administrativas de Planos
+app.use("/api/admin/plans", authenticateToken, adminPlansRoutes(prisma));
+
 protectedRoutes.forEach(route => {
   app.use(route.path, authenticateToken, resolveTenant, route.router(prisma));
 });
-
-// Rotas Administrativas de Planos
-app.use("/api/admin/plans", authenticateToken, adminPlansRoutes(prisma));
 
 // Rotas Externas / Portais
 app.use("/api/billing", billingRoutes(prisma));

@@ -1,22 +1,19 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Search, 
-  Layout, 
-  PenTool, 
-  BarChart, 
-  Megaphone, 
-  Heart, 
-  X, 
-  Sparkles,
+import React, { useMemo, useState } from 'react';
+import { motion } from 'motion/react';
+import {
   ArrowRight,
-  Loader2,
-  ChevronRight,
-  Info,
-  Zap,
+  BarChart,
   Brain,
   Cpu,
-  Shield
+  Heart,
+  Layout,
+  Loader2,
+  Megaphone,
+  PenTool,
+  Search,
+  Shield,
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ACP_AGENTS } from '../lib/agentsConfig';
@@ -25,19 +22,99 @@ import './AgentsHub.css';
 import { apiFetch } from '../lib/api';
 import { PlanGuard } from '../components/PlanGuard';
 
+type AIAgent = (typeof ACP_AGENTS)[keyof typeof ACP_AGENTS];
+
+const AGENT_META: Record<string, { icon: React.ElementType; color: string; soft: string }> = {
+  diagnostico: { icon: Search, color: '#2563eb', soft: '#eff6ff' },
+  estruturador: { icon: Layout, color: '#0891b2', soft: '#ecfeff' },
+  copy_script: { icon: PenTool, color: '#db2777', soft: '#fdf2f8' },
+  analista_kpi: { icon: BarChart, color: '#059669', soft: '#ecfdf5' },
+  copy_ads: { icon: Megaphone, color: '#ea580c', soft: '#fff7ed' },
+  customer_success: { icon: Heart, color: '#7c3aed', soft: '#f5f3ff' },
+  juridico: { icon: Shield, color: '#475569', soft: '#f8fafc' }
+};
+
+const AGENT_TABS = [
+  {
+    id: 'todos',
+    label: 'Todos',
+    eyebrow: 'Visão geral',
+    description: 'Acesse todos os agentes de IA da central.',
+    agentIds: [] as string[]
+  },
+  {
+    id: 'estrategia',
+    label: 'Estratégia',
+    eyebrow: 'Diagnóstico',
+    description: 'Entenda gargalos, maturidade comercial e estrutura do CRM.',
+    agentIds: ['diagnostico', 'estruturador']
+  },
+  {
+    id: 'comunicacao',
+    label: 'Comunicação',
+    eyebrow: 'Copy',
+    description: 'Crie scripts, anúncios e mensagens comerciais consultivas.',
+    agentIds: ['copy_script', 'copy_ads']
+  },
+  {
+    id: 'performance',
+    label: 'Performance',
+    eyebrow: 'Indicadores',
+    description: 'Analise KPIs, conversão, produtividade e oportunidades.',
+    agentIds: ['analista_kpi']
+  },
+  {
+    id: 'relacao',
+    label: 'Relação',
+    eyebrow: 'CS e legal',
+    description: 'Apoie retenção, expansão e segurança jurídica.',
+    agentIds: ['customer_success', 'juridico']
+  }
+];
+
+const getAgentMeta = (agentId: string) => AGENT_META[agentId] || {
+  icon: Sparkles,
+  color: '#2563eb',
+  soft: '#eff6ff'
+};
+
 const AgentsHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClientId }) => {
-  const [selectedAgent, setSelectedAgent] = useState<any>(null);
+  const agents = useMemo(() => Object.values(ACP_AGENTS) as AIAgent[], []);
+  const [activeTab, setActiveTab] = useState(AGENT_TABS[0].id);
+  const [selectedAgent, setSelectedAgent] = useState<AIAgent>(agents[0]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash');
 
-  const agents = Object.values(ACP_AGENTS);
+  const filteredAgents = useMemo(() => {
+    const tab = AGENT_TABS.find((item) => item.id === activeTab);
+    if (!tab || tab.id === 'todos') return agents;
+    return agents.filter((agent) => tab.agentIds.includes(agent.id));
+  }, [activeTab, agents]);
 
-  const handleAgentClick = (agent: any) => {
+  const activeTabData = AGENT_TABS.find((tab) => tab.id === activeTab) || AGENT_TABS[0];
+  const selectedMeta = getAgentMeta(selectedAgent.id);
+  const SelectedIcon = selectedMeta.icon;
+
+  const handleAgentClick = (agent: AIAgent) => {
     setSelectedAgent(agent);
     setInput('');
     setResult('');
+  };
+
+  const handleTabClick = (tabId: string) => {
+    const nextTab = AGENT_TABS.find((tab) => tab.id === tabId) || AGENT_TABS[0];
+    const nextAgents = nextTab.id === 'todos'
+      ? agents
+      : agents.filter((agent) => nextTab.agentIds.includes(agent.id));
+
+    setActiveTab(tabId);
+    if (!nextAgents.some((agent) => agent.id === selectedAgent.id)) {
+      setSelectedAgent(nextAgents[0] || agents[0]);
+      setInput('');
+      setResult('');
+    }
   };
 
   const handleExecute = async () => {
@@ -51,7 +128,7 @@ const AgentsHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedCli
         method: 'POST',
         body: JSON.stringify({
           agentId: selectedAgent.id,
-          input: input,
+          input,
           prompt: selectedAgent.prompt,
           model: selectedModel,
           clientId: selectedClientId
@@ -73,240 +150,213 @@ const AgentsHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedCli
   };
 
   return (
-    <PlanGuard 
-      feature="Central de Agentes I.A. de Elite" 
-      requiredPlan="Pro" 
-      currentPlan="Free" // Isso virá do contexto da agência
+    <PlanGuard
+      feature="Central de Agentes I.A. de Elite"
+      requiredPlan="Pro"
+      currentPlan="Pro"
     >
       <div className="agents-hub-container">
         <header className="hub-header">
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="method-acp-badge"
-          >
-            Método A.C.P. • Arquitetura de Crescimento Previsível
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-          >
-            Central de Agentes I.A.
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            Acesse o poder da Consultio. Agentes especializados em cada fase da sua jornada de escala.
-          </motion.p>
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="method-acp-badge"
+            >
+              Método A.C.P. - Arquitetura de Crescimento Previsível
+            </motion.div>
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+            >
+              Central de Agentes IA
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.1 }}
+            >
+              Escolha uma aba, selecione o agente e execute diagnósticos, copy, indicadores e operações sem perder área útil de trabalho.
+            </motion.p>
+          </div>
+
+          <div className="hub-summary-card">
+            <div className="summary-icon">
+              <Brain size={22} />
+            </div>
+            <div>
+              <span>{agents.length} agentes</span>
+              <strong>Fluxo claro, leve e organizado por abas.</strong>
+            </div>
+          </div>
         </header>
 
-        <div className="agents-grid">
-          {agents.map((agent, index) => {
-            const IconComponent = {
-              diagnostico: Search,
-              estruturador: Layout,
-              copy_script: PenTool,
-              analista_kpi: BarChart,
-              copy_ads: Megaphone,
-              customer_success: Heart,
-              juridico: Shield
-            }[agent.id as string] || Sparkles;
+        <nav className="agent-tabs" aria-label="Categorias de agentes">
+          {AGENT_TABS.map((tab) => (
+            <button
+              type="button"
+              key={tab.id}
+              className={`agent-tab ${activeTab === tab.id ? 'active' : ''}`}
+              onClick={() => handleTabClick(tab.id)}
+            >
+              <span>{tab.eyebrow}</span>
+              <strong>{tab.label}</strong>
+            </button>
+          ))}
+        </nav>
 
-            const colors = {
-              diagnostico: '#2563eb', // Royal Blue
-              estruturador: '#d97706', // Amber/Orange
-              copy_script: '#db2777', // Pink/Magenta
-              analista_kpi: '#059669', // Emerald
-              copy_ads: '#dc2626', // Red
-              customer_success: '#7c3aed', // Violet
-              juridico: '#334155' // Slate/Navy
-            }[agent.id as string] || '#2563eb';
-
-            return (
-              <motion.div
-                key={agent.id}
-                className="agent-card"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                onClick={() => handleAgentClick(agent)}
-              >
-                <div className="agent-icon-wrapper" style={{ color: colors, borderColor: `${colors}33` }}>
-                  <IconComponent size={32} />
-                </div>
-                <span className="agent-phase" style={{ color: colors }}>{agent.phase}</span>
-                <h3 className="agent-name">{agent.name}</h3>
-                <p className="agent-desc">{agent.description}</p>
-                <div className="access-link" style={{ color: colors }}>
-                  <span>Acessar Agente</span>
-                  <ArrowRight size={18} />
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Manual / Info Section */}
-        <motion.section 
-          className="info-section"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-        >
-          <div className="info-icon">
-            <Info size={32} />
+        <section className="tab-context">
+          <div>
+            <span>{activeTabData.eyebrow}</span>
+            <h2>{activeTabData.label}</h2>
           </div>
-          <div className="info-content">
-            <h2>Sobre o Método A.C.P.</h2>
-            <p>
-              Diferente de agências de marketing comuns, a Central de Agentes da Consultio foca na 
-              <strong> Arquitetura de Crescimento Previsível</strong>. Cada agente foi treinado para 
-              eliminar o improviso e criar processos que garantem escala saudável e controle total de indicadores.
-            </p>
-          </div>
-        </motion.section>
+          <p>{activeTabData.description}</p>
+        </section>
 
-        {/* Agent Interaction Panel */}
-        <AnimatePresence>
-          {selectedAgent && (
-            <div className="agent-interaction-overlay" onClick={() => setSelectedAgent(null)}>
-              <motion.div 
-                className="agent-panel"
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="panel-header">
-                  <div className="flex items-center gap-4">
-                    {(() => {
-                      const IconComponent = {
-                        diagnostico: Search,
-                        estruturador: Layout,
-                        copy_script: PenTool,
-                        analista_kpi: BarChart,
-                        copy_ads: Megaphone,
-                        customer_success: Heart,
-                        juridico: Shield
-                      }[selectedAgent.id as string] || Sparkles;
-
-                      const color = {
-                        diagnostico: '#2563eb',
-                        estruturador: '#d97706',
-                        copy_script: '#db2777',
-                        analista_kpi: '#059669',
-                        copy_ads: '#dc2626',
-                        customer_success: '#7c3aed',
-                        juridico: '#334155'
-                      }[selectedAgent.id as string] || '#2563eb';
-
-                      return (
-                        <div className="p-3 rounded-2xl bg-white border border-gray-100 shadow-sm" style={{ color }}>
-                          <IconComponent size={32} />
-                        </div>
-                      );
-                    })()}
-                    <div>
-                      <h2 className="text-2xl font-black text-gray-900">{selectedAgent.name}</h2>
-                      <span className="text-xs font-bold uppercase tracking-widest" style={{ 
-                        color: {
-                          diagnostico: '#2563eb',
-                          estruturador: '#d97706',
-                          copy_script: '#db2777',
-                          analista_kpi: '#059669',
-                          copy_ads: '#dc2626',
-                          customer_success: '#7c3aed',
-                          juridico: '#334155'
-                        }[selectedAgent.id as string] || '#2563eb'
-                      }}>{selectedAgent.phase}</span>
-                    </div>
-                  </div>
-                  <button 
-                    className="close-panel-btn"
-                    onClick={() => setSelectedAgent(null)}
-                  >
-                    <X size={24} />
-                  </button>
-                </div>
-
-                <div className="panel-content-scroll custom-scrollbar">
-                  <div className="system-prompt-box">
-                    <div className="text-blue-500 mt-1"><Sparkles size={18} /></div>
-                    <p>{selectedAgent.prompt.substring(0, 150)}...</p>
-                  </div>
-
-                  <div className="input-section">
-                    <div className="flex flex-col gap-4 mb-6 p-4 bg-gray-50 border border-gray-100 rounded-3xl">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Cpu size={16} className="text-gray-400" />
-                          <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Motor de Inteligência</span>
-                        </div>
-                        <select 
-                          className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-500/20"
-                          value={selectedModel}
-                          onChange={(e) => setSelectedModel(e.target.value)}
-                        >
-                          <optgroup label="Google Gemini">
-                            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Rápido/Free)</option>
-                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Inteligente)</option>
-                          </optgroup>
-                          <optgroup label="Groq (Inferência Ultrarrápida)">
-                            <option value="llama-3.3-70b-versatile">Llama 3.3 70B (Poderoso)</option>
-                            <option value="llama-3.1-8b-instant">Llama 3.1 8B (Instantâneo)</option>
-                          </optgroup>
-                        </select>
-                      </div>
-                    </div>
-
-                    <label>Descreva o cenário ou cole os dados:</label>
-                    <textarea 
-                      className="agent-textarea"
-                      placeholder="Ex: Somos uma empresa B2B de software, geramos 50 leads/mês mas a conversão está baixa..."
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                    />
-                    <button 
-                      className="execute-btn"
-                      onClick={handleExecute}
-                      disabled={loading || !input}
-                    >
-                      {loading ? (
-                        <>
-                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/30 border-t-white" />
-                          Processando Inteligência...
-                        </>
-                      ) : (
-                        <>
-                          <Zap size={20} />
-                          Executar Agente Estratégico
-                        </>
-                      )}
-                    </button>
-                  </div>
-
-                  {result && (
-                    <div className="result-section">
-                      <div className="flex items-center gap-2 mb-4 text-emerald-600 font-bold uppercase tracking-widest text-xs">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                        Resultado Gerado
-                      </div>
-                      <div className="result-container">
-                        <div className="markdown-content">
-                          <ReactMarkdown>{result}</ReactMarkdown>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
+        <main className="agents-workspace">
+          <section className="agents-list-panel" aria-label="Lista de agentes">
+            <div className="panel-title-row">
+              <div>
+                <span>Biblioteca</span>
+                <h2>Agentes disponíveis</h2>
+              </div>
+              <small>{filteredAgents.length} itens</small>
             </div>
-          )}
-        </AnimatePresence>
+
+            <div className="agents-list">
+              {filteredAgents.map((agent, index) => {
+                const meta = getAgentMeta(agent.id);
+                const IconComponent = meta.icon;
+                const isActive = selectedAgent.id === agent.id;
+
+                return (
+                  <motion.button
+                    type="button"
+                    key={agent.id}
+                    className={`agent-list-card ${isActive ? 'active' : ''}`}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.04 }}
+                    onClick={() => handleAgentClick(agent)}
+                    style={{ '--agent-color': meta.color, '--agent-soft': meta.soft } as React.CSSProperties}
+                  >
+                    <div className="agent-card-icon">
+                      <IconComponent size={22} />
+                    </div>
+                    <div className="agent-card-copy">
+                      <span>{agent.phase}</span>
+                      <strong>{agent.name}</strong>
+                      <p>{agent.description}</p>
+                    </div>
+                    <ArrowRight size={18} />
+                  </motion.button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="agent-builder-panel" aria-label="Execução do agente">
+            <div className="agent-builder-header">
+              <div className="selected-agent-hero" style={{ '--agent-color': selectedMeta.color, '--agent-soft': selectedMeta.soft } as React.CSSProperties}>
+                <div className="selected-agent-icon">
+                  <SelectedIcon size={30} />
+                </div>
+                <div>
+                  <span>{selectedAgent.phase}</span>
+                  <h2>{selectedAgent.name}</h2>
+                  <p>{selectedAgent.description}</p>
+                </div>
+              </div>
+
+              <div className="model-card">
+                <div className="model-card-label">
+                  <Cpu size={16} />
+                  <span>Motor de inteligência</span>
+                </div>
+                <select
+                  value={selectedModel}
+                  onChange={(event) => setSelectedModel(event.target.value)}
+                >
+                  <optgroup label="Google Gemini">
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                  </optgroup>
+                  <optgroup label="Groq">
+                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                    <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+
+            <div className="agent-form-grid">
+              <div className="agent-input-card">
+                <div className="section-kicker">
+                  <Sparkles size={16} />
+                  <span>Contexto para o agente</span>
+                </div>
+
+                <label htmlFor="agent-input">Descreva o cenário ou cole os dados</label>
+                <textarea
+                  id="agent-input"
+                  className="agent-textarea"
+                  placeholder="Ex: Somos uma empresa B2B de software, geramos 50 leads por mês, mas a conversão está baixa..."
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                />
+
+                <button
+                  className="execute-btn"
+                  type="button"
+                  onClick={handleExecute}
+                  disabled={loading || !input.trim()}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 size={20} className="spin-icon" />
+                      Processando inteligência...
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={20} />
+                      Executar agente
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <aside className="agent-guidance-card">
+                <div className="section-kicker">
+                  <Shield size={16} />
+                  <span>Instrução ativa</span>
+                </div>
+                <p>{selectedAgent.prompt}</p>
+              </aside>
+            </div>
+
+            <div className="result-section">
+              <div className="section-kicker success">
+                <span className="status-dot" />
+                <span>Resultado gerado</span>
+              </div>
+
+              <div className={`result-container ${result ? 'has-result' : ''}`}>
+                {result ? (
+                  <div className="markdown-content">
+                    <ReactMarkdown>{result}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="empty-result">
+                    <Sparkles size={24} />
+                    <strong>A resposta do agente aparece aqui.</strong>
+                    <p>Use a área de contexto acima para enviar informações e gerar a análise.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </main>
       </div>
     </PlanGuard>
   );

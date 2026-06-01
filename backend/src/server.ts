@@ -278,13 +278,21 @@ app.get("/api/dashboard", authenticateToken, resolveTenant, async (req: any, res
       safeDashboardValue("proposals", 0, () => prisma.proposal.count({ where: { organizationId: orgId } })),
       safeDashboardValue("invoices", { _sum: { total: 0 } }, () => prisma.invoice.aggregate({ where: { organizationId: orgId, status: 'paga' }, _sum: { total: true } })),
       safeDashboardValue("creatives", 0, () => prisma.creative.count({ where: { organizationId: orgId } })),
-      safeDashboardValue("organization", null, () => orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, planObj: true } }) : Promise.resolve(null)),
+      safeDashboardValue("organization", null, () => orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, plan: true, planObj: true } }) : Promise.resolve(null)),
       safeDashboardValue("user", null, () => prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } })),
       safeDashboardValue("agency", null, () => req.user.agencyId ? prisma.agency.findUnique({ where: { id: req.user.agencyId }, select: { name: true } }) : Promise.resolve(null)),
     ]);
 
     const conversions = leads > 0 ? Number(((clients / leads) * 100).toFixed(1)) : 0;
-    const plan = org?.planObj || { name: 'Free', leadsLimit: 100 };
+    const legacyPlan = !org?.planObj && org?.plan
+      ? await safeDashboardValue("legacy plan", null, () => prisma.plan.findFirst({ where: { name: org.plan } }))
+      : null;
+    const sourcePlan = org?.planObj || legacyPlan || { name: 'Free', maxLeads: 100 };
+    const plan = {
+      ...sourcePlan,
+      maxLeads: (sourcePlan as any).maxLeads ?? (sourcePlan as any).leadsLimit ?? 100,
+      leadsLimit: (sourcePlan as any).maxLeads ?? (sourcePlan as any).leadsLimit ?? 100,
+    };
 
     res.json({
       orgName: org?.name || agency?.name || "Minha Agência",

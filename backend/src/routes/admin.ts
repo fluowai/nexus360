@@ -42,12 +42,24 @@ export function adminRoutes(prisma: PrismaClient) {
       const proposalsCount = await prisma.proposal.count({ where: whereClause });
       
       let orgName = "Painel Global";
+      let plan: any = { name: "Global", maxLeads: 100, leadsLimit: 100 };
       if (orgId) {
         const org = await prisma.organization.findUnique({
           where: { id: String(orgId) },
-          select: { name: true }
+          select: { name: true, plan: true, planObj: true }
         });
-        if (org) orgName = org.name;
+        if (org) {
+          orgName = org.name;
+          const legacyPlan = !org.planObj && org.plan
+            ? await prisma.plan.findFirst({ where: { name: org.plan } })
+            : null;
+          const sourcePlan = org.planObj || legacyPlan || { name: org.plan || "Free", maxLeads: 100 };
+          plan = {
+            ...sourcePlan,
+            maxLeads: (sourcePlan as any).maxLeads ?? (sourcePlan as any).leadsLimit ?? 100,
+            leadsLimit: (sourcePlan as any).maxLeads ?? (sourcePlan as any).leadsLimit ?? 100,
+          };
+        }
       }
 
       const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } });
@@ -55,6 +67,8 @@ export function adminRoutes(prisma: PrismaClient) {
       res.json({
         orgName,
         userName: user?.name || "Admin",
+        plan,
+        usage: { leads: leadsCount },
         metrics: {
           leads: leadsCount,
           clients: clientsCount,
@@ -82,7 +96,10 @@ export function adminRoutes(prisma: PrismaClient) {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     try {
       const orgs = await prisma.organization.findMany({
-        include: { _count: { select: { users: true } } },
+        include: {
+          planObj: true,
+          _count: { select: { users: true } }
+        },
         orderBy: { createdAt: 'desc' }
       });
       res.json(orgs);
@@ -95,7 +112,7 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, domain, plan, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess } = req.body;
+    const { name, domain, plan, planId, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess } = req.body;
     const adminPasswordError = assertStrongPassword(adminPassword);
     if (adminPasswordError) return res.status(400).json({ error: adminPasswordError });
     
@@ -108,12 +125,19 @@ export function adminRoutes(prisma: PrismaClient) {
 
     try {
       const result = await prisma.$transaction(async (tx) => {
+        const selectedPlan = planId
+          ? await tx.plan.findUnique({ where: { id: planId } })
+          : plan
+            ? await tx.plan.findFirst({ where: { name: plan } })
+            : null;
+
         // 1. Criar Organização
         const org = await tx.organization.create({
           data: { 
             name, 
             domain, 
-            plan: plan || "Free",
+            plan: selectedPlan?.name || plan || "Free",
+            planId: selectedPlan?.id || null,
             slug: finalSlug,
             isTestAccount: isTestAccount || false,
             betaAccess: betaAccess || false
@@ -133,7 +157,10 @@ export function adminRoutes(prisma: PrismaClient) {
           }
         });
 
-        return org;
+        return tx.organization.findUnique({
+          where: { id: org.id },
+          include: { planObj: true, _count: { select: { users: true } } }
+        });
       });
 
       res.json(result);
@@ -163,6 +190,13 @@ export function adminRoutes(prisma: PrismaClient) {
       const result = await prisma.$transaction(async (tx) => {
         // 1. Verificar se a organização existe
         const existingOrg = await tx.organization.findUnique({ where: { id } });
+        const hasPlanId = Object.prototype.hasOwnProperty.call(req.body, "planId");
+        const selectedPlan = hasPlanId && planId
+          ? await tx.plan.findUnique({ where: { id: planId } })
+          : !hasPlanId && plan
+            ? await tx.plan.findFirst({ where: { name: plan } })
+            : null;
+        if (hasPlanId && planId && !selectedPlan) throw new Error("Plano nao encontrado.");
         if (!existingOrg) throw new Error("Organização não encontrada.");
 
         // 2. Atualizar Organização
@@ -171,8 +205,10 @@ export function adminRoutes(prisma: PrismaClient) {
           data: { 
             ...(name && { name }),
             ...(domain !== undefined && { domain }),
-            ...(plan && { plan }),
-            ...(planId && { planId }),
+            ...(plan && !selectedPlan && { plan }),
+            ...(selectedPlan && { plan: selectedPlan.name }),
+            ...(hasPlanId && { planId: selectedPlan?.id || null }),
+            ...(!hasPlanId && selectedPlan && { planId: selectedPlan.id }),
             ...(slug && { slug }),
             ...(isTestAccount !== undefined && { isTestAccount }),
             ...(betaAccess !== undefined && { betaAccess })
@@ -206,7 +242,10 @@ export function adminRoutes(prisma: PrismaClient) {
           }
         }
 
-        return org;
+        return tx.organization.findUnique({
+          where: { id: org.id },
+          include: { planObj: true, _count: { select: { users: true } } }
+        });
       });
 
       res.json(result);

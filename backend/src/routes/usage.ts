@@ -16,7 +16,7 @@ export function usageRoutes(prisma: PrismaClient) {
 
       if (!org) return res.status(404).json({ error: "Organization not found" });
 
-      const plan = org.planObj;
+      const plan = org.planObj || await prisma.plan.findFirst({ where: { name: org.plan } });
 
       // Calcular uso atual
       const [users, clients, leads, automations] = await Promise.all([

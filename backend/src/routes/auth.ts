@@ -31,6 +31,16 @@ const planWithFeatures = {
     planFeatures: true,
   },
 };
+const serializePlan = (plan: any) => {
+  const fallback = { name: "Free", maxLeads: 100, leadsLimit: 100 };
+  if (!plan) return fallback;
+  return {
+    ...plan,
+    maxLeads: plan.maxLeads ?? plan.leadsLimit ?? fallback.maxLeads,
+    leadsLimit: plan.maxLeads ?? plan.leadsLimit ?? fallback.leadsLimit,
+  };
+};
+
 
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -199,10 +209,7 @@ export function authRoutes(prisma: PrismaClient) {
             user.organization?.subscriptionStatus || "TRIAL",
           betaAccess: user.organization?.betaAccess || false,
           isTestAccount: user.organization?.isTestAccount || false,
-          plan: user.organization?.planObj || {
-            name: user.organization?.plan || "Free",
-            leadsLimit: 100,
-          },
+          plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
           usage: {
             leads: user.organization?._count?.leads || 0,
           },
@@ -344,9 +351,7 @@ export function authRoutes(prisma: PrismaClient) {
           role: user.role,
           orgId,
           orgName,
-          plan: user.organization?.planObj || {
-            name: user.organization?.plan || "Free",
-          },
+          plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
           usage: {
             leads: user.organization?._count?.leads || 0,
           },
@@ -543,10 +548,7 @@ export function authRoutes(prisma: PrismaClient) {
           user.organization?.subscriptionStatus || "TRIAL",
         betaAccess: user.organization?.betaAccess || false,
         isTestAccount: user.organization?.isTestAccount || false,
-        plan: user.organization?.planObj || {
-          name: user.organization?.plan || "Free",
-          leadsLimit: 100,
-        },
+        plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
         usage: {
           leads: user.organization?._count?.leads || 0,
         },

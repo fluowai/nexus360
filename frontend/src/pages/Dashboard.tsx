@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { 
   Users, 
@@ -27,23 +27,42 @@ export default function Dashboard() {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchDashboard = useCallback(async () => {
     const userRole = localStorage.getItem('nexus_user_role');
-    const orgId = localStorage.getItem('nexus_org_id') || '';
+    const orgId = localStorage.getItem('nexus_selected_client') || localStorage.getItem('nexus_org_id') || '';
     
     // Super Admin usa /api/admin/dashboard, todos os outros usam /api/dashboard
     const endpoint = userRole === 'SUPER_ADMIN' 
       ? `/api/admin/dashboard${orgId ? `?orgId=${orgId}` : ''}`
       : '/api/dashboard';
     
-    apiFetch(endpoint)
-      .then(res => {
-        if (!res.ok) throw new Error("Erro ao carregar painel");
-        return res.json();
-      })
-      .then(setData)
-      .catch(err => setError(err.message));
+    try {
+      const res = await apiFetch(endpoint, { cache: 'no-store' });
+      if (!res.ok) throw new Error("Erro ao carregar painel");
+      const nextData = await res.json();
+      setData(nextData);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchDashboard();
+
+    const handleRefresh = () => {
+      if (document.visibilityState === 'visible') fetchDashboard();
+    };
+    window.addEventListener('focus', fetchDashboard);
+    document.addEventListener('visibilitychange', handleRefresh);
+    const interval = window.setInterval(fetchDashboard, 5000);
+
+    return () => {
+      window.removeEventListener('focus', fetchDashboard);
+      document.removeEventListener('visibilitychange', handleRefresh);
+      window.clearInterval(interval);
+    };
+  }, [fetchDashboard]);
 
   if (error) return (
     <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -59,6 +78,9 @@ export default function Dashboard() {
 
   if (!data || !data.metrics) return <div className="flex items-center justify-center h-64 text-muted-foreground animate-pulse">Carregando painel...</div>;
 
+
+  const leadLimit = data.plan?.maxLeads ?? data.plan?.leadsLimit ?? 100;
+  const leadUsage = data.usage?.leads || 0;
 
   const stats = [
     { label: "Total de Leads", value: data.metrics.leads, icon: Users, color: "bg-blue-50 text-blue-600", trend: "+12%" },
@@ -94,16 +116,16 @@ export default function Dashboard() {
           <div className="w-full sm:w-72 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="font-semibold text-gray-700">Uso de Leads</span>
-              <span className="text-gray-500 font-medium">{data.usage?.leads || 0} / {data.plan?.leadsLimit || 100}</span>
+              <span className="text-gray-500 font-medium">{leadUsage} / {leadLimit}</span>
             </div>
             <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden border border-gray-200">
               <motion.div 
                 initial={{ width: 0 }}
-                animate={{ width: `${Math.min(((data.usage?.leads || 0) / (data.plan?.leadsLimit || 100)) * 100, 100)}%` }}
-                className={`h-full transition-all duration-1000 ${(data.usage?.leads || 0) >= (data.plan?.leadsLimit || 100) ? 'bg-red-500' : 'bg-primary'}`}
+                animate={{ width: `${Math.min((leadUsage / leadLimit) * 100, 100)}%` }}
+                className={`h-full transition-all duration-1000 ${leadUsage >= leadLimit ? 'bg-red-500' : 'bg-primary'}`}
               />
             </div>
-            {(data.usage?.leads || 0) >= (data.plan?.leadsLimit || 100) && (
+            {leadUsage >= leadLimit && (
               <p className="text-xs text-red-500 font-bold flex items-center gap-1 animate-pulse">
                 <AlertCircle size={12} />
                 Limite atingido! Upgrade necessário.

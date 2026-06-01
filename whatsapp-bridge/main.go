@@ -60,6 +60,16 @@ type sendRequest struct {
 	Message   string `json:"message"`
 }
 
+type participantIdentity struct {
+	JID          types.JID
+	PhoneNumber  types.JID
+	LID          types.JID
+	Name         string
+	PictureURL   string
+	IsAdmin      bool
+	IsSuperAdmin bool
+}
+
 func env(key, fallback string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -381,11 +391,13 @@ func (a *app) handleMessage(s *session, evt *events.Message) {
 	if senderJID.IsEmpty() {
 		senderJID = chatJID
 	}
+	rawSenderJID := senderJID
 
 	messageType, content, caption, fileName, mimeType, mediaPath, fileSize := a.extractMessage(s.Client, evt.Info.ID, msg)
 	displayName := evt.Info.PushName
 	group := map[string]any(nil)
 	var participants []map[string]any
+	participantMap := map[string]participantIdentity{}
 
 	if chatJID.Server == types.GroupServer {
 		info, err := s.Client.GetGroupInfo(context.Background(), chatJID)
@@ -397,15 +409,26 @@ func (a *app) handleMessage(s *session, evt *events.Message) {
 				"pictureUrl": a.profilePictureURL(s.Client, chatJID, false),
 			}
 			for _, participant := range info.Participants {
+				identity := participantIdentity{
+					JID:          participant.JID,
+					PhoneNumber:  participant.PhoneNumber,
+					LID:          participant.LID,
+					Name:         participant.DisplayName,
+					PictureURL:   a.profilePictureURL(s.Client, participant.JID, false),
+					IsAdmin:      participant.IsAdmin,
+					IsSuperAdmin: participant.IsSuperAdmin,
+				}
+				a.indexParticipant(participantMap, identity)
 				item := map[string]any{
-					"jid":          participant.JID.String(),
-					"phoneNumber":  participant.PhoneNumber.String(),
+					"jid":          a.resolvePhoneJID(s.Client, participant.JID, participantMap).String(),
+					"rawJid":       participant.JID.String(),
+					"phoneNumber":  a.resolvePhoneJID(s.Client, participant.PhoneNumber, participantMap).String(),
 					"lid":          participant.LID.String(),
 					"name":         participant.DisplayName,
 					"pushName":     participant.DisplayName,
 					"isAdmin":      participant.IsAdmin,
 					"isSuperAdmin": participant.IsSuperAdmin,
-					"pictureUrl":   a.profilePictureURL(s.Client, participant.JID, false),
+					"pictureUrl":   identity.PictureURL,
 				}
 				participants = append(participants, item)
 			}
@@ -413,12 +436,19 @@ func (a *app) handleMessage(s *session, evt *events.Message) {
 		}
 	}
 
+	resolvedSenderJID := a.resolvePhoneJID(s.Client, senderJID, participantMap)
+	if !resolvedSenderJID.IsEmpty() {
+		senderJID = resolvedSenderJID
+	}
+	mentionedJIDs := a.resolveMentionedJIDs(s.Client, msg, participantMap)
+
 	payload := map[string]any{
 		"type":              "message",
 		"organizationId":    s.OrganizationID,
 		"channelId":         s.ChannelID,
 		"chatJid":           chatJID.String(),
 		"senderJid":         senderJID.String(),
+		"rawSenderJid":      rawSenderJID.String(),
 		"fromMe":            evt.Info.IsFromMe,
 		"isGroup":           chatJID.Server == types.GroupServer,
 		"pushName":          evt.Info.PushName,
@@ -427,6 +457,7 @@ func (a *app) handleMessage(s *session, evt *events.Message) {
 		"profilePictureUrl": a.profilePictureURL(s.Client, senderJID, false),
 		"group":             group,
 		"participants":      participants,
+		"mentionedJids":     mentionedJIDs,
 		"message": map[string]any{
 			"id":        evt.Info.ID,
 			"timestamp": evt.Info.Timestamp.Format(time.RFC3339),
@@ -479,6 +510,92 @@ func (a *app) extractMessage(client *whatsmeow.Client, messageID string, msg *wa
 		return "image", "", "", "sticker.webp", mimeType, mediaURL, fileSize
 	}
 	return "text", "[mensagem nao suportada]", "", "", "", "", 0
+}
+
+func (a *app) indexParticipant(index map[string]participantIdentity, participant participantIdentity) {
+	for _, jid := range []types.JID{participant.JID, participant.PhoneNumber, participant.LID} {
+		if !jid.IsEmpty() {
+			index[jid.String()] = participant
+			if jid.User != "" {
+				index[jid.User] = participant
+			}
+		}
+	}
+}
+
+func (a *app) resolvePhoneJID(client *whatsmeow.Client, jid types.JID, participants map[string]participantIdentity) types.JID {
+	if jid.IsEmpty() {
+		return jid
+	}
+	if found, ok := participants[jid.String()]; ok {
+		if !found.PhoneNumber.IsEmpty() && found.PhoneNumber.Server == types.DefaultUserServer {
+			return found.PhoneNumber.ToNonAD()
+		}
+		if !found.JID.IsEmpty() && found.JID.Server == types.DefaultUserServer {
+			return found.JID.ToNonAD()
+		}
+	}
+	if jid.Server == types.DefaultUserServer {
+		return jid.ToNonAD()
+	}
+	if (jid.Server == types.HiddenUserServer || jid.Server == types.HostedLIDServer) && client != nil && client.Store != nil && client.Store.LIDs != nil {
+		if pn, err := client.Store.LIDs.GetPNForLID(context.Background(), jid.ToNonAD()); err == nil && !pn.IsEmpty() {
+			return pn.ToNonAD()
+		}
+	}
+	return jid.ToNonAD()
+}
+
+func (a *app) resolveMentionedJIDs(client *whatsmeow.Client, msg *waProto.Message, participants map[string]participantIdentity) []map[string]any {
+	ctx := contextInfo(msg)
+	if ctx == nil {
+		return nil
+	}
+	var out []map[string]any
+	seen := map[string]bool{}
+	for _, raw := range ctx.GetMentionedJID() {
+		jid, err := types.ParseJID(raw)
+		if err != nil || jid.IsEmpty() {
+			continue
+		}
+		resolved := a.resolvePhoneJID(client, jid, participants)
+		key := resolved.String()
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, map[string]any{
+			"jid":    key,
+			"phone":  normalizePhone(resolved.User),
+			"rawJid": raw,
+		})
+	}
+	return out
+}
+
+func contextInfo(msg *waProto.Message) *waProto.ContextInfo {
+	if msg == nil {
+		return nil
+	}
+	if ext := msg.GetExtendedTextMessage(); ext != nil {
+		return ext.GetContextInfo()
+	}
+	if image := msg.GetImageMessage(); image != nil {
+		return image.GetContextInfo()
+	}
+	if audio := msg.GetAudioMessage(); audio != nil {
+		return audio.GetContextInfo()
+	}
+	if video := msg.GetVideoMessage(); video != nil {
+		return video.GetContextInfo()
+	}
+	if doc := msg.GetDocumentMessage(); doc != nil {
+		return doc.GetContextInfo()
+	}
+	if sticker := msg.GetStickerMessage(); sticker != nil {
+		return sticker.GetContextInfo()
+	}
+	return nil
 }
 
 func (a *app) downloadMedia(client *whatsmeow.Client, messageID string, media whatsmeow.DownloadableMessage, mimeType string) (string, int) {

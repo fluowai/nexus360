@@ -7,9 +7,12 @@ import {
   pickWhatsAppDisplayName,
   mapWhatsAppMediaType,
   isWhatsAppGroupJid,
-  isWhatsAppNewsletterJid
+  isWhatsAppNewsletterJid,
+  cleanWhatsAppMessageText
 } from "../utils/whatsapp.js";
 import { auditFromRequest } from "../utils/auditLogger.js";
+import { emitAutomationEvent } from "../workers/automationWorker.js";
+import { classifyAndTagWhatsAppConversation, tagWhatsAppEntity } from "../services/whatsappIntelligence.js";
 
 const WHATSAPP_PROVIDER = "WHATS_MEOW";
 
@@ -104,6 +107,57 @@ async function findProspectingRunByJid(prisma: PrismaClient, organizationId: str
   return runs.find((run) => normalizeWhatsAppPhone(run.leadPhone).digits === phone) || null;
 }
 
+async function ensureDirectWhatsAppLead(prisma: PrismaClient, payload: any, conversation: any, displayName: string) {
+  if (payload.fromMe || payload.isGroup || isWhatsAppGroupJid(payload.chatJid)) return conversation.leadId || null;
+
+  const phone = normalizeWhatsAppPhone(payload.chatJid);
+  if (!phone.digits) return conversation.leadId || null;
+  if (conversation.leadId) return conversation.leadId;
+
+  const existing = await prisma.lead.findFirst({
+    where: {
+      organizationId: payload.organizationId || payload.orgId,
+      OR: [
+        { whatsapp: phone.e164 },
+        { whatsapp: phone.digits },
+        { phone: phone.e164 },
+        { phone: phone.digits },
+      ],
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (existing) {
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { leadId: existing.id },
+    });
+    return existing.id;
+  }
+
+  const lead = await prisma.lead.create({
+    data: {
+      name: displayName || phone.e164,
+      email: `whatsapp-${phone.digits}@nexus360.local`,
+      phone: phone.e164,
+      whatsapp: phone.e164,
+      status: "novo",
+      source: "WhatsApp",
+      channel: "WHATSAPP",
+      tags: "WhatsApp",
+      notes: "Lead criado automaticamente a partir de conversa individual do WhatsApp.",
+      organizationId: payload.organizationId || payload.orgId,
+    },
+  });
+
+  await prisma.conversation.update({
+    where: { id: conversation.id },
+    data: { leadId: lead.id },
+  });
+  emitAutomationEvent("lead.created", { organizationId: lead.organizationId, leadId: lead.id, lead });
+  return lead.id;
+}
+
 async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) {
   const organizationId = payload.organizationId || payload.orgId;
   const channelId = payload.channelId;
@@ -124,6 +178,8 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
   const displayName = pickWhatsAppDisplayName(payload);
   const mediaType = mapWhatsAppMediaType(payload.message?.type, payload.message?.mimeType);
   const prospectingRun = await findProspectingRunByJid(prisma, organizationId, chatJid);
+  const messageContent = cleanWhatsAppMessageText(payload.message?.content, mediaType);
+  const messageCaption = cleanWhatsAppMessageText(payload.message?.caption, mediaType);
 
   let conversation = await prisma.conversation.findFirst({
     where: { channelId, contactId: chatJid },
@@ -133,11 +189,13 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
     externalChatId: chatJid,
     isGroup: !!payload.isGroup,
     phone: isWhatsAppGroupJid(chatJid) ? null : normalizeWhatsAppPhone(chatJid).e164,
+    senderPhone: payload.senderJid ? normalizeWhatsAppPhone(payload.senderJid).e164 : null,
     pushName: payload.pushName || payload.senderPushName || null,
     displayName,
     profilePictureUrl: payload.profilePictureUrl || payload.group?.pictureUrl || null,
     group: payload.group || null,
     participants: payload.participants || payload.group?.participants || [],
+    mentionedJids: payload.mentionedJids || [],
     prospectingRunId: prospectingRun?.id || null,
     provider: WHATSAPP_PROVIDER,
   };
@@ -180,13 +238,14 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
     data: {
       conversationId: conversation.id,
       senderType: payload.fromMe ? "USER" : "CONTACT",
-      content: payload.message?.content || payload.message?.caption || null,
+      content: messageContent || messageCaption || null,
       type: mediaType,
       fileUrl: payload.message?.fileUrl || null,
       metadata: {
         externalMessageId: messageId,
         chatJid,
         senderJid: payload.senderJid,
+        rawSenderJid: payload.rawSenderJid || null,
         pushName: payload.pushName || payload.senderPushName || null,
         fromMe: !!payload.fromMe,
         mimeType: payload.message?.mimeType || null,
@@ -194,12 +253,41 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
         fileSize: payload.message?.fileSize || null,
         mediaSha256: payload.message?.mediaSha256 || null,
         rawType: payload.message?.type || null,
+        mentionedJids: payload.mentionedJids || [],
         prospectingRunId: prospectingRun?.id || null,
         conversation: conversationMetadata,
       },
       createdAt: payload.message?.timestamp ? new Date(payload.message.timestamp) : new Date(),
     },
   });
+
+  const intelligence = await classifyAndTagWhatsAppConversation(prisma, {
+    organizationId,
+    conversationId: conversation.id,
+    messageId: message.id,
+    isGroup: !!payload.isGroup || isWhatsAppGroupJid(chatJid),
+    senderName: payload.pushName || payload.senderPushName || null,
+    text: messageContent || messageCaption,
+    mediaType,
+    mimeType: payload.message?.mimeType || null,
+    fileUrl: payload.message?.fileUrl || null,
+    leadId: conversation.leadId || null,
+  }).catch((error: any) => {
+    console.warn("[WHATSAPP_INTELLIGENCE_SKIPPED]", error?.message || error);
+    return null;
+  });
+  const category = (intelligence as any)?.classification?.category;
+  const labels = (intelligence as any)?.classification?.labels || ["WhatsApp"];
+  const shouldCreateLead = !payload.fromMe
+    && !payload.isGroup
+    && !isWhatsAppGroupJid(chatJid)
+    && ["cliente", "cliente_sem_fechamento"].includes(category);
+  const leadId = shouldCreateLead
+    ? await ensureDirectWhatsAppLead(prisma, { ...payload, organizationId, chatJid }, conversation, displayName)
+    : conversation.leadId || null;
+  if (leadId) {
+    await tagWhatsAppEntity(prisma, organizationId, labels, leadId, "CONTACT");
+  }
 
   if (prospectingRun && !payload.fromMe) {
     await prisma.prospectingRun.update({
@@ -210,7 +298,7 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
         nextAction: "lead_replied_continue_agent",
         qualification: {
           ...((prospectingRun.qualification as any) || {}),
-          lastLeadMessage: payload.message?.content || payload.message?.caption || "",
+          lastLeadMessage: messageContent || messageCaption || "",
           lastConversationId: conversation.id,
           lastMessageId: message.id,
         },

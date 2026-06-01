@@ -53,3 +53,29 @@ export function mapWhatsAppMediaType(type?: string | null, mimeType?: string | n
   if (mediaType.includes("document") || mime) return "document";
   return "text";
 }
+
+export function cleanWhatsAppMessageText(value?: string | null, mediaType = "text") {
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  if (mediaType !== "text") {
+    const normalized = text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+    const mediaLabels = new Set([
+      "audio",
+      "video",
+      "image",
+      "imagem",
+      "pdf",
+      "document",
+      "documento",
+      "arquivo",
+      "file",
+    ]);
+    if (mediaLabels.has(normalized)) return null;
+  }
+
+  return text;
+}

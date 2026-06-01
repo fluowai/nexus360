@@ -31,6 +31,7 @@ const planWithFeatures = {
     planFeatures: true,
   },
 };
+
 const serializePlan = (plan: any) => {
   const fallback = { name: "Free", maxLeads: 100, leadsLimit: 100 };
   if (!plan) return fallback;
@@ -40,7 +41,6 @@ const serializePlan = (plan: any) => {
     leadsLimit: plan.maxLeads ?? plan.leadsLimit ?? fallback.leadsLimit,
   };
 };
-
 
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -234,6 +234,7 @@ export function authRoutes(prisma: PrismaClient) {
       const refreshToken = getRefreshTokenFromRequest(req);
 
       if (!refreshToken) {
+        clearRefreshTokenCookie(res);
         return res.status(400).json({ error: "Refresh token obrigatório." });
       }
 
@@ -242,6 +243,7 @@ export function authRoutes(prisma: PrismaClient) {
       try {
         decoded = jwt.verify(refreshToken, getRefreshSecret());
       } catch (err: any) {
+        clearRefreshTokenCookie(res);
         return res.status(401).json({
           error: "REFRESH_TOKEN_INVALID",
           message: "Refresh token inválido ou expirado. Faça login novamente.",
@@ -271,18 +273,19 @@ export function authRoutes(prisma: PrismaClient) {
         },
       });
 
-      if (storedToken && storedToken.user.organizationId !== decoded.orgId) {
-        return res.status(401).json({
-          error: "REFRESH_TOKEN_ORG_MISMATCH",
-          message: "Token não pertence a esta organização. Faça login novamente.",
-        });
-      }
-
       if (!storedToken || storedToken.revokedAt) {
         clearRefreshTokenCookie(res);
         return res.status(401).json({
           error: "REFRESH_TOKEN_REVOKED",
           message: "Token já foi revogado. Faça login novamente.",
+        });
+      }
+
+      if (storedToken.user.organizationId && storedToken.user.organizationId !== decoded.orgId) {
+        clearRefreshTokenCookie(res);
+        return res.status(401).json({
+          error: "REFRESH_TOKEN_ORG_MISMATCH",
+          message: "Token não pertence a esta organização. Faça login novamente.",
         });
       }
 

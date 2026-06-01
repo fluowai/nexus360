@@ -14,6 +14,7 @@ const ACCESS_TOKEN_KEY = 'nexus_access_token';
 let isRefreshing = false;
 let refreshPromise: Promise<string | null> | null = null;
 let accessTokenMemory: string | null = sessionStorage.getItem(ACCESS_TOKEN_KEY);
+let refreshFailed = false;
 
 function isAuthPath(path: string) {
   return path.includes('/api/auth/login') || path.includes('/api/auth/register') || path.includes('/api/auth/refresh') || path.includes('/api/auth/logout');
@@ -34,6 +35,7 @@ function isTokenExpiring(token: string | null): boolean {
 export function setAccessToken(token: string | null) {
   accessTokenMemory = token;
   if (token) {
+    refreshFailed = false;
     sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
   } else {
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
@@ -48,6 +50,20 @@ export function clearAuthSession() {
   setAccessToken(null);
 }
 
+function unauthorizedResponse(message = 'Sessao expirada. Faca login novamente.') {
+  return new Response(JSON.stringify({ error: 'UNAUTHORIZED', message }), {
+    status: 401,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function finishExpiredSession(message?: string) {
+  refreshFailed = true;
+  clearAuthSession();
+  redirectToLogin();
+  return unauthorizedResponse(message);
+}
+
 async function refreshAccessToken(): Promise<string | null> {
   try {
     const normalizedBase = API_URL?.replace(/\/$/, '') || '';
@@ -59,6 +75,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
     if (!response.ok) {
       clearAuthSession();
+      refreshFailed = true;
       return null;
     }
 
@@ -79,6 +96,10 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
   const impersonatedOrgId = localStorage.getItem('nexus_selected_client');
   const shouldUseAuth = !isAuthPath(path);
 
+  if (shouldUseAuth && refreshFailed) {
+    return finishExpiredSession();
+  }
+
   if (shouldUseAuth && isTokenExpiring(token)) {
     if (!isRefreshing) {
       isRefreshing = true;
@@ -88,6 +109,10 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
       });
     }
     token = await (refreshPromise || refreshAccessToken());
+
+    if (!token) {
+      return finishExpiredSession();
+    }
   }
 
   const headers: Record<string, string> = {
@@ -140,10 +165,9 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
           });
         }
 
-        redirectToLogin();
+        return finishExpiredSession();
       } else {
-        clearAuthSession();
-        redirectToLogin();
+        return finishExpiredSession();
       }
     }
 

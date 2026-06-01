@@ -172,9 +172,9 @@ export function adminPlansRoutes(prisma: PrismaClient) {
 
   // Listar Planos
   router.get("/", async (req, res) => {
-    await ensureFeatureCatalog();
     const plans = await prisma.plan.findMany({
-      include: { planFeatures: true }
+      include: { planFeatures: true },
+      orderBy: { priceMonthly: "asc" },
     });
     res.json(plans);
   });

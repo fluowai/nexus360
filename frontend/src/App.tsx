@@ -207,7 +207,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
 }
 
 export default function App() {
-  const { user, authLoading, handleLogout } = useAuth();
+  const { user, setUser, authLoading, handleLogout } = useAuth();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
     localStorage.getItem('nexus_selected_client')
   );
@@ -255,7 +255,7 @@ export default function App() {
           <Route path="/team" element={<Team />} />
           <Route path="/site" element={<LandingPage />} />
           <Route path="/vendas" element={<CRMSalesPage />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/login" element={<Login onAuthenticated={setUser} />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/onboarding/preview" element={<OnboardingPreview />} />
           <Route path="/meet/:roomName" element={<MeetingRoom />} />

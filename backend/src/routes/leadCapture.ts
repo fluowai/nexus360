@@ -5,6 +5,7 @@ import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service
 import { LeadAiService } from "../modules/lead-capture/lead-ai.service.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
+import { pickBestDecisionMaker, upsertDecisionMakersFromLead } from "../services/prospectingAutomation.js";
 
 export function leadCaptureRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -91,6 +92,46 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
     }
   });
 
+  router.post("/leads/:id/validate-company", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    try {
+      const result = await aiService.enrichLead(req.params.id, orgId!);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.get("/leads/:id/decision-makers", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const lead = await prisma.capturedLead.findFirst({ where: { id: req.params.id, organizationId: orgId } });
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+      const decisionMakers = await prisma.prospectingDecisionMaker.findMany({
+        where: { organizationId: orgId, capturedLeadId: lead.id },
+        orderBy: [{ isSelected: "desc" }, { priority: "asc" }, { confidenceScore: "desc" }],
+      });
+      res.json(decisionMakers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post("/leads/:id/decision-makers/refresh", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const lead = await prisma.capturedLead.findFirst({ where: { id: req.params.id, organizationId: orgId } });
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+      const generated = await upsertDecisionMakersFromLead(prisma, lead);
+      const selected = await pickBestDecisionMaker(prisma, lead);
+      res.json({ generated, selected });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Generate Scripts
   router.post("/leads/:id/scripts", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
@@ -153,6 +194,15 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       });
 
       if (!capturedLead) return res.status(404).json({ error: "Lead não encontrado" });
+
+      if (capturedLead.cnpjStatus !== "validated") {
+        return res.status(409).json({
+          error: "CNPJ_NOT_VALIDATED",
+          message: "Valide o CNPJ correto da empresa antes de enviar para o CRM.",
+          cnpjStatus: capturedLead.cnpjStatus,
+          cnpjMatchReason: capturedLead.cnpjMatchReason
+        });
+      }
 
       const targetOrgId = orgId;
       let { boardId, stageId } = req.body;

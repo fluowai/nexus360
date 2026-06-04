@@ -1,6 +1,13 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
+import {
+  buildProspectingFirstMessage,
+  firstName as pickPersonFirstName,
+  getFunnelRuntimeConfig,
+  pickBestDecisionMaker,
+  upsertDecisionMakersFromLead,
+} from "../services/prospectingAutomation.js";
 
 const DEFAULT_STAGES = [
   {
@@ -69,11 +76,14 @@ const DEFAULT_HANDOFF_RULES = [
 const DEFAULT_SAFETY_RULES = {
   businessHours: "08:00-19:00",
   maxDailyMessagesPerLead: 4,
+  maxDailyLeadsPerConsultant: 50,
+  consultantDepartments: ["BDR", "SDR", "COMERCIAL", "VENDAS", "GERAL"],
   stopWords: ["parar", "remover", "nao quero", "não quero", "cancelar"],
   requireHumanFor: ["reclamacao", "juridico", "dados sensiveis", "promessa comercial"],
   approachMode: "gatekeeper_named_owner",
-  approachVersion: "decision_maker_commercial_structure_v2",
+  approachVersion: "decision_maker_commercial_structure_v3",
   campaignName: "Prospeccao ativa",
+  senderCompanyName: "Consultio",
   agentName: "Paulo"
 };
 
@@ -98,6 +108,13 @@ function toTitleCaseName(value?: string | null): string | null {
   return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
 }
 
+function pickFirstName(value?: string | null): string | null {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return null;
+  const [name] = cleaned.split(/\s+/);
+  return name ? name.charAt(0).toUpperCase() + name.slice(1).toLowerCase() : null;
+}
+
 function pickTargetOwner(lead: any): string | null {
   const rawOwners = String(lead.owners || "");
   const candidates = rawOwners
@@ -116,10 +133,12 @@ function pickTargetOwner(lead: any): string | null {
 }
 
 function getFunnelConfig(funnel: any) {
+  const runtime = getFunnelRuntimeConfig(funnel);
   const rules = typeof funnel?.safetyRules === "object" && funnel.safetyRules ? funnel.safetyRules as any : {};
   return {
-    campaignName: String(rules.campaignName || "Prospeccao ativa"),
-    agentName: String(rules.agentName || "Paulo"),
+    campaignName: runtime.campaignName,
+    agentName: runtime.agentName,
+    senderCompanyName: runtime.senderCompanyName,
     firstStagePrompt: String(rules.firstStagePrompt || "")
   };
 }
@@ -130,6 +149,7 @@ function buildQualificationSeed(lead: any, config: ReturnType<typeof getFunnelCo
   return {
     campaignName: config.campaignName,
     agentName: config.agentName,
+    senderCompanyName: config.senderCompanyName,
     targetOwner,
     approachMode: "gatekeeper_named_owner",
     fallbackFlow: [
@@ -149,19 +169,52 @@ function serializeFunnel(funnel: any) {
     ...funnel,
     campaignName: config.campaignName,
     agentName: config.agentName,
+    senderCompanyName: config.senderCompanyName,
     firstStagePrompt: config.firstStagePrompt
   };
 }
 
 function buildFirstMessage(lead: any, config = getFunnelConfig(null)) {
   const targetOwner = pickTargetOwner(lead);
-  const agentName = config.agentName || "Paulo";
+  return buildProspectingFirstMessage({
+    agentName: config.agentName || "Paulo",
+    senderCompanyName: config.senderCompanyName,
+    decisionMakerFirstName: targetOwner,
+  });
+}
 
-  if (targetOwner) {
-    return `Oi, tudo bem? Aqui e o ${agentName}. Poderia me ajudar a falar com ${targetOwner} ou com a pessoa responsavel pelo comercial da empresa?`;
-  }
+async function pickNextConsultant(prisma: PrismaClient, organizationId: string, funnel: any) {
+  const rules = typeof funnel?.safetyRules === "object" && funnel.safetyRules ? funnel.safetyRules as any : {};
+  const allowedDepartments = Array.isArray(rules.consultantDepartments)
+    ? rules.consultantDepartments.map((department: string) => normalizeText(department))
+    : DEFAULT_SAFETY_RULES.consultantDepartments.map((department) => normalizeText(department));
+  const dailyLimit = Number(rules.maxDailyLeadsPerConsultant || DEFAULT_SAFETY_RULES.maxDailyLeadsPerConsultant);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  return `Oi, tudo bem? Aqui e o ${agentName}. Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?`;
+  const users = await prisma.user.findMany({
+    where: { organizationId, status: "ACTIVE" },
+    select: { id: true, name: true, department: true },
+    orderBy: { name: "asc" }
+  });
+  const consultants = users.filter((user) => allowedDepartments.includes(normalizeText(user.department || "GERAL")));
+  if (!consultants.length) return null;
+
+  const load = await Promise.all(consultants.map(async (user) => ({
+    user,
+    count: await prisma.capturedLead.count({
+      where: {
+        organizationId,
+        responsibleId: user.id,
+        crmStatus: "prospecting_funnel",
+        updatedAt: { gte: today }
+      }
+    })
+  })));
+
+  return load
+    .filter((item) => item.count < dailyLimit)
+    .sort((a, b) => a.count - b.count || String(a.user.name || "").localeCompare(String(b.user.name || "")))[0]?.user || null;
 }
 
 export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: string) {
@@ -184,7 +237,7 @@ export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: 
           objective: "Encontrar o decisor e abrir uma conversa sobre estrutura comercial, previsibilidade e aumento de receita sem pitch na primeira abordagem.",
           qualificationRules: DEFAULT_QUALIFICATION_RULES,
           handoffRules: DEFAULT_HANDOFF_RULES,
-          safetyRules: { ...DEFAULT_SAFETY_RULES, campaignName: config.campaignName, agentName: config.agentName, firstStagePrompt: config.firstStagePrompt }
+          safetyRules: { ...DEFAULT_SAFETY_RULES, campaignName: config.campaignName, agentName: config.agentName, senderCompanyName: config.senderCompanyName, firstStagePrompt: config.firstStagePrompt }
         }
       });
 
@@ -309,9 +362,32 @@ export async function enrollCapturedLeadsInFunnel(
   const results = [];
 
   for (const lead of leads) {
-    const score = lead.scoreOpportunity || 0;
-    const firstMessage = buildFirstMessage(lead, funnelConfig);
-    const qualificationSeed = buildQualificationSeed(lead, funnelConfig);
+    const identityValidated = lead.cnpjStatus === "validated";
+    const leadForFunnel = identityValidated ? lead : { ...lead, cnpj: null, owners: null };
+    if (identityValidated) {
+      await upsertDecisionMakersFromLead(prisma, leadForFunnel);
+    }
+    const decisionMaker = identityValidated ? await pickBestDecisionMaker(prisma, leadForFunnel) : null;
+    const score = leadForFunnel.scoreOpportunity || 0;
+    const consultant = lead.responsibleId
+      ? await prisma.user.findFirst({ where: { id: lead.responsibleId, organizationId }, select: { id: true, name: true } })
+      : await pickNextConsultant(prisma, organizationId, funnel);
+    const runConfig = consultant?.name
+      ? { ...funnelConfig, agentName: pickFirstName(consultant.name) || funnelConfig.agentName }
+      : funnelConfig;
+    const firstMessage = buildProspectingFirstMessage({
+      agentName: runConfig.agentName,
+      senderCompanyName: runConfig.senderCompanyName,
+      decisionMakerFirstName: pickPersonFirstName(decisionMaker?.firstName || decisionMaker?.name) || pickTargetOwner(leadForFunnel),
+    });
+    const qualificationSeed = {
+      ...buildQualificationSeed(leadForFunnel, runConfig),
+      consultantId: consultant?.id || lead.responsibleId || null,
+      consultantName: consultant?.name || null,
+      decisionMakerId: decisionMaker?.id || null,
+      decisionMakerName: decisionMaker?.name || null,
+      decisionMakerConfidence: decisionMaker?.confidenceScore || null
+    };
     const run = await prisma.prospectingRun.upsert({
       where: {
         funnelId_capturedLeadId: {
@@ -323,8 +399,8 @@ export async function enrollCapturedLeadsInFunnel(
         stageId: firstStage.id,
         status: "queued",
         score,
-        leadPhone: lead.phoneNormalized || lead.phone,
-        leadSnapshot: lead as any,
+        leadPhone: leadForFunnel.phoneNormalized || leadForFunnel.phone,
+        leadSnapshot: leadForFunnel as any,
         qualification: qualificationSeed,
         firstMessage,
         nextAction: "ask_for_named_decision_maker"
@@ -336,9 +412,9 @@ export async function enrollCapturedLeadsInFunnel(
         capturedLeadId: lead.id,
         status: "queued",
         channel: "WHATSAPP",
-        leadName: lead.businessName,
-        leadPhone: lead.phoneNormalized || lead.phone,
-        leadSnapshot: lead as any,
+        leadName: leadForFunnel.businessName,
+        leadPhone: leadForFunnel.phoneNormalized || leadForFunnel.phone,
+        leadSnapshot: leadForFunnel as any,
         score,
         qualification: qualificationSeed,
         firstMessage,
@@ -350,7 +426,13 @@ export async function enrollCapturedLeadsInFunnel(
       where: { id: lead.id },
       data: {
         crmStatus: "prospecting_funnel",
-        notes: [lead.notes, `Enviado ao funil IA WhatsApp: ${funnel.name}`].filter(Boolean).join("\n")
+        responsibleId: consultant?.id || lead.responsibleId || null,
+        notes: [
+          lead.notes,
+          !identityValidated ? "Funil: CNPJ/socios omitidos porque a identidade empresarial nao esta validada." : null,
+          consultant?.name ? `Responsavel comercial: ${consultant.name}` : null,
+          `Enviado ao funil IA WhatsApp: ${funnel.name}`
+        ].filter(Boolean).join("\n")
       }
     });
 
@@ -397,11 +479,12 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
-    const { name, description, objective, campaignName, agentName, firstStagePrompt } = req.body;
+    const { name, description, objective, campaignName, agentName, senderCompanyName, firstStagePrompt } = req.body;
     if (!name) return res.status(400).json({ error: "Nome do funil e obrigatorio" });
 
     const safeCampaignName = String(campaignName || name).trim();
     const safeAgentName = String(agentName || "Paulo").trim();
+    const safeSenderCompanyName = String(senderCompanyName || DEFAULT_SAFETY_RULES.senderCompanyName).trim();
     const safeFirstStagePrompt = String(firstStagePrompt || "").trim();
     const stages = DEFAULT_STAGES.map((stage, index) => ({
       ...stage,
@@ -423,6 +506,7 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
           ...DEFAULT_SAFETY_RULES,
           campaignName: safeCampaignName,
           agentName: safeAgentName,
+          senderCompanyName: safeSenderCompanyName,
           firstStagePrompt: safeFirstStagePrompt
         },
         stages: {

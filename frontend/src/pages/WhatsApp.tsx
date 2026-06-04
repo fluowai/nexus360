@@ -7,6 +7,7 @@ import {
   Image,
   KeyRound,
   Loader2,
+  MapPin,
   MessageCircle,
   Phone,
   PlugZap,
@@ -15,7 +16,9 @@ import {
   Save,
   Send,
   Settings2,
+  Smile,
   Trash2,
+  UserRound,
   Users,
   Wifi,
   WifiOff,
@@ -84,8 +87,55 @@ const normalizePhone = (value?: string) => {
   return `+${normalized}`;
 };
 
+const formatWhatsAppPhone = (value?: string) => {
+  const raw = String(value || "").trim();
+  const digits = raw.includes("@") ? raw.slice(0, raw.indexOf("@")).split(":")[0].replace(/\D/g, "") : raw.replace(/\D/g, "");
+  if (!digits) return "";
+  const normalized = digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+  if (!normalized.startsWith("55") || normalized.length < 12) return `+${normalized}`;
+  const ddd = normalized.slice(2, 4);
+  const subscriber = normalized.slice(4);
+  if (subscriber.length === 9) return `+55 ${ddd} ${subscriber.slice(0, 5)}-${subscriber.slice(5)}`;
+  if (subscriber.length === 8) return `+55 ${ddd} ${subscriber.slice(0, 4)}-${subscriber.slice(4)}`;
+  return `+${normalized}`;
+};
+
+const isRawWhatsAppId = (value?: string) => /@/.test(String(value || "")) || /^\+?\d{10,16}(:\d+)?$/.test(String(value || "").replace(/\s/g, ""));
+
+const cleanDisplayText = (...values: Array<string | undefined | null>) => {
+  const found = values.map((value) => String(value || "").trim()).find((value) => value && !isRawWhatsAppId(value));
+  return found || "";
+};
+
 const connectionName = (connection: Connection) =>
   connection.config?.label || connection.config?.pushName || connection.inbox?.name || connection.identifier;
+
+const connectionSubline = (connection: Connection) =>
+  connection.config?.pushName
+    ? `${connection.config.pushName} · ${formatWhatsAppPhone(connection.config.connectedJid || connection.config.jid || connection.identifier)}`
+    : formatWhatsAppPhone(connection.config?.connectedJid || connection.config?.jid || connection.identifier);
+
+const conversationTitle = (conversation: Conversation) =>
+  cleanDisplayText(conversation.metadata?.displayName, conversation.subject, conversation.metadata?.group?.name) ||
+  formatWhatsAppPhone(conversation.metadata?.phone || conversation.contactId) ||
+  "Contato WhatsApp";
+
+const conversationSubline = (conversation: Conversation) => {
+  if (conversation.metadata?.isGroup) {
+    const count = Array.isArray(conversation.metadata?.participants) ? conversation.metadata.participants.length : 0;
+    return count ? `${count} participantes` : "Grupo WhatsApp";
+  }
+  return cleanDisplayText(conversation.metadata?.pushName) || conversation.metadata?.displayPhone || formatWhatsAppPhone(conversation.metadata?.phone || conversation.contactId);
+};
+
+const messageSender = (message: Message, selectedConversation?: Conversation | null) => {
+  if (message.senderType === "USER" || message.metadata?.fromMe) return "Voce";
+  return cleanDisplayText(message.metadata?.displayName, message.metadata?.pushName, message.metadata?.senderName)
+    || message.metadata?.displayPhone
+    || selectedConversation?.metadata?.senderDisplayPhone
+    || selectedConversation?.metadata?.displayPhone
+    || "Contato";
+};
 
 function MediaPreview({ message }: { message: Message }) {
   if (!message.fileUrl) return null;
@@ -105,6 +155,68 @@ function MediaPreview({ message }: { message: Message }) {
       {message.metadata?.fileName || message.metadata?.mimeType || "Abrir documento"}
     </a>
   );
+}
+
+function parseMessageJson(message: Message) {
+  try {
+    return message.content ? JSON.parse(message.content) : null;
+  } catch {
+    return null;
+  }
+}
+
+function MessageBody({ message }: { message: Message }) {
+  const payload = parseMessageJson(message);
+
+  if (message.type === "location" && payload) {
+    const mapsUrl = payload.url || (payload.latitude && payload.longitude ? `https://www.google.com/maps?q=${payload.latitude},${payload.longitude}` : "");
+    return (
+      <a href={mapsUrl || undefined} target="_blank" rel="noreferrer" className="mt-2 flex items-start gap-2 rounded-xl bg-white/70 p-3 text-sm font-bold text-gray-700">
+        <MapPin size={16} className="mt-0.5 shrink-0" />
+        <span>
+          {payload.name || "Localizacao compartilhada"}
+          {payload.address && <span className="block text-xs font-medium opacity-70">{payload.address}</span>}
+        </span>
+      </a>
+    );
+  }
+
+  if (message.type === "contact" && payload) {
+    const contacts = Array.isArray(payload.contacts) ? payload.contacts : [payload];
+    return (
+      <div className="mt-2 space-y-2">
+        {contacts.map((contact: any, index: number) => (
+          <div key={`${contact.displayName || index}`} className="flex items-center gap-2 rounded-xl bg-white/70 p-3 text-sm font-bold text-gray-700">
+            <UserRound size={16} />
+            <span className="truncate">{contact.displayName || "Contato compartilhado"}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (message.type === "reaction") {
+    return (
+      <p className="inline-flex items-center gap-2 rounded-xl bg-white/70 px-3 py-2 text-sm font-bold">
+        <Smile size={15} />
+        Reagiu {payload?.text ? `com ${payload.text}` : "a uma mensagem"}
+      </p>
+    );
+  }
+
+  if (message.type === "deleted") {
+    return <p className="text-sm font-medium italic opacity-70">Mensagem apagada.</p>;
+  }
+
+  if (message.type === "edited") {
+    return <p className="text-sm font-medium italic opacity-70">Mensagem editada.</p>;
+  }
+
+  if (message.content) {
+    return <p className="whitespace-pre-wrap text-sm font-medium leading-relaxed">{message.content}</p>;
+  }
+
+  return null;
 }
 
 export default function WhatsApp() {
@@ -376,7 +488,7 @@ export default function WhatsApp() {
                       ) : (
                         <p className="truncate font-black text-gray-950">{connectionName(conn)}</p>
                       )}
-                      <p className="truncate text-xs font-bold text-gray-400">{conn.config?.connectedJid || conn.config?.jid || conn.identifier}</p>
+                      <p className="truncate text-xs font-bold text-gray-400">{connectionSubline(conn)}</p>
                     </div>
                   </div>
                   <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${conn.config?.status === "connected" ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
@@ -483,11 +595,11 @@ export default function WhatsApp() {
                   {renderAvatar(conversation)}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-black text-gray-950">{conversation.subject}</p>
+                      <p className="truncate text-sm font-black text-gray-950">{conversationTitle(conversation)}</p>
                       <span className="text-[10px] font-bold text-gray-400">{conversation._count?.messages || 0}</span>
                     </div>
                     <p className="truncate text-xs font-medium text-gray-500">{conversation.messages?.[0]?.content || conversation.messages?.[0]?.metadata?.fileName || "Sem mensagem"}</p>
-                    <p className="mt-1 truncate text-[10px] font-bold text-gray-400">{conversation.metadata?.pushName || conversation.metadata?.phone || conversation.contactId}</p>
+                    <p className="mt-1 truncate text-[10px] font-bold text-gray-400">{conversationSubline(conversation)}</p>
                   </div>
                 </button>
               ))}
@@ -502,8 +614,8 @@ export default function WhatsApp() {
                   <div className="flex min-w-0 items-center gap-3">
                     {renderAvatar(selectedConversation)}
                     <div className="min-w-0">
-                      <p className="truncate font-black text-gray-950">{selectedConversation.subject}</p>
-                      <p className="truncate text-xs font-bold text-gray-400">{selectedConversation.metadata?.pushName || selectedConversation.metadata?.phone || selectedConversation.contactId}</p>
+                      <p className="truncate font-black text-gray-950">{conversationTitle(selectedConversation)}</p>
+                      <p className="truncate text-xs font-bold text-gray-400">{conversationSubline(selectedConversation)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -514,10 +626,12 @@ export default function WhatsApp() {
 
                 {selectedConversation.metadata?.participants?.length > 0 && (
                   <div className="flex gap-2 overflow-x-auto border-b border-gray-100 px-4 py-3">
-                    {selectedConversation.metadata.participants.slice(0, 12).map((participant: any) => (
+                    {selectedConversation.metadata.participants.slice(0, 12).map((participant: any, index: number) => (
                       <div key={participant.jid || participant.id} className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
                         {participant.pictureUrl ? <img src={participant.pictureUrl} alt="" className="h-7 w-7 rounded-lg object-cover" /> : <Users size={15} className="text-gray-400" />}
-                        <span className="max-w-[150px] truncate text-[11px] font-bold text-gray-600">{participant.name || participant.pushName || participant.jid}</span>
+                        <span className="max-w-[150px] truncate text-[11px] font-bold text-gray-600">
+                          {cleanDisplayText(participant.displayName, participant.name, participant.pushName) || participant.displayPhone || formatWhatsAppPhone(participant.jid || participant.phoneNumber) || `Participante ${index + 1}`}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -526,15 +640,15 @@ export default function WhatsApp() {
                 <div className="flex-1 space-y-3 overflow-y-auto bg-gray-50/60 p-5">
                   {messages.map((message) => {
                     const fromMe = message.senderType === "USER" || message.metadata?.fromMe;
-                    const Icon = message.type === "image" ? Image : message.type === "audio" ? Headphones : message.type === "document" ? FileText : MessageCircle;
+                    const Icon = message.type === "image" ? Image : message.type === "audio" ? Headphones : message.type === "document" ? FileText : message.type === "location" ? MapPin : message.type === "contact" ? UserRound : message.type === "reaction" ? Smile : MessageCircle;
                     return (
                       <div key={message.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[72%] rounded-2xl px-4 py-3 shadow-sm ${fromMe ? "bg-emerald-600 text-white" : "bg-white text-gray-800"}`}>
                           <div className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-70">
                             <Icon size={12} />
-                            {message.metadata?.pushName || (fromMe ? "Voce" : "Contato")}
+                            {messageSender(message, selectedConversation)}
                           </div>
-                          {message.content && <p className="whitespace-pre-wrap text-sm font-medium leading-relaxed">{message.content}</p>}
+                          <MessageBody message={message} />
                           <MediaPreview message={message} />
                           <p className="mt-2 text-[10px] font-bold opacity-60">{new Date(message.createdAt).toLocaleString("pt-BR")}</p>
                         </div>

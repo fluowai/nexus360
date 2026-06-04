@@ -480,6 +480,64 @@ func (a *app) extractMessage(client *whatsmeow.Client, messageID string, msg *wa
 	if ext := msg.GetExtendedTextMessage(); ext != nil {
 		return "text", ext.GetText(), "", "", "", "", 0
 	}
+	if reaction := msg.GetReactionMessage(); reaction != nil {
+		payload, _ := json.Marshal(map[string]any{
+			"text":      reaction.GetText(),
+			"targetId":  reaction.GetKey().GetID(),
+			"timestamp": reaction.GetSenderTimestampMS(),
+		})
+		return "reaction", string(payload), "", "", "application/json", "", 0
+	}
+	if protocol := msg.GetProtocolMessage(); protocol != nil {
+		payload, _ := json.Marshal(map[string]any{
+			"type":      protocol.GetType().String(),
+			"targetId":  protocol.GetKey().GetID(),
+			"timestamp": protocol.GetTimestampMS(),
+		})
+		switch protocol.GetType().String() {
+		case "REVOKE":
+			return "deleted", string(payload), "", "", "application/json", "", 0
+		case "MESSAGE_EDIT":
+			return "edited", string(payload), "", "", "application/json", "", 0
+		default:
+			return "system", string(payload), "", "", "application/json", "", 0
+		}
+	}
+	if contact := msg.GetContactMessage(); contact != nil {
+		payload, _ := json.Marshal(map[string]any{
+			"displayName": contact.GetDisplayName(),
+			"vcard":       contact.GetVcard(),
+			"isSelf":      contact.GetIsSelfContact(),
+		})
+		return "contact", string(payload), "", contact.GetDisplayName(), "application/json", "", 0
+	}
+	if contacts := msg.GetContactsArrayMessage(); contacts != nil {
+		items := []map[string]any{}
+		for _, contact := range contacts.GetContacts() {
+			items = append(items, map[string]any{
+				"displayName": contact.GetDisplayName(),
+				"vcard":       contact.GetVcard(),
+				"isSelf":      contact.GetIsSelfContact(),
+			})
+		}
+		payload, _ := json.Marshal(map[string]any{
+			"displayName": contacts.GetDisplayName(),
+			"contacts":    items,
+		})
+		return "contact", string(payload), "", contacts.GetDisplayName(), "application/json", "", 0
+	}
+	if location := msg.GetLocationMessage(); location != nil {
+		payload, _ := json.Marshal(map[string]any{
+			"latitude":  location.GetDegreesLatitude(),
+			"longitude": location.GetDegreesLongitude(),
+			"name":      location.GetName(),
+			"address":   location.GetAddress(),
+			"url":       location.GetURL(),
+			"isLive":    location.GetIsLive(),
+			"comment":   location.GetComment(),
+		})
+		return "location", string(payload), "", location.GetName(), "application/json", "", 0
+	}
 	if image := msg.GetImageMessage(); image != nil {
 		caption = image.GetCaption()
 		mimeType = image.GetMimetype()

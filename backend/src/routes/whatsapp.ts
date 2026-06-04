@@ -2,7 +2,9 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import {
+  displayWhatsAppJid,
   normalizeWhatsAppJid,
+  normalizeWhatsAppMentions,
   normalizeWhatsAppPhone,
   pickWhatsAppDisplayName,
   mapWhatsAppMediaType,
@@ -13,6 +15,14 @@ import {
 import { auditFromRequest } from "../utils/auditLogger.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { classifyAndTagWhatsAppConversation, tagWhatsAppEntity } from "../services/whatsappIntelligence.js";
+import {
+  createDispatchAttempt,
+  detectOptOut,
+  ensureOptOut,
+  getFunnelRuntimeConfig,
+  isOptedOut,
+  updateDispatchAttempt,
+} from "../services/prospectingAutomation.js";
 
 const WHATSAPP_PROVIDER = "WHATS_MEOW";
 
@@ -90,6 +100,269 @@ function safeProspectingFirstMessage() {
   return "Oi, tudo bem? Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?";
 }
 
+function parseBusinessHours(value?: string | null) {
+  const match = String(value || "08:00-19:00").match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/);
+  if (!match) return { startMinutes: 8 * 60, endMinutes: 19 * 60 };
+  return {
+    startMinutes: Number(match[1]) * 60 + Number(match[2]),
+    endMinutes: Number(match[3]) * 60 + Number(match[4]),
+  };
+}
+
+function isInsideBusinessHours(value?: string | null, now = new Date()) {
+  const { startMinutes, endMinutes } = parseBusinessHours(value);
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  return minutes >= startMinutes && minutes <= endMinutes;
+}
+
+function dayStart(now = new Date()) {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+async function recordOutboundProspectingMessage(prisma: PrismaClient, input: {
+  channel: any;
+  organizationId: string;
+  toJid: string;
+  content: string;
+  run: any;
+  userId?: string;
+  bridgeMessageId?: string | null;
+}) {
+  const phone = normalizeWhatsAppPhone(input.toJid);
+  let conversation = await prisma.conversation.findFirst({
+    where: { channelId: input.channel.id, contactId: input.toJid },
+  });
+
+  const metadata = {
+    externalChatId: input.toJid,
+    isGroup: false,
+    phone: phone.e164,
+    displayPhone: phone.display,
+    displayName: input.run.leadName || phone.display,
+    prospectingRunId: input.run.id,
+    provider: WHATSAPP_PROVIDER,
+  };
+
+  if (!conversation) {
+    conversation = await prisma.conversation.create({
+      data: {
+        subject: input.run.leadName || phone.display,
+        inboxId: input.channel.inboxId,
+        channelId: input.channel.id,
+        contactId: input.toJid,
+        status: "open",
+        priority: "medium",
+        lastMessageAt: new Date(),
+      } as any,
+    });
+  }
+
+  const message = await prisma.message.create({
+    data: {
+      conversationId: conversation.id,
+      senderId: input.userId,
+      senderType: "USER",
+      content: input.content,
+      type: "text",
+      metadata: {
+        source: "nexus_prospecting",
+        bridgeMessageId: input.bridgeMessageId || null,
+        fromMe: true,
+        displayName: "Voce",
+        displayPhone: phone.display,
+        prospectingRunId: input.run.id,
+        conversation: metadata,
+      },
+    },
+  });
+
+  await prisma.conversation.update({
+    where: { id: conversation.id },
+    data: { lastMessageAt: new Date(), subject: input.run.leadName || conversation.subject },
+  });
+
+  return message;
+}
+
+function cleanParticipantForDisplay(participant: any) {
+  const phone = normalizeWhatsAppPhone(participant?.jid || participant?.phoneNumber || participant?.rawJid);
+  const name = String(participant?.name || participant?.pushName || participant?.displayName || "").trim();
+  return {
+    ...participant,
+    displayName: name && !name.includes("@") ? name : phone.display,
+    displayPhone: phone.display,
+  };
+}
+
+function cleanMentionForDisplay(mention: any, payload: any) {
+  const text = normalizeWhatsAppMentions(`@${mention?.rawJid || mention?.jid || mention?.phone || ""}`, [mention], payload);
+  const label = String(text || "").replace(/^@/, "");
+  const phone = normalizeWhatsAppPhone(mention?.jid || mention?.rawJid || mention?.phone);
+  return {
+    ...mention,
+    displayName: label || phone.display,
+    displayPhone: phone.display,
+  };
+}
+
+async function logWhatsappWebhook(prisma: PrismaClient, input: {
+  organizationId?: string | null;
+  channelId?: string | null;
+  eventType: string;
+  status?: string;
+  payload?: any;
+  result?: any;
+  errorMessage?: string | null;
+}) {
+  return prisma.whatsappWebhookLog.create({
+    data: {
+      organizationId: input.organizationId || null,
+      channelId: input.channelId || null,
+      eventType: input.eventType,
+      status: input.status || "received",
+      payload: input.payload,
+      result: input.result,
+      errorMessage: input.errorMessage || null,
+    },
+  }).catch(() => null);
+}
+
+async function logWhatsappConnection(prisma: PrismaClient, input: {
+  organizationId: string;
+  channelId?: string | null;
+  event: string;
+  status?: string | null;
+  message?: string | null;
+  metadata?: any;
+}) {
+  return prisma.whatsappConnectionLog.create({
+    data: {
+      organizationId: input.organizationId,
+      channelId: input.channelId || null,
+      event: input.event,
+      status: input.status || null,
+      message: input.message || null,
+      metadata: input.metadata,
+    },
+  }).catch(() => null);
+}
+
+async function upsertWhatsappContactIdentity(prisma: PrismaClient, input: {
+  organizationId: string;
+  channelId: string;
+  conversationId: string;
+  jid: string;
+  rawJid?: string | null;
+  displayName?: string | null;
+  pushName?: string | null;
+  profilePictureUrl?: string | null;
+  isGroup?: boolean;
+  metadata?: any;
+}) {
+  const phone = input.isGroup ? null : normalizeWhatsAppPhone(input.jid);
+  const data = {
+    channelId: input.channelId,
+    conversationId: input.conversationId,
+    rawJid: input.rawJid || input.jid,
+    phone: phone?.digits || null,
+    displayPhone: phone?.display || null,
+    pushName: input.pushName || null,
+    displayName: input.displayName || phone?.display || "Contato WhatsApp",
+    profilePictureUrl: input.profilePictureUrl || null,
+    isGroup: Boolean(input.isGroup),
+    metadata: input.metadata,
+    lastSeenAt: new Date(),
+  };
+
+  return prisma.whatsappContactIdentity.upsert({
+    where: { organizationId_jid: { organizationId: input.organizationId, jid: input.jid } },
+    update: data,
+    create: {
+      organizationId: input.organizationId,
+      jid: input.jid,
+      ...data,
+    },
+  }).catch(() => null);
+}
+
+async function syncGroupParticipants(prisma: PrismaClient, input: {
+  organizationId: string;
+  channelId: string;
+  conversationId: string;
+  groupJid: string;
+  participants: any[];
+}) {
+  for (const participant of input.participants || []) {
+    const jid = normalizeWhatsAppJid(participant.jid || participant.phoneNumber || participant.rawJid);
+    if (!jid) continue;
+    const phone = normalizeWhatsAppPhone(jid);
+    await prisma.whatsappGroupParticipant.upsert({
+      where: {
+        organizationId_groupJid_jid: {
+          organizationId: input.organizationId,
+          groupJid: input.groupJid,
+          jid,
+        },
+      },
+      update: {
+        channelId: input.channelId,
+        conversationId: input.conversationId,
+        rawJid: participant.rawJid || participant.jid || null,
+        phone: phone.digits || null,
+        displayPhone: phone.display || participant.displayPhone || null,
+        name: participant.name || null,
+        pushName: participant.pushName || null,
+        displayName: participant.displayName || participant.name || participant.pushName || phone.display || null,
+        pictureUrl: participant.pictureUrl || null,
+        isAdmin: Boolean(participant.isAdmin),
+        isSuperAdmin: Boolean(participant.isSuperAdmin),
+        metadata: participant,
+        lastSeenAt: new Date(),
+      },
+      create: {
+        organizationId: input.organizationId,
+        channelId: input.channelId,
+        conversationId: input.conversationId,
+        groupJid: input.groupJid,
+        jid,
+        rawJid: participant.rawJid || participant.jid || null,
+        phone: phone.digits || null,
+        displayPhone: phone.display || participant.displayPhone || null,
+        name: participant.name || null,
+        pushName: participant.pushName || null,
+        displayName: participant.displayName || participant.name || participant.pushName || phone.display || null,
+        pictureUrl: participant.pictureUrl || null,
+        isAdmin: Boolean(participant.isAdmin),
+        isSuperAdmin: Boolean(participant.isSuperAdmin),
+        metadata: participant,
+        lastSeenAt: new Date(),
+      },
+    }).catch(() => null);
+  }
+}
+
+async function saveWhatsappMentions(prisma: PrismaClient, organizationId: string, messageId: string, mentions: any[]) {
+  for (const mention of mentions || []) {
+    const jid = normalizeWhatsAppJid(mention.jid || mention.rawJid || mention.phone);
+    const phone = normalizeWhatsAppPhone(jid || mention.phone);
+    await prisma.whatsappMention.create({
+      data: {
+        organizationId,
+        messageId,
+        mentionedJid: jid || String(mention.jid || mention.rawJid || ""),
+        rawJid: mention.rawJid || null,
+        phone: phone.digits || null,
+        displayPhone: mention.displayPhone || phone.display || null,
+        displayName: mention.displayName || null,
+        label: mention.displayName || mention.displayPhone || phone.display || null,
+        metadata: mention,
+      },
+    }).catch(() => null);
+  }
+}
+
 async function findProspectingRunByJid(prisma: PrismaClient, organizationId: string, jid: string) {
   const phone = normalizeWhatsAppJid(jid).split("@")[0];
   if (!phone) return null;
@@ -100,6 +373,7 @@ async function findProspectingRunByJid(prisma: PrismaClient, organizationId: str
       channel: "WHATSAPP",
       status: { in: ["queued", "active", "sent"] },
     },
+    include: { funnel: true },
     orderBy: { updatedAt: "desc" },
     take: 100,
   });
@@ -175,11 +449,22 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
   });
   if (!channel) throw new Error("Canal WhatsApp nao encontrado");
 
+  const isGroup = !!payload.isGroup || isWhatsAppGroupJid(chatJid);
   const displayName = pickWhatsAppDisplayName(payload);
   const mediaType = mapWhatsAppMediaType(payload.message?.type, payload.message?.mimeType);
   const prospectingRun = await findProspectingRunByJid(prisma, organizationId, chatJid);
-  const messageContent = cleanWhatsAppMessageText(payload.message?.content, mediaType);
-  const messageCaption = cleanWhatsAppMessageText(payload.message?.caption, mediaType);
+  const messageContent = cleanWhatsAppMessageText(
+    normalizeWhatsAppMentions(payload.message?.content, payload.mentionedJids || [], payload),
+    mediaType
+  );
+  const messageCaption = cleanWhatsAppMessageText(
+    normalizeWhatsAppMentions(payload.message?.caption, payload.mentionedJids || [], payload),
+    mediaType
+  );
+  const chatPhone = isGroup ? null : normalizeWhatsAppPhone(chatJid);
+  const senderPhone = payload.senderJid ? normalizeWhatsAppPhone(payload.senderJid) : null;
+  const participants = (payload.participants || payload.group?.participants || []).map(cleanParticipantForDisplay);
+  const mentionedJids = (payload.mentionedJids || []).map((mention: any) => cleanMentionForDisplay(mention, payload));
 
   let conversation = await prisma.conversation.findFirst({
     where: { channelId, contactId: chatJid },
@@ -187,15 +472,17 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
 
   const conversationMetadata = {
     externalChatId: chatJid,
-    isGroup: !!payload.isGroup,
-    phone: isWhatsAppGroupJid(chatJid) ? null : normalizeWhatsAppPhone(chatJid).e164,
-    senderPhone: payload.senderJid ? normalizeWhatsAppPhone(payload.senderJid).e164 : null,
+    isGroup,
+    phone: chatPhone?.e164 || null,
+    displayPhone: chatPhone?.display || null,
+    senderPhone: senderPhone?.e164 || null,
+    senderDisplayPhone: senderPhone?.display || null,
     pushName: payload.pushName || payload.senderPushName || null,
     displayName,
     profilePictureUrl: payload.profilePictureUrl || payload.group?.pictureUrl || null,
-    group: payload.group || null,
-    participants: payload.participants || payload.group?.participants || [],
-    mentionedJids: payload.mentionedJids || [],
+    group: payload.group ? { ...payload.group, displayName: payload.group.name || displayName } : null,
+    participants,
+    mentionedJids,
     prospectingRunId: prospectingRun?.id || null,
     provider: WHATSAPP_PROVIDER,
   };
@@ -223,6 +510,28 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
     });
   }
 
+  await upsertWhatsappContactIdentity(prisma, {
+    organizationId,
+    channelId,
+    conversationId: conversation.id,
+    jid: chatJid,
+    rawJid: payload.chatJid,
+    displayName,
+    pushName: payload.pushName || payload.senderPushName || null,
+    profilePictureUrl: conversationMetadata.profilePictureUrl,
+    isGroup,
+    metadata: conversationMetadata,
+  });
+  if (isGroup) {
+    await syncGroupParticipants(prisma, {
+      organizationId,
+      channelId,
+      conversationId: conversation.id,
+      groupJid: chatJid,
+      participants,
+    });
+  }
+
   const messageId = payload.message?.id || payload.messageId;
   if (messageId) {
     const recent = await prisma.message.findMany({
@@ -247,19 +556,22 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
         senderJid: payload.senderJid,
         rawSenderJid: payload.rawSenderJid || null,
         pushName: payload.pushName || payload.senderPushName || null,
+        displayName: payload.fromMe ? "Voce" : displayName,
+        displayPhone: senderPhone?.display || chatPhone?.display || null,
         fromMe: !!payload.fromMe,
         mimeType: payload.message?.mimeType || null,
         fileName: payload.message?.fileName || null,
         fileSize: payload.message?.fileSize || null,
         mediaSha256: payload.message?.mediaSha256 || null,
         rawType: payload.message?.type || null,
-        mentionedJids: payload.mentionedJids || [],
+        mentionedJids,
         prospectingRunId: prospectingRun?.id || null,
         conversation: conversationMetadata,
       },
       createdAt: payload.message?.timestamp ? new Date(payload.message.timestamp) : new Date(),
     },
   });
+  await saveWhatsappMentions(prisma, organizationId, message.id, mentionedJids);
 
   const intelligence = await classifyAndTagWhatsAppConversation(prisma, {
     organizationId,
@@ -290,17 +602,31 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
   }
 
   if (prospectingRun && !payload.fromMe) {
+    const runtimeConfig = getFunnelRuntimeConfig((prospectingRun as any).funnel);
+    const optedOut = detectOptOut(messageContent || messageCaption, runtimeConfig.stopWords);
+    if (optedOut) {
+      await ensureOptOut(prisma, {
+        organizationId,
+        phone: payload.senderJid || chatJid,
+        reason: messageContent || messageCaption || "opt-out recebido",
+        source: "whatsapp_inbound",
+        conversationId: conversation.id,
+        messageId: message.id,
+        metadata: { prospectingRunId: prospectingRun.id },
+      });
+    }
     await prisma.prospectingRun.update({
       where: { id: prospectingRun.id },
       data: {
-        status: "active",
+        status: optedOut ? "stopped" : "active",
         lastContactAt: new Date(),
-        nextAction: "lead_replied_continue_agent",
+        nextAction: optedOut ? "stop_contact" : "lead_replied_continue_agent",
         qualification: {
           ...((prospectingRun.qualification as any) || {}),
           lastLeadMessage: messageContent || messageCaption || "",
           lastConversationId: conversation.id,
           lastMessageId: message.id,
+          optOut: optedOut,
         },
       },
     });
@@ -406,6 +732,22 @@ export function whatsappRoutes(prisma: PrismaClient) {
     } catch (error) { next(error); }
   });
 
+  router.get("/connections/:id/logs", async (req: AuthRequest, res, next) => {
+    try {
+      const channel = await prisma.channel.findFirst({
+        where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+      });
+      if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
+
+      const logs = await prisma.whatsappConnectionLog.findMany({
+        where: { organizationId: req.user!.orgId, channelId: channel.id },
+        orderBy: { createdAt: "desc" },
+        take: Number(req.query.limit || 100),
+      });
+      res.json(logs);
+    } catch (error) { next(error); }
+  });
+
   router.post("/connections/:id/connect", async (req: AuthRequest, res, next) => {
     try {
       const channel = await prisma.channel.findFirst({
@@ -489,6 +831,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
             externalChatId: conversation.contactId,
             isGroup: isWhatsAppGroupJid(conversation.contactId),
             phone: isWhatsAppGroupJid(conversation.contactId) ? null : normalizeWhatsAppPhone(conversation.contactId).e164,
+            displayPhone: displayWhatsAppJid(conversation.contactId),
             pushName: null,
             displayName: conversation.subject,
             profilePictureUrl: null,
@@ -510,6 +853,46 @@ export function whatsappRoutes(prisma: PrismaClient) {
       if (!conversation) return res.status(404).json({ error: "Conversa nao encontrada" });
       const messages = await prisma.message.findMany({ where: { conversationId: conversation.id }, orderBy: { createdAt: "asc" } });
       res.json(messages);
+    } catch (error) { next(error); }
+  });
+
+  router.get("/prospecting/dispatch-attempts", async (req: AuthRequest, res, next) => {
+    try {
+      const attempts = await prisma.prospectingDispatchAttempt.findMany({
+        where: {
+          organizationId: req.user!.orgId,
+          ...(req.query.runId ? { runId: String(req.query.runId) } : {}),
+          ...(req.query.status ? { status: String(req.query.status) } : {}),
+        },
+        orderBy: { createdAt: "desc" },
+        take: Number(req.query.limit || 100),
+      });
+      res.json(attempts);
+    } catch (error) { next(error); }
+  });
+
+  router.get("/prospecting/opt-outs", async (req: AuthRequest, res, next) => {
+    try {
+      const records = await prisma.prospectingOptOutContact.findMany({
+        where: { organizationId: req.user!.orgId },
+        orderBy: { createdAt: "desc" },
+        take: Number(req.query.limit || 100),
+      });
+      res.json(records);
+    } catch (error) { next(error); }
+  });
+
+  router.post("/prospecting/opt-outs", async (req: AuthRequest, res, next) => {
+    try {
+      if (!req.body.phone) return res.status(400).json({ error: "Telefone obrigatorio" });
+      const record = await ensureOptOut(prisma, {
+        organizationId: req.user!.orgId,
+        phone: req.body.phone,
+        reason: req.body.reason || "Opt-out manual",
+        source: "manual",
+        metadata: { userId: req.user!.id },
+      });
+      res.status(201).json(record);
     } catch (error) { next(error); }
   });
 
@@ -560,26 +943,90 @@ export function whatsappRoutes(prisma: PrismaClient) {
           status: { in: ["queued", "active"] },
           ...(runIds.length ? { id: { in: runIds } } : {}),
         },
+        include: { funnel: true },
         take: Number(req.body.limit || 25),
         orderBy: { createdAt: "asc" },
       });
 
       const sent = [];
       const failed = [];
+      const maxDailyMessages = Number(req.body.maxDailyMessages || (channel.config as any)?.maxDailyMessages || 50);
+      const alreadySentToday = await prisma.prospectingRun.count({
+        where: {
+          organizationId: orgId,
+          channel: "WHATSAPP",
+          status: { in: ["sent", "active", "human_handoff", "qualified"] },
+          lastContactAt: { gte: dayStart() },
+        },
+      });
       for (const run of runs) {
-        const phone = normalizeWhatsAppPhone(run.leadPhone);
-        if (!phone.jid || !run.firstMessage) {
-          failed.push({ id: run.id, error: "Lead sem telefone ou mensagem" });
-          continue;
-        }
+        const safetyRules = (run.funnel?.safetyRules as any) || {};
+        const runtimeConfig = getFunnelRuntimeConfig(run.funnel);
+        const messageLimit = Number(req.body.maxDailyMessages || (channel.config as any)?.maxDailyMessages || runtimeConfig.maxDailyMessagesPerOrganization || maxDailyMessages);
         const firstMessage = isUnsafeProspectingFirstMessage(run.firstMessage)
           ? safeProspectingFirstMessage()
           : run.firstMessage;
+        const attempt = await createDispatchAttempt(prisma, {
+          organizationId: orgId,
+          run,
+          channelId: channel.id,
+          message: firstMessage || "",
+          status: "queued",
+          metadata: { safetyRules, runtimeConfig },
+        });
+
+        if (alreadySentToday + sent.length >= messageLimit) {
+          await updateDispatchAttempt(prisma, attempt.id, { status: "blocked", reason: "Limite diario de mensagens atingido para esta organizacao" });
+          failed.push({ id: run.id, error: "Limite diario de mensagens atingido para esta organizacao" });
+          continue;
+        }
+        if (!isInsideBusinessHours(runtimeConfig.businessHours)) {
+          await updateDispatchAttempt(prisma, attempt.id, { status: "skipped", reason: `Fora do horario comercial (${runtimeConfig.businessHours})` });
+          failed.push({ id: run.id, error: `Fora do horario comercial (${safetyRules.businessHours || "08:00-19:00"})` });
+          continue;
+        }
+        const phone = normalizeWhatsAppPhone(run.leadPhone);
+        if (!phone.jid || !phone.isValid || !run.firstMessage) {
+          await updateDispatchAttempt(prisma, attempt.id, { status: "failed", reason: "Lead sem telefone valido ou mensagem" });
+          failed.push({ id: run.id, error: "Lead sem telefone ou mensagem" });
+          continue;
+        }
+        if (await isOptedOut(prisma, orgId, phone.digits)) {
+          await updateDispatchAttempt(prisma, attempt.id, { status: "blocked", reason: "Contato em opt-out" });
+          await prisma.prospectingRun.update({
+            where: { id: run.id },
+            data: { status: "stopped", nextAction: "opt_out_blocked" },
+          });
+          failed.push({ id: run.id, error: "Contato em opt-out" });
+          continue;
+        }
+        const leadSentToday = await prisma.prospectingDispatchAttempt.count({
+          where: {
+            organizationId: orgId,
+            runId: run.id,
+            status: "sent",
+            createdAt: { gte: dayStart() },
+          },
+        });
+        if (leadSentToday >= runtimeConfig.maxDailyMessagesPerLead) {
+          await updateDispatchAttempt(prisma, attempt.id, { status: "blocked", reason: "Limite diario por lead atingido" });
+          failed.push({ id: run.id, error: "Limite diario por lead atingido" });
+          continue;
+        }
         try {
           const bridge = await callBridge(`/sessions/${channel.id}/send`, {
             channelId: channel.id,
             to: phone.jid,
             message: firstMessage,
+          });
+          await recordOutboundProspectingMessage(prisma, {
+            channel,
+            organizationId: orgId,
+            toJid: phone.jid,
+            content: firstMessage || "",
+            run,
+            userId: req.user?.id,
+            bridgeMessageId: bridge.messageId || null,
           });
           await prisma.prospectingRun.update({
             where: { id: run.id },
@@ -591,8 +1038,15 @@ export function whatsappRoutes(prisma: PrismaClient) {
               qualification: { ...((run.qualification as any) || {}), bridgeMessageId: bridge.messageId || null },
             },
           });
+          await updateDispatchAttempt(prisma, attempt.id, {
+            status: "sent",
+            bridgeMessageId: bridge.messageId || null,
+            sentAt: new Date(),
+            metadata: { bridge },
+          });
           sent.push(run.id);
         } catch (err: any) {
+          await updateDispatchAttempt(prisma, attempt.id, { status: "failed", reason: err.message });
           failed.push({ id: run.id, error: err.message });
         }
       }
@@ -614,6 +1068,13 @@ export function whatsappInternalRoutes(prisma: PrismaClient) {
       }
 
       const payload = req.body || {};
+      await logWhatsappWebhook(prisma, {
+        organizationId: payload.organizationId || payload.orgId || null,
+        channelId: payload.channelId || null,
+        eventType: payload.type || "unknown",
+        status: "received",
+        payload,
+      });
       if (payload.type === "status") {
         const channel = await prisma.channel.findUnique({ where: { id: payload.channelId } });
         if (channel) {
@@ -632,12 +1093,28 @@ export function whatsappInternalRoutes(prisma: PrismaClient) {
               },
             },
           });
+          if (payload.organizationId) {
+            await logWhatsappConnection(prisma, {
+              organizationId: payload.organizationId,
+              channelId: channel.id,
+              event: "status",
+              status: payload.status,
+              metadata: payload,
+            });
+          }
         }
         return res.json({ ok: true });
       }
 
       if (payload.type === "message") {
         const result = await upsertInboundWhatsAppMessage(prisma, payload);
+        await logWhatsappWebhook(prisma, {
+          organizationId: payload.organizationId || payload.orgId || null,
+          channelId: payload.channelId || null,
+          eventType: "message",
+          status: (result as any).ignored ? "ignored" : "processed",
+          result,
+        });
         return res.json({
           ok: true,
           ignored: (result as any).ignored || false,

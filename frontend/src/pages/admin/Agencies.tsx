@@ -368,64 +368,6 @@ export default function AdminAgencies() {
                   <input 
                     required
                     className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono text-xs"
-                    value={newOrg.slug}
-                    onChange={e => setNewOrg({...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
-                    placeholder="ex: imobiliaria-alpha"
-                  />
-                </div>
-                {newOrg.slug && (
-                  <p className="text-[10px] text-gray-400 mt-1 pl-1 font-mono">
-                    URL temporária: nexus360.consultio.com.br/<span className="text-blue-500 font-bold">{newOrg.slug}</span>/dashboard
-                  </p>
-                )}
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Domínio Personalizado (opcional)</label>
-                <div className="relative">
-                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
-                  <input 
-                    className="w-full pl-12 pr-4 py-3 bg-blue-50/50 rounded-xl outline-none focus:ring-2 focus:ring-primary border border-blue-100 font-mono text-xs"
-                    value={newOrg.domain}
-                    onChange={e => setNewOrg({...newOrg, domain: e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, '')})}
-                    placeholder="ex: crm.minhaimobiliaria.com.br"
-                  />
-                </div>
-                <p className="text-[10px] text-gray-400 mt-1 pl-1">
-                  O cliente aponta o DNS A deste domínio para o IP do Docker. Deixe vazio se não tiver domínio próprio.
-                </p>
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                 <h3 className="text-[10px] font-bold text-blue-600 uppercase tracking-[2px] mb-4">Acesso do Administrador</h3>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Nome do Admin</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input 
-                    required
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                    value={newOrg.adminName}
-                    onChange={e => setNewOrg({...newOrg, adminName: e.target.value})}
-                    placeholder="Nome completo"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">E-mail do Admin</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input 
-                    type="email"
-                    required
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
-                    value={newOrg.adminEmail}
-                    onChange={e => setNewOrg({...newOrg, adminEmail: e.target.value})}
-                    placeholder="contato@cliente.com.br"
-                  />
                 </div>
               </div>
 

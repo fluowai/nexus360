@@ -237,7 +237,7 @@ export default function DomainSettings() {
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
-                <p className="text-blue-800/80">O cliente cria um registro <code className="font-bold">A</code> no DNS apontando para o IP do servidor Docker</p>
+                <p className="text-blue-800/80">O cliente cria um registro <code className="font-bold">CNAME</code> no DNS apontando para o servidor principal</p>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>

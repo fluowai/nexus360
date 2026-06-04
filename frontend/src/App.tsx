@@ -9,8 +9,10 @@ import { motion, AnimatePresence } from "motion/react";
 import { Sidebar } from "./components/sidebar/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuth } from "./lib/useAuth";
+import { isCustomWorkspaceHost, workspacePath } from "./lib/workspaceRoute";
 
 import Dashboard from "./pages/Dashboard";
+import { useWhitelabel } from "./lib/useWhitelabel";
 
 const CRM = lazy(() => import("./pages/CRM"));
 const Content = lazy(() => import("./pages/Content"));
@@ -190,7 +192,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
         navigate('/admin', { replace: true });
       } else {
         const savedSlug = localStorage.getItem('nexus_org_slug');
-        navigate(savedSlug ? `/${savedSlug}/dashboard` : '/dashboard', { replace: true });
+        navigate(workspacePath('/dashboard', savedSlug), { replace: true });
       }
       return;
     }
@@ -200,13 +202,14 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
       return;
     }
 
-    if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding') {
+    if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding' && !isCustomWorkspaceHost()) {
       navigate('/onboarding', { replace: true });
     }
   }, [navigate, pathname, selectedClientId, user?.role]);
 }
 
 export default function App() {
+  useWhitelabel();
   const { user, setUser, authLoading, handleLogout } = useAuth();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
     localStorage.getItem('nexus_selected_client')
@@ -253,6 +256,26 @@ export default function App() {
           <Route path="/prospecting/missions" element={<MissionsList />} />
           <Route path="/whatsapp" element={<WhatsApp />} />
           <Route path="/team" element={<Team />} />
+          <Route path="/finance" element={<Finance />} />
+          <Route path="/tasks" element={<Tasks />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/clients" element={<ClientsPage />} />
+          <Route path="/clients/:id" element={<ClientDetailPage />} />
+          <Route path="/sold-services" element={<SoldServicesPage />} />
+          <Route path="/ad-accounts" element={<AdAccounts />} />
+          <Route path="/assets" element={<AssetsLibrary />} />
+          <Route path="/landing-pages" element={<LandingPages />} />
+          <Route path="/quiz" element={<QuizBuilder />} />
+          <Route path="/content" element={<Content />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/marketing" element={<MarketingOps />} />
+          <Route path="/sales-machine" element={<SalesMachine />} />
+          <Route path="/proposals" element={<Proposals />} />
+          <Route path="/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
+          <Route path="/ai-settings" element={<AISettings />} />
+          <Route path="/prompt-architect" element={<PromptArchitect />} />
           <Route path="/site" element={<LandingPage />} />
           <Route path="/vendas" element={<CRMSalesPage />} />
           <Route path="/login" element={<Login onAuthenticated={setUser} />} />

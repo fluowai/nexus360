@@ -72,13 +72,38 @@ const allowedOrigins = new Set([
   'http://localhost:3000'
 ]);
 
+function normalizeRequestHost(value: string | undefined) {
+  return String(value || "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, "")
+    .split(":")[0];
+}
+
+async function isRegisteredTenantHost(hostname: string) {
+  const host = normalizeRequestHost(hostname);
+  if (!host) return false;
+
+  const [domain, organization] = await Promise.all([
+    prisma.domain.findUnique({ where: { name: host }, select: { id: true } }),
+    prisma.organization.findFirst({ where: { domain: host }, select: { id: true } }),
+  ]);
+
+  return Boolean(domain || organization);
+}
+
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
+  origin: async (origin, callback) => {
     if (!origin) return callback(null, true);
 
     try {
       const { hostname } = new URL(origin);
-      const isAllowed = allowedOrigins.has(origin) || hostname === 'localhost';
+      const normalizedHost = normalizeRequestHost(hostname);
+      const isAllowed =
+        allowedOrigins.has(origin) ||
+        normalizedHost === 'localhost' ||
+        await isRegisteredTenantHost(normalizedHost);
 
       return callback(null, isAllowed);
     } catch {
@@ -87,7 +112,7 @@ const corsOptions: cors.CorsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Org-Id', 'X-Workspace-Id']
 };
 
 const globalLimiter = rateLimit({
@@ -143,6 +168,41 @@ app.get("/api/health", async (req, res, next) => {
 });
 
 app.get("/api/ping", (req, res) => res.json({ message: "pong", timestamp: new Date().toISOString() }));
+
+app.get("/api/domain/context", async (req, res, next) => {
+  try {
+    const host = normalizeRequestHost(req.headers["x-forwarded-host"] as string || req.headers.host);
+    if (!host) return res.json({ customDomain: false });
+
+    const domain = await prisma.domain.findUnique({
+      where: { name: host },
+      include: { organization: { select: { id: true, name: true, slug: true, whiteLabelConfig: true } } },
+    });
+
+    if (domain) {
+      return res.json({
+        customDomain: true,
+        domain: domain.name,
+        status: domain.status,
+        organization: domain.organization,
+      });
+    }
+
+    const organization = await prisma.organization.findFirst({
+      where: { domain: host },
+      select: { id: true, name: true, slug: true, whiteLabelConfig: true },
+    });
+
+    res.json({
+      customDomain: Boolean(organization),
+      domain: organization ? host : null,
+      status: organization ? "verified" : null,
+      organization,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Rota PÚBLICA para Landing Pages
 app.get("/lp/:slug", async (req, res, next) => {

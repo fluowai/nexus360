@@ -368,6 +368,10 @@ export default function AdminAgencies() {
                   <input 
                     required
                     className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono text-xs"
+                    value={newOrg.slug}
+                    onChange={e => setNewOrg({ ...newOrg, slug: e.target.value })}
+                    placeholder="imobiliaria-alpha"
+                  />
                 </div>
               </div>
 

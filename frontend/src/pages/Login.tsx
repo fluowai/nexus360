@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, setAccessToken } from "../lib/api";
+import { apiFetch, readJsonResponse, setAccessToken } from "../lib/api";
+import { workspacePath } from "../lib/workspaceRoute";
 import { Shield, Mail, Lock, ArrowRight, Zap } from "lucide-react";
 import { motion } from "motion/react";
 
@@ -31,7 +32,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
+      const data = await readJsonResponse(res, "Nao foi possivel conectar a API. Verifique o roteamento /api do dominio.");
       
       if (!res.ok) {
         throw new Error(data.error || data.details || "Erro no login");
@@ -53,7 +54,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
         if (data.user.role === 'SUPER_ADMIN') {
           navigate("/admin", { replace: true });
         } else if (data.user.orgSlug) {
-          navigate(`/${data.user.orgSlug}/dashboard`, { replace: true });
+          navigate(workspacePath("/dashboard", data.user.orgSlug), { replace: true });
         } else {
           navigate("/dashboard", { replace: true });
         }

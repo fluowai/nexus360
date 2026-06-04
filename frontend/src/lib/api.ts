@@ -16,6 +16,54 @@ let refreshPromise: Promise<string | null> | null = null;
 let accessTokenMemory: string | null = sessionStorage.getItem(ACCESS_TOKEN_KEY);
 let refreshFailed = false;
 
+export function getApiBaseUrl() {
+  return API_URL?.replace(/\/$/, '') || '';
+}
+
+function isLocalhost() {
+  return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+}
+
+function shouldRetryAgainstProductionApi(path: string, response: Response) {
+  if (getApiBaseUrl() || isLocalhost()) return false;
+  if (!path.startsWith('/api/')) return false;
+  return (response.headers.get('content-type') || '').toLowerCase().includes('text/html');
+}
+
+export async function readJsonResponse<T = any>(response: Response, fallbackMessage = 'Resposta invalida da API.'): Promise<T> {
+  const contentType = (response.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.includes('application/json')) {
+    throw new Error(fallbackMessage);
+  }
+  return response.json();
+}
+
+export async function publicApiFetch(path: string, options: RequestInit = {}) {
+  const normalizedBase = getApiBaseUrl();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  let response = await fetch(`${normalizedBase}${normalizedPath}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {}),
+    },
+    credentials: 'include',
+  });
+
+  if (shouldRetryAgainstProductionApi(normalizedPath, response)) {
+    response = await fetch(`${PRODUCTION_API_URL}${normalizedPath}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers as Record<string, string> || {}),
+      },
+      credentials: 'include',
+    });
+  }
+
+  return response;
+}
+
 function isAuthPath(path: string) {
   return path.includes('/api/auth/login') || path.includes('/api/auth/register') || path.includes('/api/auth/refresh') || path.includes('/api/auth/logout');
 }
@@ -66,20 +114,28 @@ function finishExpiredSession(message?: string) {
 
 async function refreshAccessToken(): Promise<string | null> {
   try {
-    const normalizedBase = API_URL?.replace(/\/$/, '') || '';
+    const normalizedBase = getApiBaseUrl();
     const response = await fetch(`${normalizedBase}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
     });
 
-    if (!response.ok) {
+    const finalResponse = shouldRetryAgainstProductionApi('/api/auth/refresh', response)
+      ? await fetch(`${PRODUCTION_API_URL}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        })
+      : response;
+
+    if (!finalResponse.ok) {
       clearAuthSession();
       refreshFailed = true;
       return null;
     }
 
-    const data = await response.json();
+    const data = await readJsonResponse(finalResponse, 'Nao foi possivel renovar a sessao.');
     if (data.token) {
       setAccessToken(data.token);
       return data.token;
@@ -122,7 +178,7 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
     ...(options.headers as Record<string, string> || {}),
   };
 
-  const normalizedBase = API_URL?.replace(/\/$/, '') || '';
+  const normalizedBase = getApiBaseUrl();
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = `${normalizedBase}${normalizedPath}`;
 
@@ -142,6 +198,14 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
       });
     } finally {
       clearTimeout(timeoutId);
+    }
+
+    if (shouldRetryAgainstProductionApi(normalizedPath, response)) {
+      response = await fetch(`${PRODUCTION_API_URL}${normalizedPath}`, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
     }
 
     if (response.status === 401) {

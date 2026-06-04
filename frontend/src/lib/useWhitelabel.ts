@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isCustomWorkspaceHost } from "./workspaceRoute";
+import { publicApiFetch, readJsonResponse } from "./api";
 
 export interface WhitelabelConfig {
   name?: string;
@@ -20,9 +20,9 @@ export function useWhitelabel() {
     // but if the system wants to apply whitelabel even on slugs, this logic can be adjusted.
     const fetchContext = async () => {
       try {
-        const res = await fetch("/api/domain/context");
+        const res = await publicApiFetch("/api/domain/context");
         if (res.ok) {
-          const data = await res.json();
+          const data = await readJsonResponse(res, "Contexto white label indisponivel.");
           if (data.organization?.whiteLabelConfig) {
             const wl = data.organization.whiteLabelConfig;
             setConfig(wl);

@@ -160,6 +160,7 @@ export default function AdminAgencies() {
       planId: editData.planId,
     };
 
+    if (typeof editData.domain === 'string') payload.domain = editData.domain.trim() || null;
     const adminEmail = typeof editData.adminEmail === 'string' ? editData.adminEmail.trim() : '';
     if (adminEmail) payload.adminEmail = adminEmail;
     if (password) payload.password = password;
@@ -247,7 +248,14 @@ export default function AdminAgencies() {
                             <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-black uppercase rounded-full">Beta Access</span>
                           )}
                         </h4>
-                        <p className="text-xs text-gray-500 font-medium">{org.domain || 'Sem domínio'}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-gray-400 font-mono">/{org.slug || '—'}</span>
+                          {org.domain ? (
+                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">• {org.domain}</span>
+                          ) : (
+                            <span className="text-[10px] text-gray-400">• Sem domínio próprio</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
@@ -291,6 +299,7 @@ export default function AdminAgencies() {
                             id: org.id,
                             name: org.name || '',
                             slug: org.slug || '',
+                            domain: org.domain || '',
                             plan: org.planObj?.name || org.plan || '',
                             planId: org.planId || '',
                             adminEmail: '',
@@ -353,17 +362,38 @@ export default function AdminAgencies() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Link da Agência (Slug)</label>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Link interno (Slug)</label>
                 <div className="relative">
                   <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                   <input 
                     required
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono text-[10px]"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono text-xs"
                     value={newOrg.slug}
                     onChange={e => setNewOrg({...newOrg, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
                     placeholder="ex: imobiliaria-alpha"
                   />
                 </div>
+                {newOrg.slug && (
+                  <p className="text-[10px] text-gray-400 mt-1 pl-1 font-mono">
+                    URL temporária: nexus360.consultio.com.br/<span className="text-blue-500 font-bold">{newOrg.slug}</span>/dashboard
+                  </p>
+                )}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Domínio Personalizado (opcional)</label>
+                <div className="relative">
+                  <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500" size={16} />
+                  <input 
+                    className="w-full pl-12 pr-4 py-3 bg-blue-50/50 rounded-xl outline-none focus:ring-2 focus:ring-primary border border-blue-100 font-mono text-xs"
+                    value={newOrg.domain}
+                    onChange={e => setNewOrg({...newOrg, domain: e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, '')})}
+                    placeholder="ex: crm.minhaimobiliaria.com.br"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1 pl-1">
+                  O cliente aponta o DNS A deste domínio para o IP do Docker. Deixe vazio se não tiver domínio próprio.
+                </p>
               </div>
 
               <div className="md:col-span-2 mt-4">
@@ -620,6 +650,21 @@ export default function AdminAgencies() {
                     </>
                   )}
                 </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Domínio Personalizado</label>
+                <input 
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono text-xs"
+                  value={editData.domain || ''}
+                  onChange={e => setEditData({...editData, domain: e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, '')})}
+                  placeholder="crm.cliente.com.br"
+                />
+                {editData.slug && (
+                  <p className="text-[10px] text-gray-400 mt-1 font-mono">
+                    URL interna: nexus360.consultio.com.br/<span className="text-blue-500 font-bold">{editData.slug}</span>
+                  </p>
+                )}
               </div>
 
               <div className="md:col-span-2 mt-4">

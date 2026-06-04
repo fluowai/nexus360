@@ -157,6 +157,21 @@ export function adminRoutes(prisma: PrismaClient) {
           }
         });
 
+        // If a custom domain was provided, register it in the Domain table too
+        if (domain) {
+          const normalizedDomain = domain.toLowerCase().replace(/^www\./, '').replace(/\/$/, '');
+          await tx.domain.upsert({
+            where: { name: normalizedDomain },
+            update: { organizationId: org.id, provider: 'docker' },
+            create: {
+              name: normalizedDomain,
+              provider: 'docker',
+              status: 'pending',
+              organizationId: org.id,
+            },
+          });
+        }
+
         return tx.organization.findUnique({
           where: { id: org.id },
           include: { planObj: true, _count: { select: { users: true } } }
@@ -238,6 +253,30 @@ export function adminRoutes(prisma: PrismaClient) {
             await tx.user.update({
               where: { id: admin.id },
               data: userUpdateData
+            });
+          }
+        }
+
+        // If domain changed, upsert Domain record
+        if (domain !== undefined) {
+          // Remove old domain records for this org if domain changed
+          if (existingOrg.domain && existingOrg.domain !== domain) {
+            await tx.domain.deleteMany({
+              where: { name: existingOrg.domain, organizationId: id }
+            });
+          }
+          // Create new domain record if domain is set
+          if (domain) {
+            const normalizedDomain = domain.toLowerCase().replace(/^www\./, '').replace(/\/$/, '');
+            await tx.domain.upsert({
+              where: { name: normalizedDomain },
+              update: { organizationId: id, provider: 'docker' },
+              create: {
+                name: normalizedDomain,
+                provider: 'docker',
+                status: 'pending',
+                organizationId: id,
+              },
             });
           }
         }

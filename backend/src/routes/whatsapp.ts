@@ -805,6 +805,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
     try {
       const orgId = req.user!.orgId;
       const kind = String(req.query.kind || "all");
+      const onlyProspecting = String(req.query.prospecting || "") === "1";
       const conversations = await prisma.conversation.findMany({
         where: {
           inbox: { organizationId: orgId },
@@ -822,7 +823,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
         },
         orderBy: { lastMessageAt: "desc" },
       });
-      res.json(conversations.map((conversation) => {
+      const mapped = conversations.map((conversation) => {
         const latestMessage = conversation.messages?.[0];
         const messageMetadata = latestMessage?.metadata as any;
         return {
@@ -840,7 +841,11 @@ export function whatsappRoutes(prisma: PrismaClient) {
             provider: WHATSAPP_PROVIDER,
           },
         };
-      }));
+      });
+
+      res.json(onlyProspecting
+        ? mapped.filter((conversation: any) => Boolean(conversation.metadata?.prospectingRunId || conversation.messages?.[0]?.metadata?.prospectingRunId))
+        : mapped);
     } catch (error) { next(error); }
   });
 
@@ -929,11 +934,17 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.post("/prospecting/dispatch", async (req: AuthRequest, res, next) => {
     try {
       const orgId = req.user!.orgId;
+      const selectedChannelId = req.body.channelId ? String(req.body.channelId) : null;
       const channel = await prisma.channel.findFirst({
-        where: { provider: WHATSAPP_PROVIDER, isActive: true, inbox: { organizationId: orgId } },
+        where: {
+          provider: WHATSAPP_PROVIDER,
+          isActive: true,
+          inbox: { organizationId: orgId },
+          ...(selectedChannelId ? { id: selectedChannelId } : {}),
+        },
         orderBy: { createdAt: "desc" },
       });
-      if (!channel) return res.status(400).json({ error: "Conecte um WhatsApp antes de disparar o funil IA" });
+      if (!channel) return res.status(400).json({ error: selectedChannelId ? "Instancia WhatsApp selecionada indisponivel" : "Conecte um WhatsApp antes de disparar o funil IA" });
 
       const runIds = Array.isArray(req.body.runIds) ? req.body.runIds : [];
       const runs = await prisma.prospectingRun.findMany({

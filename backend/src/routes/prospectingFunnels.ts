@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { NextFunction, Router, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import {
@@ -8,6 +8,15 @@ import {
   pickBestDecisionMaker,
   upsertDecisionMakersFromLead,
 } from "../services/prospectingAutomation.js";
+import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service.js";
+
+type ProspectingHandler = (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
+
+function asyncHandler(handler: ProspectingHandler) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+}
 
 const DEFAULT_STAGES = [
   {
@@ -86,6 +95,79 @@ const DEFAULT_SAFETY_RULES = {
   senderCompanyName: "Consultio",
   agentName: "Paulo"
 };
+
+const PROSPECTING_AGENTS = [
+  {
+    id: "google_captor",
+    name: "Captador Google",
+    role: "Pesquisa nichos, cidades e oportunidades no Google/Maps.",
+    stage: "captura",
+    tone: "criterioso"
+  },
+  {
+    id: "lead_validator",
+    name: "Validador de Lead",
+    role: "Remove contatos ruins, telefones invalidos e empresas fora do ICP.",
+    stage: "validacao",
+    tone: "analitico"
+  },
+  {
+    id: "decision_researcher",
+    name: "Pesquisador de Decisor",
+    role: "Busca socio, proprietario, administrador ou responsavel comercial.",
+    stage: "decisor",
+    tone: "investigativo"
+  },
+  {
+    id: "sdr_first_touch",
+    name: "SDR Primeiro Contato",
+    role: "Abre conversa no WhatsApp sem pitch e sem parecer vendedor de marketing.",
+    stage: "primeiro_contato",
+    tone: "humano"
+  },
+  {
+    id: "bdr_qualifier",
+    name: "BDR Qualificacao",
+    role: "Qualifica abertura, perfil e urgencia depois que o decisor aparece.",
+    stage: "qualificacao",
+    tone: "consultivo"
+  },
+  {
+    id: "followup_agent",
+    name: "Agente de Follow-up",
+    role: "Retoma conversas com cadencia leve e sem insistencia agressiva.",
+    stage: "followup",
+    tone: "persistente"
+  },
+  {
+    id: "reactivation_agent",
+    name: "Agente de Reativacao",
+    role: "Reabre oportunidades frias com contexto curto e natural.",
+    stage: "reativacao",
+    tone: "direto"
+  },
+  {
+    id: "schedule_agent",
+    name: "Agente de Agenda",
+    role: "Converte abertura real em proximo passo e agenda.",
+    stage: "agenda",
+    tone: "objetivo"
+  },
+  {
+    id: "closer_handoff",
+    name: "Closer / Handoff",
+    role: "Entrega leads qualificados ao humano com resumo e contexto.",
+    stage: "handoff",
+    tone: "comercial"
+  },
+  {
+    id: "safety_supervisor",
+    name: "Supervisor de Seguranca",
+    role: "Bloqueia pitch precoce, opt-out, palavras sensiveis e mensagens inseguras.",
+    stage: "seguranca",
+    tone: "guardiao"
+  }
+];
 
 function normalizeText(value?: string | null): string {
   return String(value || "")
@@ -449,10 +531,18 @@ export async function enrollCapturedLeadsInFunnel(
 
 export function prospectingFunnelRoutes(prisma: PrismaClient) {
   const router = Router();
+  const leadCaptureService = new LeadCaptureService(prisma);
 
-  router.get("/funnels", async (req: AuthRequest, res) => {
+  router.get("/agents", asyncHandler(async (_req: AuthRequest, res) => {
+    res.json(PROSPECTING_AGENTS);
+  }));
+
+  router.get("/funnels", asyncHandler(async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
     const funnels = await prisma.prospectingFunnel.findMany({
       where: { organizationId: orgId },
@@ -464,23 +554,32 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     });
 
     res.json(funnels.map(serializeFunnel));
-  });
+  }));
 
-  router.post("/funnels/default", async (req: AuthRequest, res) => {
+  router.post("/funnels/default", asyncHandler(async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
     const funnel = await ensureDefaultFunnel(prisma, orgId);
     const refreshedRuns = await refreshQueuedFirstMessages(prisma, orgId, funnel);
     res.status(201).json({ ...serializeFunnel(funnel), refreshedRuns });
-  });
+  }));
 
-  router.post("/funnels", async (req: AuthRequest, res) => {
+  router.post("/funnels", asyncHandler(async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
     const { name, description, objective, campaignName, agentName, senderCompanyName, firstStagePrompt } = req.body;
-    if (!name) return res.status(400).json({ error: "Nome do funil e obrigatorio" });
+    if (!name) {
+      res.status(400).json({ error: "Nome do funil e obrigatorio" });
+      return;
+    }
 
     const safeCampaignName = String(campaignName || name).trim();
     const safeAgentName = String(agentName || "Paulo").trim();
@@ -517,13 +616,20 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     });
 
     res.status(201).json(serializeFunnel(funnel));
-  });
+  }));
 
-  router.get("/runs", async (req: AuthRequest, res) => {
+  router.get("/runs", asyncHandler(async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
-    await refreshAllQueuedFirstMessages(prisma, orgId);
+    try {
+      await refreshAllQueuedFirstMessages(prisma, orgId);
+    } catch (error: any) {
+      console.warn("[PROSPECTING_FUNNELS_REFRESH_WARNING]", error?.message || error);
+    }
 
     const runs = await prisma.prospectingRun.findMany({
       where: { organizationId: orgId },
@@ -537,14 +643,143 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     });
 
     res.json(runs);
-  });
+  }));
 
-  router.post("/runs/:id/response", async (req: AuthRequest, res) => {
+  router.post("/campaigns/prepare", asyncHandler(async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const {
+      funnelId = "default",
+      name,
+      niche,
+      city,
+      state,
+      provider = process.env.PROSPECT_DEFAULT_PROVIDER || "serper",
+      leadQuantity = 25,
+      channelId,
+      agentId = "sdr_first_touch",
+      executionDate,
+      executionTime,
+      dailyMessageLimit = 50,
+      messageIntervalMinutes = 15
+    } = req.body || {};
+
+    if (!niche || !city || !state) {
+      res.status(400).json({ error: "Informe nicho, cidade e UF para preparar a campanha." });
+      return;
+    }
+
+    const selectedAgent = PROSPECTING_AGENTS.find((agent) => agent.id === agentId) || PROSPECTING_AGENTS.find((agent) => agent.id === "sdr_first_touch")!;
+    const channel = channelId
+      ? await prisma.channel.findFirst({
+          where: { id: String(channelId), provider: "WHATS_MEOW", isActive: true, inbox: { organizationId: orgId } },
+          select: { id: true, identifier: true, config: true, inbox: { select: { id: true, name: true } } }
+        })
+      : null;
+
+    if (channelId && !channel) {
+      res.status(400).json({ error: "Instancia WhatsApp invalida ou inativa para esta organizacao." });
+      return;
+    }
+
+    const funnel = funnelId === "default"
+      ? await ensureDefaultFunnel(prisma, orgId)
+      : await prisma.prospectingFunnel.findFirst({
+          where: { id: String(funnelId), organizationId: orgId },
+          include: { stages: { orderBy: { order: "asc" } } }
+        });
+
+    if (!funnel) {
+      res.status(404).json({ error: "Funil nao encontrado." });
+      return;
+    }
+
+    const capture = await leadCaptureService.captureLeads({
+      tenantId: orgId,
+      userId: req.user?.id,
+      provider,
+      keyword: niche,
+      city,
+      state,
+      country: "Brasil",
+      limit: Number(leadQuantity || 25),
+      filters: { onlyWithPhone: true }
+    } as any);
+
+    const leadIds = (capture.leads || [])
+      .filter((lead: any) => lead.phoneNormalized || lead.phone)
+      .map((lead: any) => lead.id);
+
+    const enrollment = await enrollCapturedLeadsInFunnel(prisma, orgId, leadIds, funnel.id);
+    const runIds = enrollment.runs.map((run: any) => run.id);
+    const scheduledAt = executionDate && executionTime
+      ? new Date(`${executionDate}T${executionTime}:00`).toISOString()
+      : null;
+    const campaignName = String(name || `${niche} - ${city}/${state}`).trim();
+
+    for (const run of enrollment.runs as any[]) {
+      await prisma.prospectingRun.update({
+        where: { id: run.id },
+        data: {
+          nextAction: scheduledAt ? "scheduled_first_contact" : "ready_first_contact",
+          qualification: {
+            ...((run.qualification as any) || {}),
+            campaign: {
+              name: campaignName,
+              niche,
+              city,
+              state: String(state).toUpperCase(),
+              provider,
+              channelId: channel?.id || null,
+              channelName: (channel?.config as any)?.label || channel?.inbox?.name || null,
+              agentId: selectedAgent.id,
+              agentName: selectedAgent.name,
+              scheduledAt,
+              dailyMessageLimit: Number(dailyMessageLimit || 50),
+              messageIntervalMinutes: Number(messageIntervalMinutes || 15)
+            }
+          }
+        }
+      });
+    }
+
+    res.status(201).json({
+      campaign: {
+        name: campaignName,
+        funnelId: funnel.id,
+        agent: selectedAgent,
+        channel,
+        scheduledAt,
+        dailyMessageLimit: Number(dailyMessageLimit || 50),
+        messageIntervalMinutes: Number(messageIntervalMinutes || 15)
+      },
+      capture: {
+        sourceId: capture.sourceId,
+        totalFound: capture.totalFound,
+        totalImported: capture.totalImported
+      },
+      enrolled: enrollment.enrolled,
+      skipped: enrollment.skipped,
+      runIds
+    });
+  }));
+
+  router.post("/runs/:id/response", asyncHandler(async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
     const { message, meetingStartDate, durationMinutes = 30 } = req.body;
-    if (!message) return res.status(400).json({ error: "Resposta do lead e obrigatoria" });
+    if (!message) {
+      res.status(400).json({ error: "Resposta do lead e obrigatoria" });
+      return;
+    }
 
     const run = await prisma.prospectingRun.findFirst({
       where: { id: req.params.id, organizationId: orgId },
@@ -554,7 +789,10 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
       }
     });
 
-    if (!run) return res.status(404).json({ error: "Execucao do funil nao encontrada" });
+    if (!run) {
+      res.status(404).json({ error: "Execucao do funil nao encontrada" });
+      return;
+    }
 
     const normalized = String(message).toLowerCase();
     const wantsMeeting = ["agenda", "reuniao", "reunião", "ligar", "call", "horario", "horário", "tenho interesse"].some(term => normalized.includes(term));
@@ -608,18 +846,24 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     });
 
     res.json({ run: updated, calendarEvent });
-  });
+  }));
 
-  router.post("/funnels/:id/enroll", async (req: AuthRequest, res) => {
+  router.post("/funnels/:id/enroll", asyncHandler(async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
-    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
     const leadIds = Array.isArray(req.body.leadIds) ? req.body.leadIds : [];
-    if (leadIds.length === 0) return res.status(400).json({ error: "Selecione ao menos um lead" });
+    if (leadIds.length === 0) {
+      res.status(400).json({ error: "Selecione ao menos um lead" });
+      return;
+    }
 
     const result = await enrollCapturedLeadsInFunnel(prisma, orgId, leadIds, req.params.id);
     res.status(201).json(result);
-  });
+  }));
 
   return router;
 }

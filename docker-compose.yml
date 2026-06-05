@@ -12,8 +12,12 @@ services:
       PORT: 10000
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      WHITELABEL_DOCKER_IP: ${WHITELABEL_DOCKER_IP:-}
+      WHITELABEL_CNAME_TARGET: ${WHITELABEL_CNAME_TARGET:-localhost}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@nexus360.com}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin@2024!}
+      WHATSAPP_BRIDGE_URL: ${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:8091}
+      WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-dev-whatsapp-bridge-secret}
     command: sh -c "if [ \"$${RUN_DB_PUSH:-false}\" = \"true\" ]; then npx prisma db push; fi; if [ \"$${RUN_SEED:-false}\" = \"true\" ]; then npm run seed; fi; npm run start"
     expose:
       - "10000"
@@ -45,6 +49,30 @@ services:
     networks:
       - nexus360
 
+  whatsapp-bridge:
+    build:
+      context: ./whatsapp-bridge
+      dockerfile: Dockerfile
+    container_name: nexus360-whatsapp-bridge
+    restart: unless-stopped
+    environment:
+      WHATSAPP_BRIDGE_ADDR: ":8091"
+      WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-dev-whatsapp-bridge-secret}
+      WHATSAPP_BRIDGE_PUBLIC_URL: ${WHATSAPP_BRIDGE_PUBLIC_URL:-http://localhost:8091}
+      NEXUS_BACKEND_URL: ${NEXUS_BACKEND_URL:-http://backend:10000}
+    volumes:
+      - whatsapp_bridge_data:/app/data
+    ports:
+      - "${WHATSAPP_BRIDGE_PORT:-8091}:8091"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - nexus360
+
 networks:
   nexus360:
     driver: bridge
+
+volumes:
+  whatsapp_bridge_data:

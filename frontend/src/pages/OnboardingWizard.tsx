@@ -165,32 +165,32 @@ export default function OnboardingWizard() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0F172A] text-white flex items-center justify-center p-4 font-sans overflow-hidden">
+    <div className="min-h-screen bg-[#F6F7F8] text-slate-950 flex items-center justify-center p-4 font-sans overflow-hidden">
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[150px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[150px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-100/70 blur-[150px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-slate-200/70 blur-[150px] rounded-full" />
       </div>
 
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
         <div className="lg:col-span-4 space-y-8 hidden lg:block">
           <div className="mb-12">
             <div className="flex items-center gap-3 text-2xl font-black tracking-tighter italic">
-              <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/50 not-italic">N</div>
+              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-card text-white not-italic">N</div>
               NEXUS<span className="text-primary">360</span>
             </div>
           </div>
           {steps.map((s) => (
             <div key={s.id} className="flex items-center gap-6 group">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 border-2 ${
-                currentStep >= s.id ? "bg-primary border-primary text-white shadow-xl shadow-blue-500/20" : "bg-white/5 border-white/10 text-gray-500"
+              <div className={`w-12 h-12 rounded-lg flex items-center justify-center transition-all duration-500 border ${
+                currentStep >= s.id ? "bg-primary border-primary text-white shadow-lg shadow-blue-100" : "bg-white border-gray-200 text-gray-400"
               }`}>
                 {currentStep > s.id ? <CheckCircle2 size={24} /> : <s.icon size={24} />}
               </div>
               <div className="flex flex-col">
                 <span className={`text-[10px] font-bold uppercase tracking-widest ${currentStep >= s.id ? "text-primary" : "text-gray-500"}`}>
-                  Step {s.id}
+                  Passo {s.id}
                 </span>
-                <span className={`font-bold text-lg transition-colors ${currentStep >= s.id ? "text-white" : "text-gray-600"}`}>
+                <span className={`font-bold text-lg transition-colors ${currentStep >= s.id ? "text-slate-950" : "text-gray-500"}`}>
                   {s.title}
                 </span>
               </div>
@@ -201,7 +201,7 @@ export default function OnboardingWizard() {
         <div className="lg:col-span-8 w-full">
           <motion.div
             layout
-            className="bg-white/5 backdrop-blur-2xl rounded-[48px] p-8 lg:p-14 border border-white/10 shadow-3xl shadow-black/50"
+            className="bg-white rounded-lg p-8 lg:p-12 border border-gray-200 shadow-floating"
           >
             <AnimatePresence mode="wait">
               {currentStep === 1 && (
@@ -212,21 +212,21 @@ export default function OnboardingWizard() {
                   exit={{ opacity: 0, y: -20 }}
                   className="space-y-8"
                 >
-                  <div className="w-20 h-20 bg-primary/10 text-primary rounded-[32px] flex items-center justify-center mb-4 border border-primary/20">
+                  <div className="w-20 h-20 bg-primary/10 text-primary rounded-lg flex items-center justify-center mb-4 border border-primary/20">
                     <Rocket size={40} />
                   </div>
                   <div className="space-y-4">
-                    <h1 className="text-5xl font-black leading-tight bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                      Vamos inteligentificar seu negócio.
+                    <h1 className="text-5xl font-black leading-tight text-slate-950">
+                      Vamos configurar seu negocio.
                     </h1>
-                    <p className="text-gray-400 text-lg">
-                      Em 5 passos, a IA do <span className="text-primary font-bold">Nexus360</span> vai entender seu modelo de negócio
-                      e configurar automaticamente pipelines, campos personalizados e processos ideais para você.
+                    <p className="text-gray-500 text-lg">
+                      Em 5 passos, a IA do <span className="text-primary font-bold">Nexus360</span> entende seu modelo de negocio
+                      e prepara pipelines, campos personalizados e processos iniciais para sua operacao.
                     </p>
                   </div>
                   <button
                     onClick={() => setCurrentStep(2)}
-                    className="flex items-center gap-4 bg-primary text-white px-10 py-5 rounded-2xl font-bold text-lg hover:bg-blue-600 transition-all shadow-2xl shadow-blue-500/40"
+                    className="flex items-center gap-4 bg-primary text-white px-10 py-5 rounded-lg font-bold text-lg hover:bg-primary-hover transition-all shadow-card"
                   >
                     Começar Diagnóstico
                     <ChevronRight size={24} />
@@ -248,7 +248,7 @@ export default function OnboardingWizard() {
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Nome da Empresa</label>
                       <input
                         placeholder="Ex: Nexus360"
-                        className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-primary focus:bg-white/10 transition-all text-xl"
+                        className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary focus:bg-white transition-all text-xl"
                         value={formData.businessName}
                         onChange={e => setFormData({...formData, businessName: e.target.value})}
                       />
@@ -261,7 +261,7 @@ export default function OnboardingWizard() {
                             key={t}
                             onClick={() => setFormData({...formData, businessType: t})}
                             className={`p-4 rounded-xl border-2 transition-all font-bold ${
-                              formData.businessType === t ? "border-primary bg-primary/10 text-primary" : "border-white/5 bg-white/5 text-gray-500 hover:border-white/20"
+                              formData.businessType === t ? "border-primary bg-primary/10 text-primary" : "border-gray-200 bg-white text-gray-600 hover:border-primary/40"
                             }`}
                           >
                             {t}
@@ -273,7 +273,7 @@ export default function OnboardingWizard() {
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Público-Alvo</label>
                       <input
                         placeholder="Ex: Pequenos empresários de marketing"
-                        className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-primary transition-all text-xl"
+                        className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-xl"
                         value={formData.targetAudience}
                         onChange={e => setFormData({...formData, targetAudience: e.target.value})}
                       />
@@ -284,7 +284,7 @@ export default function OnboardingWizard() {
                         <input
                           type="number"
                           placeholder="5000"
-                          className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-primary transition-all text-xl"
+                          className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-xl"
                           value={formData.averageTicket}
                           onChange={e => setFormData({...formData, averageTicket: e.target.value})}
                         />
@@ -292,7 +292,7 @@ export default function OnboardingWizard() {
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Ciclo de Vendas</label>
                         <select
-                          className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-primary transition-all text-lg appearance-none"
+                          className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-lg appearance-none"
                           value={formData.salesCycle}
                           onChange={e => setFormData({...formData, salesCycle: e.target.value})}
                         >
@@ -305,13 +305,13 @@ export default function OnboardingWizard() {
                     </div>
                   </div>
                   <div className="flex gap-4 pt-4">
-                    <button onClick={prevStep} className="p-5 rounded-2xl bg-white/5 hover:bg-white/10 transition-all border border-white/10 text-gray-400">
+                    <button onClick={prevStep} className="p-5 rounded-lg bg-white hover:bg-gray-50 transition-all border border-gray-200 text-gray-500">
                       <ArrowLeft size={24} />
                     </button>
                     <button
                       onClick={nextStep}
                       disabled={!formData.businessName || !formData.businessType || !formData.targetAudience || saving}
-                      className="flex-1 bg-primary text-white py-5 rounded-2xl font-bold text-lg hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                      className="flex-1 bg-primary text-white py-5 rounded-lg font-bold text-lg hover:bg-primary-hover transition-all disabled:opacity-50 flex items-center justify-center gap-3"
                     >
                       {saving ? <><Loader2 size={20} className="animate-spin" /> Salvando...</> : "Salvar & Continuar"}
                     </button>
@@ -343,7 +343,7 @@ export default function OnboardingWizard() {
                             className={`px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all ${
                               formData.leadChannels.includes(c)
                                 ? "border-primary bg-primary/10 text-primary"
-                                : "border-white/5 bg-white/5 text-gray-400 hover:border-white/20"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-primary/40"
                             }`}
                           >
                             {c}
@@ -352,7 +352,7 @@ export default function OnboardingWizard() {
                       </div>
                     </div>
 
-                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
+                    <div className="bg-slate-50 p-6 rounded-lg border border-gray-200 space-y-4">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Como voce vende?</label>
                       <div className="grid grid-cols-2 gap-3">
                         {salesMotionOptions.map(item => (
@@ -362,7 +362,7 @@ export default function OnboardingWizard() {
                             className={`p-4 rounded-xl border-2 transition-all text-left font-bold text-sm ${
                               formData.salesMotions.includes(item)
                                 ? "border-primary bg-primary/10 text-primary"
-                                : "border-white/5 bg-white/5 text-gray-400 hover:border-white/20"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-primary/40"
                             }`}
                           >
                             {item}
@@ -371,7 +371,7 @@ export default function OnboardingWizard() {
                       </div>
                     </div>
 
-                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
+                    <div className="bg-slate-50 p-6 rounded-lg border border-gray-200 space-y-4">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">O que acontece durante a venda?</label>
                       <div className="grid grid-cols-2 gap-3">
                         {[
@@ -386,7 +386,7 @@ export default function OnboardingWizard() {
                             className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
                               (formData as any)[item.key]
                                 ? "border-primary bg-primary/10 text-primary"
-                                : "border-white/5 bg-white/5 text-gray-400 hover:border-white/20"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-primary/40"
                             }`}
                           >
                             <item.icon size={18} />
@@ -398,10 +398,10 @@ export default function OnboardingWizard() {
                   </div>
 
                   <div className="flex gap-4">
-                    <button onClick={prevStep} className="p-5 rounded-2xl bg-white/5 text-gray-400 border border-white/10">
+                    <button onClick={prevStep} className="p-5 rounded-lg bg-white text-gray-500 border border-gray-200">
                       <ArrowLeft size={24} />
                     </button>
-                    <button onClick={nextStep} className="flex-1 bg-primary text-white py-5 rounded-2xl font-bold text-lg">
+                    <button onClick={nextStep} className="flex-1 bg-primary text-white py-5 rounded-lg font-bold text-lg hover:bg-primary-hover transition-all">
                       Continuar
                     </button>
                   </div>
@@ -433,10 +433,10 @@ export default function OnboardingWizard() {
                           <button
                             key={item.key}
                             onClick={() => setFormData(prev => ({ ...prev, [item.key]: !(prev as any)[item.key] }))}
-                            className={`flex flex-col items-center gap-2 p-5 rounded-2xl border-2 transition-all ${
+                            className={`flex flex-col items-center gap-2 p-5 rounded-lg border transition-all ${
                               (formData as any)[item.key]
                                 ? "border-primary bg-primary/10 text-primary"
-                                : "border-white/5 bg-white/5 text-gray-400 hover:border-white/20"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-primary/40"
                             }`}
                           >
                             <UserPlus size={24} />
@@ -451,7 +451,7 @@ export default function OnboardingWizard() {
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Principais Dores</label>
                       <textarea
                         placeholder="Ex: Dificuldade em organizar leads, processo manual de propostas..."
-                        className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-primary transition-all text-lg min-h-[100px] resize-none"
+                        className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-lg min-h-[100px] resize-none"
                         value={formData.painPoints}
                         onChange={e => setFormData({...formData, painPoints: e.target.value})}
                       />
@@ -460,7 +460,7 @@ export default function OnboardingWizard() {
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Maior Desafio</label>
                       <textarea
                         placeholder="Ex: Escalar vendas sem aumentar headcount"
-                        className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-primary transition-all text-lg min-h-[80px] resize-none"
+                        className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-lg min-h-[80px] resize-none"
                         value={formData.biggestProblem}
                         onChange={e => setFormData({...formData, biggestProblem: e.target.value})}
                       />
@@ -468,10 +468,10 @@ export default function OnboardingWizard() {
                   </div>
 
                   <div className="flex gap-4">
-                    <button onClick={prevStep} className="p-5 rounded-2xl bg-white/5 text-gray-400 border border-white/10">
+                    <button onClick={prevStep} className="p-5 rounded-lg bg-white text-gray-500 border border-gray-200">
                       <ArrowLeft size={24} />
                     </button>
-                    <button onClick={nextStep} className="flex-1 bg-primary text-white py-5 rounded-2xl font-bold text-lg">
+                    <button onClick={nextStep} className="flex-1 bg-primary text-white py-5 rounded-lg font-bold text-lg hover:bg-primary-hover transition-all">
                       Continuar
                     </button>
                   </div>
@@ -496,13 +496,13 @@ export default function OnboardingWizard() {
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Processo de Entrega</label>
                       <textarea
                         placeholder="Ex: Onboarding do cliente, depois entregas mensais com OKRs"
-                        className="w-full px-6 py-5 bg-white/5 border border-white/10 rounded-2xl outline-none focus:border-primary transition-all text-lg min-h-[100px] resize-none"
+                        className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-lg min-h-[100px] resize-none"
                         value={formData.deliveryProcess}
                         onChange={e => setFormData({...formData, deliveryProcess: e.target.value})}
                       />
                     </div>
 
-                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-4">
+                    <div className="bg-slate-50 p-6 rounded-lg border border-gray-200 space-y-4">
                       <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Recursos de Entrega</label>
                       <div className="grid grid-cols-2 gap-3">
                         {[
@@ -517,7 +517,7 @@ export default function OnboardingWizard() {
                             className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-all ${
                               (formData as any)[item.key]
                                 ? "border-primary bg-primary/10 text-primary"
-                                : "border-white/5 bg-white/5 text-gray-400 hover:border-white/20"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-primary/40"
                             }`}
                           >
                             <item.icon size={18} />
@@ -528,10 +528,10 @@ export default function OnboardingWizard() {
                     </div>
                   </div>
 
-                  <div className="bg-blue-500/5 border border-blue-500/20 p-5 rounded-2xl flex gap-4 items-start">
+                  <div className="bg-blue-50 border border-blue-100 p-5 rounded-lg flex gap-4 items-start">
                     <BrainCircuit className="text-blue-500 shrink-0 mt-1" size={24} />
                     <div>
-                      <p className="font-bold text-white text-sm">Preparando diagnóstico com IA</p>
+                      <p className="font-bold text-slate-950 text-sm">Preparando diagnostico com IA</p>
                       <p className="text-xs text-gray-400 mt-1">
                         Após salvar, nossa IA vai analisar suas respostas e montar o setup ideal de pipelines,
                         campos personalizados e processos para sua operação.
@@ -540,13 +540,13 @@ export default function OnboardingWizard() {
                   </div>
 
                   <div className="flex gap-4">
-                    <button onClick={prevStep} className="p-5 rounded-2xl bg-white/5 text-gray-400 border border-white/10">
+                    <button onClick={prevStep} className="p-5 rounded-lg bg-white text-gray-500 border border-gray-200">
                       <ArrowLeft size={24} />
                     </button>
                     <button
                       onClick={nextStep}
                       disabled={saving}
-                      className="flex-1 bg-primary text-white py-5 rounded-2xl font-bold text-lg hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center justify-center gap-3 shadow-xl shadow-blue-500/20"
+                      className="flex-1 bg-primary text-white py-5 rounded-lg font-bold text-lg hover:bg-primary-hover transition-all disabled:opacity-50 flex items-center justify-center gap-3 shadow-card"
                     >
                       {saving ? (
                         <><Loader2 size={20} className="animate-spin" /> Gerando Diagnóstico...</>

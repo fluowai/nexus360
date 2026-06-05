@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
+import { isCustomWorkspaceHost, workspacePath } from '../../lib/workspaceRoute';
 import './Sidebar.css';
 
 interface SidebarItemProps {
@@ -148,6 +149,8 @@ export const Sidebar: React.FC<{
   const isSuper = user?.role === 'SUPER_ADMIN';
 
   const getSlugFromPath = () => {
+    if (isCustomWorkspaceHost()) return '';
+
     const parts = location.pathname.split('/').filter(Boolean);
     const firstPart = parts[0] || '';
     const reserved = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports'];
@@ -157,9 +160,7 @@ export const Sidebar: React.FC<{
 
   const currentSlug = getSlugFromPath();
   const getPath = (basePath: string) => {
-    if (basePath.startsWith('/admin')) return basePath;
-    if (currentSlug) return `/${currentSlug}${basePath}`;
-    return basePath;
+    return workspacePath(basePath, currentSlug);
   };
 
   const canSeeModule = (moduleKey: string) => isSuper || access.hasModule(moduleKey);

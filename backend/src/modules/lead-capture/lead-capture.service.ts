@@ -100,13 +100,13 @@ export class LeadCaptureService {
               }
             },
             update: {
-              ...this.mapToPrisma(leadData),
+              ...this.mapToPrisma(leadData, params),
               scoreOpportunity: score.value,
               opportunityLevel: score.level,
               sourceId: source.id
             },
             create: {
-              ...this.mapToPrisma(leadData),
+              ...this.mapToPrisma(leadData, params),
               organizationId: tenantId,
               sourceId: source.id,
               provider: providerName,
@@ -202,7 +202,11 @@ export class LeadCaptureService {
     return { value: Math.max(0, score), level };
   }
 
-  private mapToPrisma(lead: NormalizedLead) {
+  private mapToPrisma(lead: NormalizedLead, params: LeadSearchParams) {
+    const parsedLocation = this.parseBrazilianLocation(lead.address);
+    const city = lead.city || parsedLocation.city || params.city || null;
+    const state = this.normalizeState(lead.state || parsedLocation.state || params.state);
+
     return {
       externalId: lead.external_id!,
       placeId: lead.place_id,
@@ -217,8 +221,8 @@ export class LeadCaptureService {
       linkedin: lead.linkedin,
       address: lead.address,
       neighborhood: lead.neighborhood,
-      city: lead.city,
-      state: lead.state,
+      city,
+      state,
       country: lead.country || 'Brasil',
       postalCode: lead.postal_code,
       latitude: lead.latitude,
@@ -245,5 +249,72 @@ export class LeadCaptureService {
     if (params.state) parts.push(params.state);
     if (params.country) parts.push(params.country || 'Brasil');
     return parts.filter(Boolean).join(' ');
+  }
+
+  private normalizeState(value?: string | null): string | null {
+    const normalized = this.normalizeText(value);
+    if (!normalized) return null;
+
+    const stateAliases: Record<string, string> = {
+      ACRE: "AC",
+      ALAGOAS: "AL",
+      AMAPA: "AP",
+      AMAZONAS: "AM",
+      BAHIA: "BA",
+      CEARA: "CE",
+      "DISTRITO FEDERAL": "DF",
+      "ESPIRITO SANTO": "ES",
+      GOIAS: "GO",
+      MARANHAO: "MA",
+      "MATO GROSSO": "MT",
+      "MATO GROSSO DO SUL": "MS",
+      "MINAS GERAIS": "MG",
+      PARA: "PA",
+      PARAIBA: "PB",
+      PARANA: "PR",
+      PERNAMBUCO: "PE",
+      PIAUI: "PI",
+      "RIO DE JANEIRO": "RJ",
+      "RIO GRANDE DO NORTE": "RN",
+      "RIO GRANDE DO SUL": "RS",
+      RONDONIA: "RO",
+      RORAIMA: "RR",
+      "SANTA CATARINA": "SC",
+      "SAO PAULO": "SP",
+      SERGIPE: "SE",
+      TOCANTINS: "TO"
+    };
+
+    if (/^[A-Z]{2}$/.test(normalized)) return normalized;
+    return stateAliases[normalized] || normalized;
+  }
+
+  private parseBrazilianLocation(address?: string | null): { city: string | null; state: string | null } {
+    const raw = String(address || "").trim();
+    if (!raw) return { city: null, state: null };
+
+    const stateMatch = raw.match(/(?:^|[\s,/-])([A-Z]{2})(?:\s*,?\s*Brasil|\s*$)/i);
+    const state = this.normalizeState(stateMatch?.[1] || null);
+    let city: string | null = null;
+
+    if (state) {
+      const stateIndex = raw.toUpperCase().lastIndexOf(state);
+      const beforeState = stateIndex >= 0 ? raw.slice(0, stateIndex) : raw;
+      const parts = beforeState
+        .split(/[,|-]/)
+        .map(part => part.trim())
+        .filter(Boolean);
+      city = parts.length ? parts[parts.length - 1] : null;
+    }
+
+    return { city, state };
+  }
+
+  private normalizeText(value?: string | null): string {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase();
   }
 }

@@ -71,7 +71,8 @@ const configuredOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL 
 const allowedOrigins = new Set([
   ...configuredOrigins,
   'http://localhost:5173',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'https://nexus360.consultio.com.br'
 ]);
 
 async function isRegisteredTenantHost(hostname: string) {

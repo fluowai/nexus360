@@ -206,7 +206,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
       return;
     }
 
-    if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin')) {
+    if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin') && pathname !== '/acp') {
       navigate('/admin', { replace: true });
       return;
     }

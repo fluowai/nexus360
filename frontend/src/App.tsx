@@ -99,16 +99,18 @@ function hasUrlSlug(pathname: string) {
 
 const Layout = ({ 
   children, 
-  onLogout, 
+  onLogout,
   user,
   selectedClientId,
-  onSelectClient
+  onSelectClient,
+  whiteLabel
 }: { 
   children: React.ReactNode; 
   onLogout: () => void; 
   user: any;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
+  whiteLabel?: any;
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -130,15 +132,20 @@ const Layout = ({
         setCollapsed={setIsCollapsed}
         selectedClientId={selectedClientId}
         onSelectClient={onSelectClient}
+        whiteLabel={whiteLabel}
       />
       
       <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[280px]'}`}>
         <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100 sticky top-0 z-40">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
-              <Monitor size={18} />
-            </div>
-            <span className="font-black text-gray-900">Nexus360</span>
+            {whiteLabel?.logoUrl ? (
+              <img src={whiteLabel.logoUrl} alt={whiteLabel?.name || "Logo"} className="h-8 w-8 rounded-lg object-contain" />
+            ) : (
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
+                <Monitor size={18} />
+              </div>
+            )}
+            <span className="font-black text-gray-900">{whiteLabel?.name || "Nexus360"}</span>
           </div>
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
@@ -209,7 +216,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
 }
 
 export default function App() {
-  useWhitelabel();
+  const { config: whiteLabel } = useWhitelabel();
   const { user, setUser, authLoading, handleLogout } = useAuth();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
     localStorage.getItem('nexus_selected_client')
@@ -245,6 +252,7 @@ export default function App() {
         onLogout={handleLogout}
         selectedClientId={selectedClientId}
         onSelectClient={handleSelectClient}
+        whiteLabel={whiteLabel}
       >
         <Routes>
           <Route path="/" element={<Dashboard />} />

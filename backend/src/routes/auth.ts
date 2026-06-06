@@ -18,6 +18,7 @@ import {
   getRefreshTokenFromRequest,
   setRefreshTokenCookie,
 } from "../utils/security.js";
+import { findVerifiedTenantDomain } from "../utils/tenantHost.js";
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -44,6 +45,29 @@ const serializePlan = (plan: any) => {
 
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
+
+  async function ensureUserMatchesTenantDomain(
+    req: AuthRequest,
+    res: any,
+    userOrgId: string | null | undefined,
+    userRole: string | null | undefined
+  ) {
+    const tenantDomain = await findVerifiedTenantDomain(
+      prisma,
+      req.headers["x-forwarded-host"] || req.headers.host
+    );
+
+    if (!tenantDomain) return true;
+    if (userRole === "SUPER_ADMIN") return true;
+    if (userOrgId === tenantDomain.organization.id) return true;
+
+    res.status(403).json({
+      success: false,
+      error: "Este dominio pertence a outra organizacao.",
+      code: "DOMAIN_ORG_MISMATCH",
+    });
+    return false;
+  }
 
   const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutos
@@ -112,6 +136,10 @@ export function authRoutes(prisma: PrismaClient) {
           success: false,
           error: "Usuário ou senha inválidos",
         });
+      }
+
+      if (!(await ensureUserMatchesTenantDomain(req, res, user.organizationId, user.role))) {
+        return;
       }
 
       let orgId = user.organizationId;
@@ -298,6 +326,11 @@ export function authRoutes(prisma: PrismaClient) {
       }
 
       const user = storedToken.user;
+      if (!(await ensureUserMatchesTenantDomain(req, res, user.organizationId, user.role))) {
+        clearRefreshTokenCookie(res);
+        return;
+      }
+
       let orgId = user.organizationId;
       let orgName = user.organization?.name || "Sem Organização";
 
@@ -408,6 +441,17 @@ export function authRoutes(prisma: PrismaClient) {
     }
 
     try {
+      const tenantDomain = await findVerifiedTenantDomain(
+        prisma,
+        req.headers["x-forwarded-host"] || req.headers.host
+      );
+      if (tenantDomain) {
+        return res.status(403).json({
+          error: "Cadastro indisponivel neste dominio.",
+          code: "CUSTOM_DOMAIN_REGISTRATION_DISABLED",
+        });
+      }
+
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser)
         return res.status(400).json({ error: "Este email já está em uso." });
@@ -520,6 +564,10 @@ export function authRoutes(prisma: PrismaClient) {
 
       if (!user)
         return res.status(404).json({ error: "User not found" });
+
+      if (!(await ensureUserMatchesTenantDomain(req, res, user.organizationId, user.role))) {
+        return;
+      }
 
       let orgId = user.organizationId;
       let orgName = user.organization?.name || "No Org";

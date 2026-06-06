@@ -134,6 +134,7 @@ export const Sidebar: React.FC<{
   setCollapsed: (collapsed: boolean) => void;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
+  whiteLabel?: any;
 }> = ({
   onLogout,
   user,
@@ -142,7 +143,8 @@ export const Sidebar: React.FC<{
   collapsed,
   setCollapsed,
   selectedClientId,
-  onSelectClient
+  onSelectClient,
+  whiteLabel
 }) => {
   const location = useLocation();
   const access = useAccess(user);
@@ -292,10 +294,14 @@ export const Sidebar: React.FC<{
       <aside className={`sidebar-container ${collapsed ? 'collapsed' : ''} ${isMobileOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo-wrapper">
-            <div className="logo-icon">
-              <Monitor size={20} />
-            </div>
-            <span className="logo-text">Nexus360</span>
+            {whiteLabel?.logoUrl ? (
+              <img src={whiteLabel.logoUrl} alt={whiteLabel?.name || "Logo"} className="logo-icon object-contain" />
+            ) : (
+              <div className="logo-icon">
+                <Monitor size={20} />
+              </div>
+            )}
+            <span className="logo-text">{whiteLabel?.name || "Nexus360"}</span>
           </div>
           <button
             className="hidden md:flex p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 transition-colors"

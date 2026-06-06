@@ -9,6 +9,7 @@ import { prisma } from "./lib/prisma.js";
 import { authenticateToken } from "./middleware/auth.js";
 import { resolveTenant } from "./middleware/tenant.js";
 import { sanitizeStoredHtml } from "./utils/security.js";
+import { findTenantDomainStatus, findVerifiedTenantDomain, normalizeRequestHost } from "./utils/tenantHost.js";
 import { MissionScheduler } from "./services/prospect/MissionScheduler.js";
 import { emitAutomationEvent } from "./workers/automationWorker.js";
 
@@ -72,25 +73,28 @@ const allowedOrigins = new Set([
   'http://localhost:3000'
 ]);
 
-function normalizeRequestHost(value: string | undefined) {
-  return String(value || "")
-    .split(",")[0]
-    .trim()
-    .toLowerCase()
-    .replace(/^www\./, "")
-    .split(":")[0];
+async function isRegisteredTenantHost(hostname: string) {
+  return Boolean(await findVerifiedTenantDomain(prisma, hostname));
 }
 
-async function isRegisteredTenantHost(hostname: string) {
-  const host = normalizeRequestHost(hostname);
-  if (!host) return false;
+async function enforceTenantDomain(req: any, res: any, next: any) {
+  try {
+    const tenantDomain = await findVerifiedTenantDomain(
+      prisma,
+      req.headers["x-forwarded-host"] || req.headers.host
+    );
 
-  const [domain, organization] = await Promise.all([
-    prisma.domain.findUnique({ where: { name: host }, select: { id: true } }),
-    prisma.organization.findFirst({ where: { domain: host }, select: { id: true } }),
-  ]);
+    if (!tenantDomain) return next();
+    if (req.user?.role === "SUPER_ADMIN") return next();
+    if (req.user?.orgId === tenantDomain.organization.id) return next();
 
-  return Boolean(domain || organization);
+    return res.status(403).json({
+      error: "DOMAIN_ORG_MISMATCH",
+      message: "Este dominio pertence a outra organizacao.",
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 const corsOptions: cors.CorsOptions = {
@@ -174,30 +178,24 @@ app.get("/api/domain/context", async (req, res, next) => {
     const host = normalizeRequestHost(req.headers["x-forwarded-host"] as string || req.headers.host);
     if (!host) return res.json({ customDomain: false });
 
-    const domain = await prisma.domain.findUnique({
-      where: { name: host },
-      include: { organization: { select: { id: true, name: true, slug: true, whiteLabelConfig: true } } },
-    });
+    const tenantDomain = await findVerifiedTenantDomain(prisma, host);
 
-    if (domain) {
+    if (tenantDomain) {
       return res.json({
         customDomain: true,
-        domain: domain.name,
-        status: domain.status,
-        organization: domain.organization,
+        domain: tenantDomain.domain,
+        status: tenantDomain.status,
+        organization: tenantDomain.organization,
       });
     }
 
-    const organization = await prisma.organization.findFirst({
-      where: { domain: host },
-      select: { id: true, name: true, slug: true, whiteLabelConfig: true },
-    });
+    const domainStatus = await findTenantDomainStatus(prisma, host);
 
     res.json({
-      customDomain: Boolean(organization),
-      domain: organization ? host : null,
-      status: organization ? "verified" : null,
-      organization,
+      customDomain: false,
+      domain: domainStatus?.name || null,
+      status: domainStatus?.status || null,
+      organization: null,
     });
   } catch (error) {
     next(error);
@@ -309,7 +307,7 @@ const protectedRoutes = [
 app.use("/api/admin/plans", authenticateToken, adminPlansRoutes(prisma));
 
 protectedRoutes.forEach(route => {
-  app.use(route.path, authenticateToken, resolveTenant, route.router(prisma));
+  app.use(route.path, authenticateToken, enforceTenantDomain, resolveTenant, route.router(prisma));
 });
 
 // Rotas Externas / Portais
@@ -329,7 +327,7 @@ async function safeDashboardValue<T>(label: string, fallback: T, loader: () => P
   }
 }
 
-app.get("/api/dashboard", authenticateToken, resolveTenant, async (req: any, res, next) => {
+app.get("/api/dashboard", authenticateToken, enforceTenantDomain, resolveTenant, async (req: any, res, next) => {
   try {
     const orgId = req.user.orgId;
     const [leads, clients, proposals, invoices, contentCount, org, user, agency] = await Promise.all([

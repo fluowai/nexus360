@@ -55,7 +55,14 @@ export default function DomainSettings() {
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const panelHost = "nexus360.consultio.com.br";
+  const panelHost = (() => {
+    const panelUrl = import.meta.env.VITE_PANEL_URL || "https://nexus360.consultio.com.br";
+    try {
+      return new URL(panelUrl).hostname;
+    } catch {
+      return String(panelUrl).replace(/^https?:\/\//, "").replace(/\/$/, "");
+    }
+  })();
 
   const fetchData = async () => {
     try {
@@ -423,8 +430,8 @@ export default function DomainSettings() {
               <div className="bg-amber-50 p-4 rounded-xl flex gap-3 border border-amber-100">
                 <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  Após cadastrar, o cliente precisa criar um registro <strong>A</strong> no DNS
-                  apontando para o IP público do servidor Docker. Isso não compra nem transfere o domínio.
+                  Apos cadastrar, o cliente precisa criar o registro DNS indicado na tela.
+                  Isso nao compra nem transfere o dominio.
                 </p>
               </div>
 

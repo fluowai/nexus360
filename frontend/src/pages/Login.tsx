@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch, readJsonResponse, setAccessToken } from "../lib/api";
 import { workspacePath } from "../lib/workspaceRoute";
-import { Shield, Mail, Lock, ArrowRight, Zap } from "lucide-react";
+import { useWhitelabel } from "../lib/useWhitelabel";
+import { Mail, Lock, ArrowRight, Zap } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function Login({ onAuthenticated }: { onAuthenticated?: (user: any) => void }) {
@@ -15,6 +16,12 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
+  const { config: whiteLabel, customDomain } = useWhitelabel();
+  const brandName = whiteLabel?.name || "Nexus360";
+
+  useEffect(() => {
+    if (customDomain) setIsRegister(false);
+  }, [customDomain]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,6 +29,10 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
     setError("");
 
     try {
+      if (customDomain && isRegister) {
+        throw new Error("Cadastro indisponivel neste dominio.");
+      }
+
       const endpoint = isRegister ? "/api/auth/register" : "/api/auth/login";
       const body = isRegister 
         ? { name, email, password, organizationName: orgName }
@@ -83,29 +94,37 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
         <div className="bg-white rounded-[32px] shadow-2xl shadow-blue-100/50 p-8 sm:p-12 border border-white relative overflow-hidden">
           {/* Logo */}
           <div className="flex flex-col items-center gap-4 mb-10">
-            <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
-               <Zap size={32} className="text-white fill-current" />
-            </div>
+            {whiteLabel?.logoUrl ? (
+              <img src={whiteLabel.logoUrl} alt={brandName} className="h-16 w-16 rounded-2xl object-contain shadow-lg shadow-primary/20" />
+            ) : (
+              <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+                 <Zap size={32} className="text-white fill-current" />
+              </div>
+            )}
             <div className="text-center">
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900">Nexus360</h1>
-              <p className="text-sm text-gray-400 font-medium uppercase tracking-widest mt-1">Agency OS</p>
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900">{brandName}</h1>
+              <p className="text-sm text-gray-400 font-medium uppercase tracking-widest mt-1">
+                {customDomain ? "Portal do cliente" : "Agency OS"}
+              </p>
             </div>
           </div>
 
-          <div className="flex bg-gray-50 p-1 rounded-2xl mb-8">
-            <button 
-              onClick={() => setIsRegister(false)}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${!isRegister ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              Login
-            </button>
-            <button 
-              onClick={() => setIsRegister(true)}
-              className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${isRegister ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
-            >
-              Cadastro
-            </button>
-          </div>
+          {!customDomain && (
+            <div className="flex bg-gray-50 p-1 rounded-2xl mb-8">
+              <button
+                onClick={() => setIsRegister(false)}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${!isRegister ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Login
+              </button>
+              <button
+                onClick={() => setIsRegister(true)}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${isRegister ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                Cadastro
+              </button>
+            </div>
+          )}
 
           {error && (
             <motion.div 
@@ -187,7 +206,9 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
           </form>
 
           <div className="mt-8 pt-8 border-t border-gray-100 text-center">
-             <p className="text-[10px] text-gray-400">© 2026 Nexus360 Digital. Primeiro usuário = SUPERADMIN.</p>
+             <p className="text-[10px] text-gray-400">
+              {customDomain ? "Ambiente seguro para usuarios autorizados." : "© 2026 Nexus360 Digital. Primeiro usuário = SUPERADMIN."}
+             </p>
           </div>
         </div>
       </motion.div>

@@ -12,6 +12,7 @@ export interface WhitelabelConfig {
 
 export function useWhitelabel() {
   const [config, setConfig] = useState<WhitelabelConfig | null>(null);
+  const [customDomain, setCustomDomain] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,8 +24,13 @@ export function useWhitelabel() {
         const res = await publicApiFetch("/api/domain/context");
         if (res.ok) {
           const data = await readJsonResponse(res, "Contexto white label indisponivel.");
-          if (data.organization?.whiteLabelConfig) {
-            const wl = data.organization.whiteLabelConfig;
+          setCustomDomain(Boolean(data.customDomain));
+
+          if (data.organization) {
+            const wl = {
+              name: data.organization.whiteLabelConfig?.name || data.organization.name,
+              ...(data.organization.whiteLabelConfig || {}),
+            };
             setConfig(wl);
 
             if (wl.primaryColor) {
@@ -43,9 +49,7 @@ export function useWhitelabel() {
               link.href = wl.faviconUrl;
               document.getElementsByTagName('head')[0].appendChild(link);
             }
-            if (wl.name) {
-              document.title = wl.name;
-            }
+            document.title = wl.name || "Nexus360";
           }
         }
       } catch (err) {
@@ -58,5 +62,5 @@ export function useWhitelabel() {
     fetchContext();
   }, []);
 
-  return { config, loading };
+  return { config, customDomain, loading };
 }

@@ -6,6 +6,7 @@ import { sanitizeBody } from "../utils/sanitizer.js";
 import { auditFromRequest } from "../utils/auditLogger.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
+import { ensureClientAgentContext } from "../services/clientAgentContext.js";
 
 export function crmRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -529,6 +530,7 @@ export function crmRoutes(prisma: PrismaClient) {
           organizationId: orgId, assignedToId: data.assignedToId || req.user?.id
         }
       });
+      await ensureClientAgentContext(prisma, client, data.aiBriefing || data.briefing || {});
       auditFromRequest(req, "CREATE", "Client", client.id);
       res.json(client);
     } catch (error) { next(error); }

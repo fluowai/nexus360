@@ -4,6 +4,8 @@ import { AuthRequest } from "../middleware/auth.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 import { scanClient } from "../services/webScanner.js";
 import { imageAI } from "../services/imageAI.js";
+import { upsertClientAgentContext } from "../services/clientAgentContext.js";
+import { enqueueAgentQueueForClient, processAgentQueue } from "../services/agentQueue.js";
 
 const ACP_AGENTS: Record<string, { name: string; category: string; autonomy: number; prompt: string }> = {
   atlas: {
@@ -243,7 +245,7 @@ export function acpRoutes(prisma: PrismaClient) {
   // POST /api/acp/execute — executa um agente específico
   router.post("/execute", async (req: AuthRequest, res) => {
     try {
-      const { agentId, input, clientName } = req.body;
+      const { agentId, input, clientName, clientId } = req.body;
       const orgId = req.user?.orgId;
       
       if (!orgId) return res.status(401).json({ error: "Unauthorized" });
@@ -302,10 +304,23 @@ Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja 
           agentName: agentConfig.name,
           input,
           output: result,
-          metadata: { clientName },
+          metadata: { clientName, clientId: clientId || null },
           createdById: req.user?.id
         }
       });
+
+      if (clientId) {
+        await upsertClientAgentContext(prisma, {
+          organizationId: orgId,
+          clientId: String(clientId),
+          event: "acp.agent.executed",
+          agentId,
+          agentName: agentConfig.name,
+          input,
+          output: result,
+          metadata: { clientName, source: "acp_execute" },
+        });
+      }
 
       res.json({ result, agentName: agentConfig.name });
     } catch (error) {
@@ -505,7 +520,7 @@ Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja 
       const orgId = req.user?.orgId;
       if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
-      const { dossier, clientName, additionalContext } = req.body;
+      const { dossier, clientName, additionalContext, clientId, briefing } = req.body;
       if (!dossier) {
         return res.status(400).json({ error: "dossier é obrigatório (execute o scan primeiro)." });
       }
@@ -570,10 +585,29 @@ Com base em todo o contexto acima, execute sua função de ${agentConfig.name}.`
             agentName: agentConfig.name,
             input: input.slice(0, 2000),
             output,
-            metadata: { clientName, chainExecution: true },
+            metadata: { clientName, clientId: clientId || null, chainExecution: true },
             createdById: req.user?.id,
           },
         });
+      }
+
+      if (clientId) {
+        await upsertClientAgentContext(prisma, {
+          organizationId: orgId,
+          clientId: String(clientId),
+          event: "acp.chain.completed",
+          dossier,
+          chainResults: results,
+          briefing: briefing || {},
+          metadata: { clientName, source: "acp_chain", completedAt: new Date().toISOString() },
+        });
+        await enqueueAgentQueueForClient(prisma, {
+          organizationId: orgId,
+          clientId: String(clientId),
+          requestedById: req.user?.id,
+          source: "acp_chain",
+        });
+        await processAgentQueue(prisma, orgId, 20, String(clientId));
       }
 
       res.json({ results, completedAt: new Date().toISOString() });
@@ -589,7 +623,7 @@ Com base em todo o contexto acima, execute sua função de ${agentConfig.name}.`
       const orgId = req.user?.orgId;
       if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
-      const { dossier, chainResults, clientName, generateImages } = req.body;
+      const { dossier, chainResults, clientName, clientId, generateImages } = req.body;
       if (!chainResults) {
         return res.status(400).json({ error: "chainResults é obrigatório (execute a cadeia primeiro)." });
       }
@@ -664,6 +698,26 @@ Responda em português do Brasil, com markdown estruturado e foco em acionabilid
           plano30_60_90: { executionPlan, images, generatedAt: new Date().toISOString() },
         },
       });
+
+      if (clientId) {
+        await upsertClientAgentContext(prisma, {
+          organizationId: orgId,
+          clientId: String(clientId),
+          event: "acp.execution_plan.generated",
+          agentId: "execution_plan",
+          agentName: "Plano de Execucao ACP",
+          input: planPrompt,
+          output: executionPlan,
+          metadata: { clientName, source: "acp_plan", images },
+        });
+        await enqueueAgentQueueForClient(prisma, {
+          organizationId: orgId,
+          clientId: String(clientId),
+          requestedById: req.user?.id,
+          source: "acp_plan",
+        });
+        await processAgentQueue(prisma, orgId, 20, String(clientId));
+      }
 
       res.json({ executionPlan, images, generatedAt: new Date().toISOString() });
     } catch (error) {

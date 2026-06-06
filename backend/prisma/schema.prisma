@@ -165,6 +165,7 @@ model Organization {
   acpCompetitors        AcpCompetitor[]
   acpQuarterlyPlans     AcpQuarterlyPlan[]
   acpChurnSignals       AcpChurnSignal[]
+  agentQueueItems        AgentQueueItem[]
 }
 
 model Workspace {
@@ -662,6 +663,7 @@ model Client {
   aiContext        ClientAIContext?
   aiGenerations    AIGeneration[]
   generatedPrompts GeneratedPrompt[]
+  agentQueueItems  AgentQueueItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -693,6 +695,47 @@ model AIGeneration {
   response String
 
   createdAt DateTime @default(now())
+}
+
+model AgentQueueItem {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  agentId        String
+  agentName      String
+  phase          String?
+  category       String?
+  autonomy       String       @default("semi_autonomo")
+  actionType     String
+  title          String
+  description    String?      @db.Text
+  input          Json?
+  output         Json?
+  result         Json?
+  status         String       @default("queued") // queued, running, completed, failed, needs_approval, skipped
+  priority       Int          @default(50)
+  attempts       Int          @default(0)
+  maxAttempts    Int          @default(3)
+  dependsOnId    String?
+  lockedAt       DateTime?
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  error          String?      @db.Text
+  metadata       Json?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+  @@index([agentId])
+  @@index([scheduledAt])
 }
 
 model Opportunity {

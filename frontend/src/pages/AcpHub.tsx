@@ -166,6 +166,7 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
           dossier: scanResult.dossier,
           clientName: scanCompany,
           additionalContext: input || undefined,
+          clientId: selectedClientId,
         }),
       });
 
@@ -183,7 +184,7 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
     } finally {
       setChainLoading(false);
     }
-  }, [scanResult, scanCompany, input]);
+  }, [scanResult, scanCompany, input, selectedClientId]);
 
   const handleGeneratePlan = useCallback(async () => {
     if (!chainResults) return;
@@ -197,6 +198,7 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
           dossier: scanResult?.dossier || '',
           chainResults,
           clientName: scanCompany,
+          clientId: selectedClientId,
           generateImages: true,
         }),
       });
@@ -216,7 +218,7 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
     } finally {
       setPlanLoading(false);
     }
-  }, [chainResults, scanResult, scanCompany]);
+  }, [chainResults, scanResult, scanCompany, selectedClientId]);
 
   return (
     <div className="acp-hub-container">

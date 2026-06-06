@@ -3,8 +3,10 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import {
   buildProspectingFirstMessage,
+  buildProspectingAgentMemorySeed,
   firstName as pickPersonFirstName,
   getFunnelRuntimeConfig,
+  mergeProspectingAgentMemory,
   pickBestDecisionMaker,
   upsertDecisionMakersFromLead,
 } from "../services/prospectingAutomation.js";
@@ -391,7 +393,16 @@ async function refreshQueuedFirstMessages(prisma: PrismaClient, organizationId: 
       where: { id: run.id },
       data: {
         firstMessage: buildFirstMessage(run.capturedLead, config),
-        qualification: buildQualificationSeed(run.capturedLead, config),
+        qualification: {
+          ...buildQualificationSeed(run.capturedLead, config),
+          ...((run.qualification as any) || {}),
+          agentMemory: (run.qualification as any)?.agentMemory || buildProspectingAgentMemorySeed({
+            lead: run.capturedLead,
+            funnel,
+            stage: funnel.stages?.[0],
+            config,
+          })
+        },
         nextAction: "ask_for_decision_maker"
       }
     });
@@ -468,7 +479,16 @@ export async function enrollCapturedLeadsInFunnel(
       consultantName: consultant?.name || null,
       decisionMakerId: decisionMaker?.id || null,
       decisionMakerName: decisionMaker?.name || null,
-      decisionMakerConfidence: decisionMaker?.confidenceScore || null
+      decisionMakerConfidence: decisionMaker?.confidenceScore || null,
+      agentMemory: buildProspectingAgentMemorySeed({
+        lead: leadForFunnel,
+        funnel,
+        stage: firstStage,
+        config: runConfig,
+        consultant,
+        decisionMaker,
+        score,
+      })
     };
     const run = await prisma.prospectingRun.upsert({
       where: {
@@ -822,22 +842,33 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
       nextAction = "meeting_booked";
     }
 
+    const previousQualification = (run.qualification as any) || {};
+    const summary = wantsMeeting
+      ? "Lead demonstrou interesse e deve ser direcionado para reuniao de 30 minutos."
+      : optOut
+        ? "Lead pediu para interromper o contato."
+        : "Lead respondeu. Continuar qualificacao com uma pergunta objetiva por mensagem.";
+    const intent = optOut ? "opt_out" : wantsMeeting ? "quer_agendar" : "continuar_qualificacao";
+
     const updated = await prisma.prospectingRun.update({
       where: { id: run.id },
       data: {
         status,
         stageId: optOut ? run.stageId : nextStage?.id,
         qualification: {
-          lastLeadMessage: message,
-          intent: optOut ? "opt_out" : wantsMeeting ? "quer_agendar" : "continuar_qualificacao",
+          ...mergeProspectingAgentMemory(previousQualification, {
+            currentStage: run.stage,
+            nextStage: optOut ? run.stage : nextStage,
+            leadMessage: message,
+            intent,
+            status,
+            nextAction,
+            summary,
+          }),
           durationMinutes,
           meetingEventId: calendarEvent?.id || null
         },
-        lastAiSummary: wantsMeeting
-          ? "Lead demonstrou interesse e deve ser direcionado para reuniao de 30 minutos."
-          : optOut
-            ? "Lead pediu para interromper o contato."
-            : "Lead respondeu. Continuar qualificacao com uma pergunta objetiva por mensagem.",
+        lastAiSummary: summary,
         nextAction,
         qualifiedAt: wantsMeeting ? new Date() : undefined,
         handedOffAt: wantsMeeting ? new Date() : undefined,

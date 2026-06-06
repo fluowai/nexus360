@@ -44,6 +44,7 @@ import { automationRoutes } from "./routes/automation.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { deliveryRoutes } from "./routes/delivery.js";
 import { acpRoutes } from "./routes/acp.js";
+import { agentQueueRoutes } from "./routes/agentQueue.js";
 import { serviceCatalogRoutes } from "./routes/serviceCatalog.js";
 import { timeTrackingRoutes } from "./routes/timeTracking.js";
 import { healthScoreRoutes } from "./routes/healthScore.js";
@@ -304,6 +305,7 @@ const protectedRoutes = [
   { path: "/api/omnichannel", router: omnichannelRoutes },
   { path: "/api/whatsapp", router: whatsappRoutes },
   { path: "/api/acp", router: acpRoutes },
+  { path: "/api/agent-queue", router: agentQueueRoutes },
 ];
 
 // Rotas Administrativas de Planos

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { sanitizeBody } from "../utils/sanitizer.js";
+import { ensureClientAgentContext, upsertClientAgentContext } from "../services/clientAgentContext.js";
 
 export function clientRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -57,6 +58,7 @@ export function clientRoutes(prisma: PrismaClient) {
           status: data.status || 'prospect'
         }
       });
+      await ensureClientAgentContext(prisma, client, data.aiBriefing || data.briefing || {});
       res.json(client);
     } catch (error) {
       next(error);
@@ -77,6 +79,13 @@ export function clientRoutes(prisma: PrismaClient) {
       const client = await prisma.client.update({
         where: { id: req.params.id },
         data: sanitizeBody(req.body, "client")
+      });
+      await upsertClientAgentContext(prisma, {
+        organizationId: orgId,
+        clientId: client.id,
+        event: "client.updated",
+        briefing: (req.body as any).aiBriefing || (req.body as any).briefing || {},
+        metadata: { source: "clients_route" },
       });
       res.json(client);
     } catch (error) {
@@ -137,6 +146,24 @@ export function clientRoutes(prisma: PrismaClient) {
           }
         }
       });
+      res.json(context);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/:id/context", async (req: AuthRequest, res, next) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+      const context = await upsertClientAgentContext(prisma, {
+        organizationId: req.user.orgId,
+        clientId: req.params.id,
+        event: "client.context.updated",
+        briefing: req.body?.briefing || req.body || {},
+        metadata: { source: "manual_context_update" },
+      });
+
       res.json(context);
     } catch (error) {
       next(error);

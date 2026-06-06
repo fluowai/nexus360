@@ -21,6 +21,7 @@ import {
   ensureOptOut,
   getFunnelRuntimeConfig,
   isOptedOut,
+  mergeProspectingAgentMemory,
   updateDispatchAttempt,
 } from "../services/prospectingAutomation.js";
 
@@ -373,7 +374,7 @@ async function findProspectingRunByJid(prisma: PrismaClient, organizationId: str
       channel: "WHATSAPP",
       status: { in: ["queued", "active", "sent"] },
     },
-    include: { funnel: true },
+    include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
     orderBy: { updatedAt: "desc" },
     take: 100,
   });
@@ -604,6 +605,13 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
   if (prospectingRun && !payload.fromMe) {
     const runtimeConfig = getFunnelRuntimeConfig((prospectingRun as any).funnel);
     const optedOut = detectOptOut(messageContent || messageCaption, runtimeConfig.stopWords);
+    const currentOrder = (prospectingRun as any).stage?.order ?? 0;
+    const nextStage = (prospectingRun as any).funnel?.stages?.find((stage: any) => stage.order > currentOrder) || (prospectingRun as any).stage;
+    const inboundText = messageContent || messageCaption || "";
+    const nextAction = optedOut ? "stop_contact" : "lead_replied_continue_agent";
+    const summary = optedOut
+      ? "Lead pediu para interromper o contato."
+      : "Lead respondeu no WhatsApp. Proxima fase deve usar todo o historico e continuar com uma pergunta objetiva.";
     if (optedOut) {
       await ensureOptOut(prisma, {
         organizationId,
@@ -619,11 +627,22 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
       where: { id: prospectingRun.id },
       data: {
         status: optedOut ? "stopped" : "active",
+        stageId: optedOut ? (prospectingRun as any).stageId : nextStage?.id,
         lastContactAt: new Date(),
-        nextAction: optedOut ? "stop_contact" : "lead_replied_continue_agent",
+        nextAction,
+        lastAiSummary: summary,
         qualification: {
-          ...((prospectingRun.qualification as any) || {}),
-          lastLeadMessage: messageContent || messageCaption || "",
+          ...mergeProspectingAgentMemory((prospectingRun.qualification as any) || {}, {
+            currentStage: (prospectingRun as any).stage,
+            nextStage: optedOut ? (prospectingRun as any).stage : nextStage,
+            leadMessage: inboundText,
+            intent: optedOut ? "opt_out" : "respondeu_whatsapp",
+            status: optedOut ? "stopped" : "active",
+            nextAction,
+            summary,
+            conversationId: conversation.id,
+            messageId: message.id,
+          }),
           lastConversationId: conversation.id,
           lastMessageId: message.id,
           optOut: optedOut,
@@ -1011,7 +1030,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
           status: { in: ["queued", "active"] },
           ...(runIds.length ? { id: { in: runIds } } : {}),
         },
-        include: { funnel: true },
+        include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
         take: Number(req.body.limit || 25),
         orderBy: { createdAt: "asc" },
       });
@@ -1103,7 +1122,17 @@ export function whatsappRoutes(prisma: PrismaClient) {
               firstMessage,
               lastContactAt: new Date(),
               nextAction: "wait_lead_reply",
-              qualification: { ...((run.qualification as any) || {}), bridgeMessageId: bridge.messageId || null },
+              qualification: {
+                ...mergeProspectingAgentMemory((run.qualification as any) || {}, {
+                  currentStage: (run as any).stage,
+                  nextStage: (run as any).stage,
+                  aiMessage: firstMessage || "",
+                  status: "sent",
+                  nextAction: "wait_lead_reply",
+                  summary: "Primeira mensagem enviada. Aguardar resposta antes de avancar abordagem.",
+                }),
+                bridgeMessageId: bridge.messageId || null,
+              },
             },
           });
           await updateDispatchAttempt(prisma, attempt.id, {

@@ -46,6 +46,184 @@ export function firstName(value?: string | null) {
   return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 }
 
+function asRecord(value: any): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function appendLimited<T>(items: T[] | undefined, item: T, limit = 20) {
+  return [...(Array.isArray(items) ? items : []), item].slice(-limit);
+}
+
+export const PROSPECTING_AGENT_FLOW = [
+  { id: "lead_extractor", name: "LeadExtractorAgent", phase: "captura" },
+  { id: "lead_validator_legacy", name: "LeadValidatorAgent", phase: "validacao" },
+  { id: "dossier_agent", name: "DossierAgent", phase: "dossie" },
+  { id: "filter_agent", name: "FilterAgent", phase: "filtro" },
+  { id: "google_captor", name: "Captador Google", phase: "captura" },
+  { id: "lead_validator", name: "Validador de Lead", phase: "validacao" },
+  { id: "decision_researcher", name: "Pesquisador de Decisor", phase: "decisor" },
+  { id: "sdr_first_touch", name: "SDR Primeiro Contato", phase: "primeiro_contato" },
+  { id: "bdr_qualifier", name: "BDR Qualificacao", phase: "qualificacao" },
+  { id: "followup_agent", name: "Agente de Follow-up", phase: "followup" },
+  { id: "reactivation_agent", name: "Agente de Reativacao", phase: "reativacao" },
+  { id: "schedule_agent", name: "Agente de Agenda", phase: "agenda" },
+  { id: "closer_handoff", name: "Closer / Handoff", phase: "handoff" },
+  { id: "safety_supervisor", name: "Supervisor de Seguranca", phase: "seguranca" },
+];
+
+export function buildProspectingAgentMemorySeed(input: {
+  lead: any;
+  funnel?: any;
+  stage?: any;
+  config?: Partial<FunnelRuntimeConfig>;
+  consultant?: any;
+  decisionMaker?: any;
+  score?: number | null;
+}) {
+  const lead = input.lead || {};
+  const stage = input.stage || null;
+  const decisionMakerName = input.decisionMaker?.name || input.decisionMaker?.firstName || null;
+  const companyContext = {
+    businessName: lead.businessName || lead.companyName || null,
+    tradeName: lead.tradeName || null,
+    cnpj: lead.cnpj || null,
+    cnpjStatus: lead.cnpjStatus || null,
+    category: lead.category || null,
+    city: lead.city || null,
+    state: lead.state || null,
+    phone: lead.phoneNormalized || lead.phone || null,
+    website: lead.website || null,
+    rating: lead.rating || lead.googleRating || null,
+    reviewsCount: lead.reviewsCount || lead.googleReviewsCount || null,
+    owners: lead.owners || null,
+    aiDiagnosis: lead.aiDiagnosis || null,
+    aiWeaknesses: lead.aiWeaknesses || [],
+    aiOpportunities: lead.aiOpportunities || [],
+    suggestedOffer: lead.suggestedOffer || null,
+    priorityLevel: lead.priorityLevel || null,
+    mainArgument: lead.mainArgument || null,
+    probableObjections: lead.probableObjections || [],
+  };
+
+  return {
+    version: 1,
+    currentPhase: stage?.name || "Primeiro contato",
+    currentAgentKey: stage?.agentKey || "whatsapp_opener",
+    currentAgentName: stage?.agentName || input.config?.agentName || null,
+    flow: PROSPECTING_AGENT_FLOW,
+    completedPhases: ["captura", "validacao", "dossie", "filtro"],
+    companyContext,
+    peopleContext: {
+      consultantId: input.consultant?.id || null,
+      consultantName: input.consultant?.name || null,
+      decisionMakerId: input.decisionMaker?.id || null,
+      decisionMakerName,
+      decisionMakerFirstName: firstName(decisionMakerName),
+      decisionMakerConfidence: input.decisionMaker?.confidenceScore || null,
+    },
+    phaseOutputs: {
+      captura: {
+        businessName: companyContext.businessName,
+        phone: companyContext.phone,
+        source: lead.dataSource || lead.sourceId || null,
+      },
+      validacao: {
+        cnpjStatus: companyContext.cnpjStatus,
+        score: input.score ?? lead.scoreOpportunity ?? lead.score ?? 0,
+        hasValidPhone: Boolean(companyContext.phone),
+      },
+      dossie: {
+        diagnosis: companyContext.aiDiagnosis,
+        weaknesses: companyContext.aiWeaknesses,
+        opportunities: companyContext.aiOpportunities,
+      },
+      decisor: {
+        decisionMakerName,
+        owners: companyContext.owners,
+      },
+    },
+    conversationHistory: [],
+    handoffContext: [
+      companyContext.businessName ? `Empresa: ${companyContext.businessName}` : null,
+      companyContext.category ? `Segmento: ${companyContext.category}` : null,
+      companyContext.city && companyContext.state ? `Local: ${companyContext.city}/${companyContext.state}` : null,
+      decisionMakerName ? `Decisor provavel: ${decisionMakerName}` : null,
+      companyContext.aiDiagnosis ? `Diagnostico interno: ${String(companyContext.aiDiagnosis).slice(0, 700)}` : null,
+    ].filter(Boolean).join("\n"),
+    lastUpdatedAt: new Date().toISOString(),
+  };
+}
+
+export function mergeProspectingAgentMemory(qualification: any, input: {
+  currentStage?: any;
+  nextStage?: any;
+  leadMessage?: string | null;
+  aiMessage?: string | null;
+  intent?: string | null;
+  status?: string | null;
+  nextAction?: string | null;
+  summary?: string | null;
+  conversationId?: string | null;
+  messageId?: string | null;
+}) {
+  const current = asRecord(qualification);
+  const previousMemory = asRecord(current.agentMemory);
+  const phaseOutputs = asRecord(previousMemory.phaseOutputs);
+  const currentStageName = input.currentStage?.name || previousMemory.currentPhase || "Primeiro contato";
+  const currentAgentKey = input.currentStage?.agentKey || previousMemory.currentAgentKey || null;
+  const nextStageName = input.nextStage?.name || currentStageName;
+  const historyItem = {
+    at: new Date().toISOString(),
+    stage: currentStageName,
+    agentKey: currentAgentKey,
+    leadMessage: input.leadMessage || null,
+    aiMessage: input.aiMessage || null,
+    intent: input.intent || null,
+    status: input.status || null,
+    nextAction: input.nextAction || null,
+    conversationId: input.conversationId || null,
+    messageId: input.messageId || null,
+  };
+  const stageOutput = {
+    ...(asRecord(phaseOutputs[currentStageName]) || {}),
+    lastLeadMessage: input.leadMessage || null,
+    lastAiMessage: input.aiMessage || null,
+    intent: input.intent || null,
+    status: input.status || null,
+    summary: input.summary || null,
+    nextStage: nextStageName,
+    updatedAt: historyItem.at,
+  };
+  const completedPhases = new Set(Array.isArray(previousMemory.completedPhases) ? previousMemory.completedPhases : []);
+  if (currentStageName) completedPhases.add(currentStageName);
+
+  return {
+    ...current,
+    lastLeadMessage: input.leadMessage ?? current.lastLeadMessage,
+    lastAiMessage: input.aiMessage ?? current.lastAiMessage,
+    intent: input.intent ?? current.intent,
+    agentMemory: {
+      ...previousMemory,
+      currentPhase: nextStageName,
+      currentAgentKey: input.nextStage?.agentKey || currentAgentKey,
+      currentAgentName: input.nextStage?.agentName || previousMemory.currentAgentName || null,
+      completedPhases: Array.from(completedPhases),
+      phaseOutputs: {
+        ...phaseOutputs,
+        [currentStageName]: stageOutput,
+      },
+      conversationHistory: appendLimited(previousMemory.conversationHistory, historyItem, 50),
+      nextAgentContext: [
+        previousMemory.handoffContext,
+        input.summary ? `Resumo da fase anterior: ${input.summary}` : null,
+        input.leadMessage ? `Ultima resposta do lead: ${input.leadMessage}` : null,
+        input.nextAction ? `Proxima acao: ${input.nextAction}` : null,
+      ].filter(Boolean).join("\n"),
+      lastUpdatedAt: historyItem.at,
+    },
+  };
+}
+
 export function getFunnelRuntimeConfig(funnel: any): FunnelRuntimeConfig {
   const rules = typeof funnel?.safetyRules === "object" && funnel.safetyRules ? funnel.safetyRules as any : {};
   return {

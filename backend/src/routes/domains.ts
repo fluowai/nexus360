@@ -67,7 +67,9 @@ async function verifyDomainDns(domain: string) {
       result.message = "Dominio apontando corretamente para o IP do Docker.";
       return result;
     }
-  } catch {}
+  } catch {
+    // DNS A record not found or resolution failed; fall through to CNAME check
+  }
 
   try {
     const cnames = await dns.resolveCname(domain);
@@ -77,7 +79,9 @@ async function verifyDomainDns(domain: string) {
       result.message = "Dominio apontando corretamente via CNAME.";
       return result;
     }
-  } catch {}
+  } catch {
+    // DNS CNAME record not found or resolution failed
+  }
 
   if (!expectedIp && !expectedCname) {
     result.message = "Configure WHITELABEL_DOCKER_IP para validar automaticamente o apontamento DNS.";
@@ -141,7 +145,7 @@ export function domainRoutes(prisma: PrismaClient) {
       if (provider === 'vercel') {
         await vercelService.addDomain(name);
       } else if (provider === 'directadmin') {
-        // TODO: Implement DirectAdmin logic
+        console.warn(`[domains] DirectAdmin provider not yet implemented for domain "${name}". DNS instructions provided instead.`);
       }
 
       await prisma.organization.update({

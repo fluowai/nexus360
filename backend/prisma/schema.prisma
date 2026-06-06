@@ -154,6 +154,17 @@ model Organization {
   npsSurveys            NpsSurvey[]
   renewalOpportunities  RenewalOpportunity[]
   aiLogs                AiLog[]
+
+  // ACP v2.0
+  acpAccesses           AcpAccess[]
+  acpDiagnoses          AcpDiagnosis[]
+  acpIcps               AcpIcp[]
+  acpOffers             AcpOffer[]
+  acpAgentExecutions    AcpAgentExecution[]
+  acpObjections         AcpObjection[]
+  acpCompetitors        AcpCompetitor[]
+  acpQuarterlyPlans     AcpQuarterlyPlan[]
+  acpChurnSignals       AcpChurnSignal[]
 }
 
 model Workspace {
@@ -2944,4 +2955,171 @@ model ProspectAgentLog {
 
   @@index([missionId])
   @@index([leadId])
+}
+
+// ==================== ACP v2.0 — ARQUITETURA DE CRESCIMENTO PREVISÍVEL ====================
+
+model AcpAccess {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?      // null = liberado para toda a organização
+  acpEnabled     Boolean      @default(false)
+  grantedBy      String?      // SUPER_ADMIN que liberou
+  grantedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+}
+
+model AcpDiagnosis {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientName      String
+  segment         String?
+  ticketMedio     Float?
+  leadsMes        Int?
+  vendasMes       Int?
+  cacEstimado     Float?
+  ltvEstimado     Float?
+  canalPrincipal  String?
+  ferramentas     String?
+  timeComercial   Int?
+  queixas         String?
+  scoreMaturidade Float?
+  gargalos        Json?
+  topPrioridades  Json?
+  plano30_60_90   Json?
+  status          String       @default("draft")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  icps            AcpIcp[]
+  offers          AcpOffer[]
+
+  @@index([organizationId])
+}
+
+model AcpIcp {
+  id              String        @id @default(uuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  diagnosisId     String?
+  diagnosis       AcpDiagnosis? @relation(fields: [diagnosisId], references: [id])
+  nome            String
+  criterios       Json
+  mensagem        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  offers          AcpOffer[]
+
+  @@index([organizationId])
+}
+
+model AcpOffer {
+  id              String      @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  diagnosisId     String?
+  diagnosis       AcpDiagnosis? @relation(fields: [diagnosisId], references: [id])
+  icpId           String?
+  icp             AcpIcp?      @relation(fields: [icpId], references: [id])
+  titulo          String
+  elementos       Json
+  valueStack      Json?
+  ancoragem       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model AcpAgentExecution {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agentId         String
+  agentName       String
+  input           String       @db.Text
+  output          String       @db.Text
+  metadata        Json?
+  createdById     String?
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([agentId])
+}
+
+model AcpObjection {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  titulo          String
+  tratamento      String       @db.Text
+  categoria       String
+  icp             String?
+  origem          String?
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model AcpCompetitor {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  nome            String
+  icpAtendido     String?
+  oferta          String?
+  faixaPreco      String?
+  diferenciais   Json?
+  pontosFracos    Json?
+  tendencia       String?
+  swot            Json?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model AcpQuarterlyPlan {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  trimestre       String       // "2026-Q2"
+  metas           Json?
+  top5            Json?
+  checkpoints     Json?
+  revisao         Json?
+  status          String       @default("draft") // draft, active, completed
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model AcpChurnSignal {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId        String?
+  signalType      String
+  description     String       @db.Text
+  severity        String       // LOW, MEDIUM, HIGH, CRITICAL
+  status          String       @default("open") // open, resolved, ignored
+  resolvedAt      DateTime?
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([severity])
 }

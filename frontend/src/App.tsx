@@ -49,6 +49,7 @@ const AdminBilling = lazy(() => import("./pages/admin/Billing"));
 const AdminTickets = lazy(() => import("./pages/admin/Tickets"));
 const WhiteLabel = lazy(() => import("./pages/admin/WhiteLabel"));
 const ReleaseControl = lazy(() => import("./pages/admin/ReleaseControl"));
+const AdminAcpManager = lazy(() => import("./pages/admin/AcpManager"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const PromptArchitect = lazy(() => import("./pages/PromptArchitect"));
 const LandingDemo = lazy(() => import("./pages/LandingDemo"));
@@ -63,6 +64,7 @@ const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
 const Login = lazy(() => import("./pages/Login"));
 const CRMSalesPage = lazy(() => import("./pages/CRMSalesPage"));
+const AcpHub = lazy(() => import("./pages/AcpHub"));
 
 const AutomationBuilder = lazy(() => import("./pages/AutomationBuilder"));
 const NotificationsCenter = lazy(() => import("./pages/NotificationsCenter"));
@@ -77,7 +79,7 @@ const RESERVED_WORDS = new Set([
   'admin', 'site', 'vendas', 'login', 'onboarding', 'meet',
   'dashboard', 'crm', 'finance', 'settings', 'team', 'projects',
   'reports', 'api', 'automations', 'notifications', 'delivery',
-  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health', 'whatsapp'
+  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health', 'whatsapp', 'acp'
 ]);
 
 function isPublicPath(pathname: string) {
@@ -282,6 +284,7 @@ export default function App() {
           <Route path="/sales-machine" element={<SalesMachine />} />
           <Route path="/proposals" element={<Proposals />} />
           <Route path="/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
+          <Route path="/acp" element={<AcpHub selectedClientId={selectedClientId} />} />
           <Route path="/ai-settings" element={<AISettings />} />
           <Route path="/prompt-architect" element={<PromptArchitect />} />
           <Route path="/site" element={<LandingPage />} />
@@ -306,6 +309,7 @@ export default function App() {
           <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/whitelabel" element={<WhiteLabel />} />
           <Route path="/admin/releases" element={<ReleaseControl />} />
+          <Route path="/admin/acp" element={<AdminAcpManager />} />
 
           <Route path="/:slug" element={<Dashboard />} /> 
           <Route path="/:slug/dashboard" element={<Dashboard />} />
@@ -336,6 +340,7 @@ export default function App() {
           <Route path="/:slug/sales-machine" element={<SalesMachine />} />
           <Route path="/:slug/proposals" element={<Proposals />} />
           <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
+          <Route path="/:slug/acp" element={<AcpHub selectedClientId={selectedClientId} />} />
           <Route path="/:slug/ai-settings" element={<AISettings />} />
           <Route path="/:slug/prompt-architect" element={<PromptArchitect />} />
           <Route path="/:slug/billing" element={<Billing />} />
@@ -355,10 +360,8 @@ export default function App() {
           <Route path="/time-tracking" element={<TimeTracking />} />
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/client-health" element={<ClientHealthDashboard />} />
-          <Route path="/whatsapp" element={<WhatsApp />} />
 
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/crm" element={<CRM />} />
           <Route path="/billing" element={<Billing />} />
         </Routes>
       </Layout>

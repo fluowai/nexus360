@@ -931,6 +931,63 @@ export function whatsappRoutes(prisma: PrismaClient) {
     } catch (error) { next(error); }
   });
 
+  router.post("/send", async (req: AuthRequest, res, next) => {
+    try {
+      const { channelId, to, message } = req.body;
+      if (!channelId) return res.status(400).json({ error: "channelId obrigatorio" });
+      if (!to) return res.status(400).json({ error: "Destinatario (to) obrigatorio" });
+      if (!message) return res.status(400).json({ error: "Mensagem obrigatoria" });
+
+      const channel = await prisma.channel.findFirst({
+        where: { id: channelId, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        include: { inbox: true },
+      });
+      if (!channel) return res.status(404).json({ error: "Canal WhatsApp nao encontrado" });
+
+      const bridge = await callBridge(`/sessions/${channel.id}/send`, {
+        channelId: channel.id,
+        to,
+        message,
+      });
+
+      let conversation = await prisma.conversation.findFirst({
+        where: { channelId: channel.id, contactId: to },
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            subject: to,
+            inboxId: channel.inboxId,
+            channelId: channel.id,
+            contactId: to,
+            status: "open",
+            priority: "medium",
+            lastMessageAt: new Date(),
+          } as any,
+        });
+      }
+
+      const msg = await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: req.user!.id,
+          senderType: "USER",
+          content: message,
+          type: "text",
+          metadata: { source: "nexus_web", bridgeMessageId: bridge.messageId || null, fromMe: true },
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date() },
+      });
+
+      res.json(msg);
+    } catch (error) { next(error); }
+  });
+
   router.post("/prospecting/dispatch", async (req: AuthRequest, res, next) => {
     try {
       const orgId = req.user!.orgId;

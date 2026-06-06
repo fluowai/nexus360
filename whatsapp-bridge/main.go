@@ -714,7 +714,7 @@ func qrDataURL(code string) string {
 
 func (a *app) postInternal(payload map[string]any) {
 	body, _ := json.Marshal(payload)
-	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(env("NEXUS_BACKEND_URL", "http://localhost:3000"), "/")+"/api/internal/whatsapp/events", bytes.NewReader(body))
+	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(env("NEXUS_BACKEND_URL", "http://localhost:10000"), "/")+"/api/internal/whatsapp/events", bytes.NewReader(body))
 	if err != nil {
 		log.Printf("build internal request: %v", err)
 		return

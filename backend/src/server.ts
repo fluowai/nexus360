@@ -43,6 +43,7 @@ import { clientPortalRoutes } from "./routes/clientPortal.js";
 import { automationRoutes } from "./routes/automation.js";
 import { notificationRoutes } from "./routes/notifications.js";
 import { deliveryRoutes } from "./routes/delivery.js";
+import { acpRoutes } from "./routes/acp.js";
 import { serviceCatalogRoutes } from "./routes/serviceCatalog.js";
 import { timeTrackingRoutes } from "./routes/timeTracking.js";
 import { healthScoreRoutes } from "./routes/healthScore.js";
@@ -301,6 +302,7 @@ const protectedRoutes = [
   { path: "/api/onboarding", router: onboardingRoutes },
   { path: "/api/omnichannel", router: omnichannelRoutes },
   { path: "/api/whatsapp", router: whatsappRoutes },
+  { path: "/api/acp", router: acpRoutes },
 ];
 
 // Rotas Administrativas de Planos
@@ -387,7 +389,13 @@ automationWorker.start();
 const followUpWorker = new FollowUpWorker(prisma);
 followUpWorker.start();
 
-app.listen(PORT, () => {
+// Socket.io para eventos em tempo real
+import { createServer } from "http";
+import { initSocketManager } from "./services/socketManager.js";
+const httpServer = createServer(app);
+initSocketManager(httpServer);
+
+httpServer.listen(PORT, () => {
   console.log(`\n🚀 Nexus360 Core rodando na porta ${PORT}`);
   console.log(`👉 API: http://localhost:${PORT}/api`);
 });

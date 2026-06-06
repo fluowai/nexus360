@@ -7,6 +7,8 @@ export async function getOrgAIKeys(prisma: PrismaClient, orgId: string) {
       geminiKey: process.env.GEMINI_API_KEY,
       openaiKey: process.env.OPENAI_API_KEY,
       chatgptKey: process.env.CHATGPT_API_KEY || process.env.OPENAI_API_KEY,
+      serperKey: process.env.SERPER_API_KEY,
+      togetherKey: process.env.TOGETHER_API_KEY,
     };
   }
 
@@ -15,6 +17,7 @@ export async function getOrgAIKeys(prisma: PrismaClient, orgId: string) {
     select: {
       groqKey: true,
       geminiKey: true,
+      serperApiKey: true,
       settings: true,
       aiProvider: true
     }
@@ -28,6 +31,8 @@ export async function getOrgAIKeys(prisma: PrismaClient, orgId: string) {
     geminiKey: org?.geminiKey || process.env.GEMINI_API_KEY,
     openaiKey: settings.openaiKey || process.env.OPENAI_API_KEY,
     chatgptKey: settings.chatgptKey || process.env.CHATGPT_API_KEY || settings.openaiKey || process.env.OPENAI_API_KEY,
+    serperKey: org?.serperApiKey || process.env.SERPER_API_KEY,
+    togetherKey: settings.togetherKey || process.env.TOGETHER_API_KEY,
     aiProvider: org?.aiProvider || "gemini"
   };
 }

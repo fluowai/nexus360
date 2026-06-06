@@ -71,6 +71,7 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
         ...org,
         openaiKey: settings.openaiKey || "",
         chatgptKey: settings.chatgptKey || "",
+        togetherKey: settings.togetherKey || "",
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch settings" });
@@ -83,7 +84,7 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
-      const { geminiKey, groqKey, openaiKey, chatgptKey, serpApiKey, serperApiKey, outscraperKey, aiProvider } = req.body;
+      const { geminiKey, groqKey, openaiKey, chatgptKey, serpApiKey, serperApiKey, outscraperKey, aiProvider, togetherKey } = req.body;
       const current = await prisma.organization.findUnique({
         where: { id: orgId },
         select: { settings: true },
@@ -100,7 +101,7 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
           serperApiKey,
           outscraperKey,
           aiProvider,
-          settings: { ...settings, openaiKey, chatgptKey },
+          settings: { ...settings, openaiKey, chatgptKey, togetherKey },
         }
       });
       res.json({ ...org, openaiKey, chatgptKey });

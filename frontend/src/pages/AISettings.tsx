@@ -21,6 +21,7 @@ const AISettings: React.FC = () => {
     groqKey: '',
     serperApiKey: '',
     outscraperKey: '',
+    togetherKey: '',
     aiProvider: 'gemini'
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -41,6 +42,7 @@ const AISettings: React.FC = () => {
           groqKey: data.groqKey || '',
           serperApiKey: data.serperApiKey || '',
           outscraperKey: data.outscraperKey || '',
+          togetherKey: data.togetherKey || '',
           aiProvider: data.aiProvider || 'gemini'
         });
       }
@@ -151,6 +153,21 @@ const AISettings: React.FC = () => {
                 value={settings.groqKey}
                 onChange={e => setSettings({...settings, groqKey: e.target.value})}
               />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <Key size={16} className="text-purple-600" />
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Together AI Key (Geração de Imagens)</label>
+              </div>
+              <input 
+                type="password"
+                placeholder="Cole sua chave do Together AI (FLUX)"
+                className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-purple-500/20 transition-all font-mono text-sm"
+                value={settings.togetherKey}
+                onChange={e => setSettings({...settings, togetherKey: e.target.value})}
+              />
+              <p className="text-[10px] text-gray-400">Usado para gerar artes visuais no plano de execução ACP via modelo FLUX.</p>
             </div>
           </div>
 

@@ -4,7 +4,8 @@ import {
   Search, Target, Layout, Zap, Feather, PenTool, BarChart,
   MessageSquare, Database, Sprout, TrendingUp, Heart, Calendar,
   ArrowRight, Loader2, Sparkles, Shield, Cpu, Brain, Lock, X,
-  ChevronDown, ChevronRight, Clock, CheckCircle, AlertTriangle
+  ChevronDown, ChevronRight, Clock, CheckCircle, AlertTriangle,
+  Globe, Camera, FileText, Image, ThumbsUp, PlayCircle, Layers
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ACP_AGENTS_CONFIG, ACP_CATEGORIES, AcpAgentId } from '../lib/acpConfig';
@@ -32,6 +33,25 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
   const [expandedHistory, setExpandedHistory] = useState(false);
   const [history, setHistory] = useState<{ agent: string; input: string; output: string; date: Date }[]>([]);
   const [missingKey, setMissingKey] = useState(false);
+
+  // Scan state
+  const [scanCompany, setScanCompany] = useState('');
+  const [scanWebsite, setScanWebsite] = useState('');
+  const [scanInstagram, setScanInstagram] = useState('');
+  const [scanCnpj, setScanCnpj] = useState('');
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanResult, setScanResult] = useState<any>(null);
+
+  // Chain state
+  const [chainLoading, setChainLoading] = useState(false);
+  const [chainResults, setChainResults] = useState<Record<string, { agentName: string; output: string }> | null>(null);
+  const [chainProgress, setChainProgress] = useState('');
+
+  // Plan state
+  const [planLoading, setPlanLoading] = useState(false);
+  const [executionPlan, setExecutionPlan] = useState('');
+  const [planImages, setPlanImages] = useState<string[]>([]);
+  const [showPlan, setShowPlan] = useState(false);
 
   useEffect(() => {
     apiFetch('/api/org/settings').then(r => r.ok && r.json()).then(data => {
@@ -61,12 +81,16 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
     setResult('');
 
     try {
+      const augmentedInput = scanResult?.dossier
+        ? `## Dossiê Digital do Cliente\n${scanResult.dossier.slice(0, 4000)}\n\n## Minha Análise\n${input}`
+        : input;
+
       const response = await apiFetch('/api/acp/execute', {
         method: 'POST',
         body: JSON.stringify({
           agentId: selectedAgent.id,
-          input,
-          clientName: clientName || undefined,
+          input: augmentedInput,
+          clientName: clientName || scanCompany || undefined,
           clientId: selectedClientId
         })
       });
@@ -92,6 +116,107 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
       setLoading(false);
     }
   }, [input, clientName, selectedAgent, selectedClientId]);
+
+  const handleScan = useCallback(async () => {
+    if (!scanCompany.trim()) return;
+    setScanLoading(true);
+    setScanResult(null);
+    setChainResults(null);
+    setExecutionPlan('');
+    setPlanImages([]);
+    setShowPlan(false);
+
+    try {
+      const response = await apiFetch('/api/acp/scan', {
+        method: 'POST',
+        body: JSON.stringify({
+          companyName: scanCompany,
+          website: scanWebsite || undefined,
+          instagram: scanInstagram || undefined,
+          cnpj: scanCnpj || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Falha ao escanear');
+      }
+
+      const data = await response.json();
+      setScanResult(data);
+      setResult('');
+      setClientName(scanCompany);
+    } catch (error: any) {
+      setScanResult({ dossier: `**Erro no scan:** ${error.message}` });
+    } finally {
+      setScanLoading(false);
+    }
+  }, [scanCompany, scanWebsite, scanInstagram, scanCnpj]);
+
+  const handleChain = useCallback(async () => {
+    if (!scanResult?.dossier) return;
+    setChainLoading(true);
+    setChainResults(null);
+    setChainProgress('Iniciando cadeia de agentes...');
+
+    try {
+      const response = await apiFetch('/api/acp/chain', {
+        method: 'POST',
+        body: JSON.stringify({
+          dossier: scanResult.dossier,
+          clientName: scanCompany,
+          additionalContext: input || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Falha na cadeia');
+      }
+
+      const data = await response.json();
+      setChainResults(data.results);
+      setChainProgress(`Concluído em ${new Date(data.completedAt).toLocaleString('pt-BR')}`);
+      setResult('');
+    } catch (error: any) {
+      setChainProgress(`**Erro:** ${error.message}`);
+    } finally {
+      setChainLoading(false);
+    }
+  }, [scanResult, scanCompany, input]);
+
+  const handleGeneratePlan = useCallback(async () => {
+    if (!chainResults) return;
+    setPlanLoading(true);
+    setExecutionPlan('');
+
+    try {
+      const response = await apiFetch('/api/acp/plan', {
+        method: 'POST',
+        body: JSON.stringify({
+          dossier: scanResult?.dossier || '',
+          chainResults,
+          clientName: scanCompany,
+          generateImages: true,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Falha ao gerar plano');
+      }
+
+      const data = await response.json();
+      setExecutionPlan(data.executionPlan);
+      setPlanImages(data.images || []);
+      setShowPlan(true);
+    } catch (error: any) {
+      setExecutionPlan(`**Erro:** ${error.message}`);
+      setShowPlan(true);
+    } finally {
+      setPlanLoading(false);
+    }
+  }, [chainResults, scanResult, scanCompany]);
 
   return (
     <div className="acp-hub-container">
@@ -595,6 +720,188 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
         </div>
       </div>
 
+      {/* Scanner Digital */}
+      <div className="acp-scan-panel">
+        <style>{`
+          .acp-scan-panel {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 20px 24px;
+            margin-bottom: 20px;
+          }
+          .acp-scan-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+          }
+          .acp-scan-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+          }
+          .acp-scan-header .scan-badge {
+            padding: 4px 12px;
+            background: #1e40af;
+            color: white;
+            border-radius: 100px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+          }
+          .acp-scan-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+          }
+          @media (max-width: 600px) {
+            .acp-scan-grid { grid-template-columns: 1fr; }
+          }
+          .acp-scan-grid input {
+            padding: 10px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 13px;
+            outline: none;
+            transition: border 0.2s;
+          }
+          .acp-scan-grid input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+          }
+          .acp-scan-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+          }
+          .acp-scan-btn {
+            padding: 10px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+          }
+          .acp-scan-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+          .acp-scan-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+          .acp-scan-btn.secondary {
+            background: #f1f5f9;
+            color: #475569;
+          }
+          .acp-scan-btn.secondary:hover { background: #e2e8f0; }
+          .acp-dossier-preview {
+            margin-top: 16px;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+          }
+          .acp-chain-progress {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #1e40af;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .acp-images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+          }
+          .acp-images-grid img {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+          }
+        `}</style>
+
+        <div className="acp-scan-header">
+          <Globe size={20} color="#1e40af" />
+          <h3>Scanner de Presença Digital</h3>
+          <span className="scan-badge">Novo</span>
+        </div>
+
+        <div className="acp-scan-grid">
+          <input placeholder="Nome da empresa *" value={scanCompany} onChange={e => setScanCompany(e.target.value)} />
+          <input placeholder="Site (ex: empresa.com.br)" value={scanWebsite} onChange={e => setScanWebsite(e.target.value)} />
+          <input placeholder="Instagram (ex: @empresa)" value={scanInstagram} onChange={e => setScanInstagram(e.target.value)} />
+          <input placeholder="CNPJ (opcional)" value={scanCnpj} onChange={e => setScanCnpj(e.target.value)} />
+        </div>
+
+        <div className="acp-scan-actions">
+          <button className="acp-scan-btn" style={{ background: '#1e40af' }} onClick={handleScan} disabled={scanLoading || !scanCompany.trim()}>
+            {scanLoading ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Escaneando...</> : <><Camera size={16} /> Escanear Presença Digital</>}
+          </button>
+          {scanResult?.dossier && !scanResult?.dossier?.startsWith('**Erro') && (
+            <>
+              <button className="acp-scan-btn" style={{ background: '#059669' }} onClick={handleChain} disabled={chainLoading}>
+                {chainLoading ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Executando...</> : <><PlayCircle size={16} /> Executar Cadeia (14 Agentes)</>}
+              </button>
+              {chainResults && Object.keys(chainResults).length > 0 && (
+                <button className="acp-scan-btn" style={{ background: '#7c3aed' }} onClick={handleGeneratePlan} disabled={planLoading}>
+                  {planLoading ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Gerando...</> : <><ThumbsUp size={16} /> Aprovar & Gerar Plano de Execução</>}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {chainProgress && (
+          <div className="acp-chain-progress">
+            <Cpu size={16} />
+            <span>{chainProgress}</span>
+          </div>
+        )}
+
+        {scanResult?.dossier && (
+          <div className="acp-dossier-preview">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <FileText size={14} color="#475569" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                Dossiê Digital — {scanResult.companyName}
+              </span>
+            </div>
+            <div className="acp-markdown" style={{ fontSize: 13 }}>
+              <ReactMarkdown>{scanResult.dossier}</ReactMarkdown>
+            </div>
+          </div>
+        )}
+
+        {/* Gallery */}
+        {planImages.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <Image size={14} color="#7c3aed" />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                Artes Geradas ({planImages.length})
+              </span>
+            </div>
+            <div className="acp-images-grid">
+              {planImages.map((img, i) => (
+                <img key={i} src={img} alt={`Arte ${i + 1}`} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="acp-workspace">
         <div className="acp-agent-list">
           <div className="acp-agent-list-header">
@@ -656,6 +963,15 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
               />
             </div>
 
+            {scanResult?.dossier && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
+                <FileText size={14} color="#059669" />
+                <span style={{ fontSize: 12, color: '#065f46' }}>
+                  Dossiê de {scanResult.companyName} disponível como contexto
+                </span>
+              </div>
+            )}
+
             <label>Contexto para o agente</label>
             <textarea
               className="acp-textarea"
@@ -684,18 +1000,39 @@ const AcpHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedClient
           <div className="acp-result-area">
             <div className="result-header">
               <span className="dot" />
-              <span>Resultado</span>
+              <span>
+                {showPlan ? 'Plano de Execução' : chainResults ? 'Resultados da Cadeia (14 Agentes)' : 'Resultado'}
+              </span>
             </div>
 
-            {result ? (
+            {showPlan && executionPlan ? (
+              <div className="acp-markdown">
+                <ReactMarkdown>{executionPlan}</ReactMarkdown>
+              </div>
+            ) : chainResults ? (
+              <div>
+                {Object.entries(chainResults).map(([agentId, data]) => (
+                  <details key={agentId} style={{ marginBottom: 8, border: '1px solid #e2e8f0', borderRadius: 10, overflow: 'hidden' }}>
+                    <summary style={{ padding: '10px 14px', cursor: 'pointer', fontWeight: 600, fontSize: 13, background: '#f8fafc', color: '#0f172a' }}>
+                      {data.agentName}
+                    </summary>
+                    <div style={{ padding: '12px 14px' }}>
+                      <div className="acp-markdown" style={{ fontSize: 13 }}>
+                        <ReactMarkdown>{data.output}</ReactMarkdown>
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ) : result ? (
               <div className="acp-markdown">
                 <ReactMarkdown>{result}</ReactMarkdown>
               </div>
             ) : (
               <div className="acp-empty">
                 <Sparkles size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-                <strong>A resposta do agente aparecerá aqui.</strong>
-                <p style={{ fontSize: 13, marginTop: 4 }}>Forneça o contexto acima e clique em executar.</p>
+                <strong>Use o scanner digital acima para gerar um dossiê e executar a cadeia completa de agentes.</strong>
+                <p style={{ fontSize: 13, marginTop: 4 }}>Ou selecione um agente ao lado, forneça contexto e clique em executar.</p>
               </div>
             )}
           </div>

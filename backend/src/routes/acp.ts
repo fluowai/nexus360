@@ -2,6 +2,8 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
+import { scanClient } from "../services/webScanner.js";
+import { imageAI } from "../services/imageAI.js";
 
 const ACP_AGENTS: Record<string, { name: string; category: string; autonomy: number; prompt: string }> = {
   atlas: {
@@ -473,5 +475,227 @@ Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja 
     }
   });
 
+  // POST /api/acp/scan — escaneia presença digital do cliente
+  router.post("/scan", async (req: AuthRequest, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { companyName, website, instagram, cnpj, segment } = req.body;
+      if (!companyName) {
+        return res.status(400).json({ error: "companyName é obrigatório." });
+      }
+
+      const { serperKey, groqKey } = await getOrgAIKeys(prisma, orgId);
+      if (!groqKey) {
+        return res.status(500).json({ error: "GROQ Key não configurada. Configure em Configurações > IA." });
+      }
+
+      const result = await scanClient({ companyName, website, instagram, cnpj, segment }, serperKey || "", groqKey || undefined);
+      res.json(result);
+    } catch (error) {
+      console.error("[ACP_SCAN_ERROR]", error);
+      res.status(500).json({ error: "Erro ao escanear cliente" });
+    }
+  });
+
+  // POST /api/acp/chain — executa todos os 14 agentes em sequência
+  router.post("/chain", async (req: AuthRequest, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { dossier, clientName, additionalContext } = req.body;
+      if (!dossier) {
+        return res.status(400).json({ error: "dossier é obrigatório (execute o scan primeiro)." });
+      }
+
+      const { groqKey } = await getOrgAIKeys(prisma, orgId);
+      if (!groqKey) {
+        return res.status(500).json({ error: "GROQ Key não configurada." });
+      }
+
+      const agentOrder = ["atlas", "hera", "prometeu", "mercurio", "apolo", "iris", "cadmo", "orfeu", "hermes", "demeter", "cronos", "atena", "hestia", "zeus"];
+
+      const results: Record<string, { agentName: string; output: string }> = {};
+      let previousOutput = dossier;
+
+      for (const agentId of agentOrder) {
+        const agentConfig = ACP_AGENTS[agentId];
+        const systemPrompt = `Você é o agente ${agentConfig.name} do sistema ACP v2.0.
+Organização: ${req.user?.email || "N/A"}
+${clientName ? `Cliente: ${clientName}` : ""}
+
+${agentConfig.prompt}
+
+IMPORTANTE: Use o dossiê de scan e o resultado dos agentes anteriores como contexto para suas análises.
+Não repita informações desnecessárias, apenas use como base para suas próprias conclusões.
+
+Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja direto e acionável.`;
+
+        const input = `## Contexto do Cliente (Dossiê Digital)
+${dossier.slice(0, 8000)}
+
+## Output dos Agentes Anteriores
+${previousOutput.slice(0, 6000)}
+${additionalContext ? `\n## Informações Adicionais\n${additionalContext}` : ""}
+
+Com base em todo o contexto acima, execute sua função de ${agentConfig.name}.`;
+
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: input }],
+            temperature: 0.6,
+            max_tokens: 4096,
+          }),
+        });
+
+        if (!response.ok) {
+          results[agentId] = { agentName: agentConfig.name, output: `**Erro:** Falha ao executar ${agentConfig.name}` };
+          continue;
+        }
+
+        const data = await response.json();
+        const output = data.choices?.[0]?.message?.content || "Não foi possível gerar resposta.";
+        results[agentId] = { agentName: agentConfig.name, output };
+        previousOutput = output;
+
+        await prisma.acpAgentExecution.create({
+          data: {
+            organizationId: orgId,
+            agentId,
+            agentName: agentConfig.name,
+            input: input.slice(0, 2000),
+            output,
+            metadata: { clientName, chainExecution: true },
+            createdById: req.user?.id,
+          },
+        });
+      }
+
+      res.json({ results, completedAt: new Date().toISOString() });
+    } catch (error) {
+      console.error("[ACP_CHAIN_ERROR]", error);
+      res.status(500).json({ error: "Erro na execução em cadeia" });
+    }
+  });
+
+  // POST /api/acp/plan — gera plano de execução + artes visuais (pós-aprovação)
+  router.post("/plan", async (req: AuthRequest, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { dossier, chainResults, clientName, generateImages } = req.body;
+      if (!chainResults) {
+        return res.status(400).json({ error: "chainResults é obrigatório (execute a cadeia primeiro)." });
+      }
+
+      const { groqKey, togetherKey } = await getOrgAIKeys(prisma, orgId);
+      if (!groqKey) {
+        return res.status(500).json({ error: "GROQ Key não configurada." });
+      }
+
+      const agentSummaries = Object.entries(chainResults as Record<string, { agentName: string; output: string }>)
+        .map(([id, r]) => `### ${r.agentName}\n${r.output.slice(0, 1500)}`)
+        .join("\n\n");
+
+      const planPrompt = `Você é o gestor de projetos do Método ACP v2.0.
+
+Com base em todos os outputs dos 14 agentes abaixo, gere um **Plano de Execução Completo** com:
+
+1. **Resumo Executivo** — visão geral do plano (máx 300 palavras)
+2. **Cronograma** — semanas 1-12 com marcos por semana
+3. **Pilhas de Trabalho** — agrupe por área (Estratégia, Aquisição, Conteúdo, Operação, Gestão)
+4. **Entregáveis** — lista de tudo que será produzido (documentos, campanhas, roteiros, etc.)
+5. **Equipe Necessária** — papéis e responsabilidades sugeridos
+6. **Orçamento Estimado** — investimento sugerido por pilar
+7. **KPIs de Sucesso** — métricas para acompanhar a execução
+8. **Riscos e Mitigações** — top 5 riscos com plano B
+
+Cliente: ${clientName || "N/A"}
+Dossiê: ${(dossier || "").slice(0, 2000)}
+
+## Outputs dos Agentes
+${agentSummaries}
+
+Responda em português do Brasil, com markdown estruturado e foco em acionabilidade.`;
+
+      const planResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "Você é um gestor de projetos sênior especializado em crescimento comercial." },
+            { role: "user", content: planPrompt },
+          ],
+          temperature: 0.5,
+          max_tokens: 8192,
+        }),
+      });
+
+      if (!planResponse.ok) {
+        return res.status(500).json({ error: "Falha ao gerar plano de execução" });
+      }
+
+      const planData = await planResponse.json();
+      const executionPlan = planData.choices?.[0]?.message?.content || "Não foi possível gerar o plano.";
+
+      const images: string[] = [];
+      if (generateImages && togetherKey) {
+        const irisOutput = chainResults["iris"]?.output || "";
+        const imageBriefs = extractImageBriefs(irisOutput, dossier || "");
+
+        for (const brief of imageBriefs.slice(0, 4)) {
+          const img = await imageAI.generate(brief, togetherKey);
+          images.push(img);
+        }
+      }
+
+      await prisma.acpDiagnosis.create({
+        data: {
+          organizationId: orgId,
+          clientName: clientName || "ACP Chain",
+          status: "approved",
+          plano30_60_90: { executionPlan, images, generatedAt: new Date().toISOString() },
+        },
+      });
+
+      res.json({ executionPlan, images, generatedAt: new Date().toISOString() });
+    } catch (error) {
+      console.error("[ACP_PLAN_ERROR]", error);
+      res.status(500).json({ error: "Erro ao gerar plano de execução" });
+    }
+  });
+
   return router;
+}
+
+function extractImageBriefs(irisOutput: string, dossier: string): string[] {
+  const combined = irisOutput + "\n" + dossier;
+  const briefs: string[] = [];
+
+  if (/briefing|criativo|anúncio|anuncio|formato|imagem|carrossel/i.test(combined)) {
+    const lines = combined.split("\n").filter(l => l.length > 30 && l.length < 400);
+    const candidates = lines.filter(l =>
+      /briefing|criativo|anúncio|anuncio|formato|imagem|visual|arte|capa/i.test(l)
+    );
+    briefs.push(...candidates.slice(0, 4));
+  }
+
+  if (briefs.length === 0) {
+    const companyName = dossier.match(/Nome.*?(\w[\w\s]+)/)?.[1]?.trim() || "Empresa";
+    briefs.push(
+      `Social media post for ${companyName}, professional branding, modern design, high contrast`,
+      `Marketing campaign visual for ${companyName}, clean composition, commercial photography style`,
+      `Before-after transformation graphic for ${companyName}, data visualization style`,
+      `Product showcase for ${companyName}, premium product photography, soft lighting`
+    );
+  }
+
+  return briefs;
 }

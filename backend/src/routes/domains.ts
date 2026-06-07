@@ -2,6 +2,7 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { DOMAIN_REGEX, getDnsInstructions, normalizeDomain, verifyDomainDns } from "../utils/domainConfig.js";
+import { removeTraefikDomainConfig, syncTraefikDomainConfig } from "../services/traefikDomainConfig.js";
 
 export function domainRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -69,6 +70,7 @@ export function domainRoutes(prisma: PrismaClient) {
         ...domain,
         dns: getDnsInstructions(name, updatedOrg.slug),
         verification,
+        traefik: await syncTraefikDomainConfig(name, verification.verified),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Failed to add domain" });
@@ -96,6 +98,7 @@ export function domainRoutes(prisma: PrismaClient) {
         ...updated,
         dns: getDnsInstructions(domain.name, domain.organization?.slug),
         verification,
+        traefik: await syncTraefikDomainConfig(domain.name, verification.verified),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Falha ao validar DNS" });
@@ -117,8 +120,9 @@ export function domainRoutes(prisma: PrismaClient) {
         where: { id: orgId, domain: domain.name },
         data: { domain: null },
       });
+      const traefik = await removeTraefikDomainConfig(domain.name);
 
-      res.json({ success: true });
+      res.json({ success: true, traefik });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Falha ao remover dominio" });
     }

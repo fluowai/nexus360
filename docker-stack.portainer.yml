@@ -66,6 +66,11 @@ services:
       CORS_ORIGINS: "https://nexus360.consultio.com.br,https://www.nexus360.consultio.com.br"
       WHITELABEL_DOCKER_IP: "${WHITELABEL_DOCKER_IP:-207.58.153.219}"
       WHITELABEL_CNAME_TARGET: "${WHITELABEL_CNAME_TARGET:-nexus360.consultio.com.br}"
+      TRAEFIK_DYNAMIC_DIR: "${TRAEFIK_DYNAMIC_DIR:-/traefik/dynamic}"
+      TRAEFIK_SERVICE_PROVIDER: "${TRAEFIK_SERVICE_PROVIDER:-swarm}"
+      TRAEFIK_FRONTEND_SERVICE: "${TRAEFIK_FRONTEND_SERVICE:-nexus360_frontend@swarm}"
+      TRAEFIK_API_SERVICE: "${TRAEFIK_API_SERVICE:-nexus360_api@swarm}"
+      TRAEFIK_CERT_RESOLVER: "${TRAEFIK_CERT_RESOLVER:-letsencryptresolver}"
       DATABASE_URL: "${DATABASE_URL}"
       DIRECT_URL: "${DIRECT_URL}"
       SUPABASE_DB_URL: "${DATABASE_URL}"
@@ -98,6 +103,8 @@ services:
       nexus360_internal:
         aliases:
           - backend
+    volumes:
+      - "${TRAEFIK_DYNAMIC_HOST_PATH:-/opt/traefik/dynamic}:/traefik/dynamic"
     deploy:
       replicas: 1
       restart_policy:

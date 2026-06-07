@@ -46,6 +46,10 @@ O app identifica o tenant pelo host cadastrado em Admin > White-label e mantem o
 
 As regras do Traefik usam ``HostRegexp(`[a-z0-9.-]+`)`` para frontend e API, no formato de regra do Traefik v3. Isso permite que qualquer dominio personalizado apontado para o IP do Portainer seja roteado para o Nexus mesmo antes de existir certificado valido.
 
+Quando um dominio e cadastrado ou validado com DNS correto, a API tambem gera um arquivo em `TRAEFIK_DYNAMIC_DIR` com routers explicitos `Host(dominio)` para frontend e API. Na stack, o caminho padrao dentro do container e `/traefik/dynamic`, montado a partir de `TRAEFIK_DYNAMIC_HOST_PATH` no host.
+
+O Traefik do Portainer precisa estar configurado com file provider observando o mesmo diretorio do host, por exemplo `--providers.file.directory=/opt/traefik/dynamic` e `--providers.file.watch=true`. Depois de configurar isso, use `POST /api/admin/domains/sync-all` como superadmin para regerar os arquivos dos dominios ja verificados.
+
 Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido para o host acessado. Se `crm.tgamkt.com` mostrar `ERR_CERT_AUTHORITY_INVALID`, o DNS pode estar apontando certo, mas o certificado desse host ainda nao foi emitido/servido pelo Traefik.
 
 ## Observacoes

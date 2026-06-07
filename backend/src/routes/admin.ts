@@ -4,6 +4,7 @@ import { AuthRequest } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
 import { DOMAIN_REGEX, getDnsInstructions, normalizeDomain, verifyDomainDns } from "../utils/domainConfig.js";
+import { removeTraefikDomainConfig, syncTraefikDomainConfig, writeTraefikDomainConfig } from "../services/traefikDomainConfig.js";
 
 export function adminRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -134,6 +135,7 @@ export function adminRoutes(prisma: PrismaClient) {
     }
 
     try {
+      let domainSync: any = null;
       const result = await prisma.$transaction(async (tx) => {
         const selectedPlan = planId
           ? await tx.plan.findUnique({ where: { id: planId } })
@@ -173,6 +175,7 @@ export function adminRoutes(prisma: PrismaClient) {
         // If a custom domain was provided, register it in the Domain table too
         if (normalizedDomain) {
           const verification = await verifyDomainDns(normalizedDomain, org.slug);
+          domainSync = { name: normalizedDomain, verified: verification.verified };
           await tx.domain.upsert({
             where: { name: normalizedDomain },
             update: { organizationId: org.id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
@@ -191,7 +194,11 @@ export function adminRoutes(prisma: PrismaClient) {
         });
       });
 
-      res.json(result);
+      const traefik = domainSync
+        ? await syncTraefikDomainConfig(domainSync.name, domainSync.verified)
+        : undefined;
+
+      res.json(traefik ? { ...result, traefik } : result);
     } catch (error: any) {
       console.error("[ADMIN_ORGS_POST]", error);
       res.status(500).json({
@@ -220,6 +227,8 @@ export function adminRoutes(prisma: PrismaClient) {
     }
 
     try {
+      let domainSync: any = null;
+      let domainToRemove: string | null = null;
       const result = await prisma.$transaction(async (tx) => {
         // 1. Verificar se a organização existe
         const existingOrg = await tx.organization.findUnique({ where: { id } });
@@ -281,6 +290,7 @@ export function adminRoutes(prisma: PrismaClient) {
         if (hasDomain) {
           // Remove old domain records for this org if domain changed
           if (existingOrg.domain && existingOrg.domain !== normalizedDomain) {
+            domainToRemove = existingOrg.domain;
             await tx.domain.deleteMany({
               where: { name: existingOrg.domain, organizationId: id }
             });
@@ -288,6 +298,7 @@ export function adminRoutes(prisma: PrismaClient) {
           // Create new domain record if domain is set
           if (normalizedDomain) {
             const verification = await verifyDomainDns(normalizedDomain, org.slug);
+            domainSync = { name: normalizedDomain, verified: verification.verified };
             await tx.domain.upsert({
               where: { name: normalizedDomain },
               update: { organizationId: id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
@@ -307,7 +318,12 @@ export function adminRoutes(prisma: PrismaClient) {
         });
       });
 
-      res.json(result);
+      const traefikRemoved = domainToRemove ? await removeTraefikDomainConfig(domainToRemove) : undefined;
+      const traefik = domainSync
+        ? await syncTraefikDomainConfig(domainSync.name, domainSync.verified)
+        : traefikRemoved;
+
+      res.json(traefik ? { ...result, traefik } : result);
     } catch (error: any) {
       console.error("[ADMIN_ORGS_PATCH_ERROR]", error);
       res.status(error.message.includes("encontrada") ? 404 : 500).json({
@@ -323,6 +339,11 @@ export function adminRoutes(prisma: PrismaClient) {
     const { id } = req.params;
 
     try {
+      const domainsToRemove = await prisma.domain.findMany({
+        where: { organizationId: id },
+        select: { name: true },
+      });
+
       await prisma.$transaction(async (tx) => {
         // Remover dependências em cascata (Exemplos)
         await tx.domain.deleteMany({ where: { organizationId: id } });
@@ -334,6 +355,8 @@ export function adminRoutes(prisma: PrismaClient) {
         // Finalmente deletar a organização
         await tx.organization.delete({ where: { id } });
       });
+
+      await Promise.all(domainsToRemove.map(domain => removeTraefikDomainConfig(domain.name)));
 
       res.json({ success: true });
     } catch (error) {
@@ -456,6 +479,7 @@ export function adminRoutes(prisma: PrismaClient) {
       if (existing && existing.organizationId !== orgId) {
         return res.status(409).json({ error: "Este dominio ja esta vinculado a outra organizacao." });
       }
+      const previousDomain = org.domain && org.domain !== domain ? org.domain : null;
 
       const savedDomain = await prisma.$transaction(async (tx) => {
         const verification = await verifyDomainDns(domain, org.slug);
@@ -493,6 +517,10 @@ export function adminRoutes(prisma: PrismaClient) {
           dns: getDnsInstructions(domain, org.slug),
         },
         verification: savedDomain.verification,
+        traefik: {
+          removed: previousDomain ? await removeTraefikDomainConfig(previousDomain) : undefined,
+          current: await syncTraefikDomainConfig(domain, savedDomain.verification.verified),
+        },
       });
     } catch (error: any) {
       console.error("[Domain Error]", error);
@@ -526,11 +554,40 @@ export function adminRoutes(prisma: PrismaClient) {
           dns: getDnsInstructions(domain.name, domain.organization.slug),
         },
         verification,
+        traefik: await syncTraefikDomainConfig(domain.name, verification.verified),
       });
     } catch (error: any) {
       console.error("[Admin Domain Verify Error]", error);
       res.status(500).json({
         error: "Falha ao validar DNS",
+        details: error.message,
+      });
+    }
+  });
+
+  router.post("/domains/sync-all", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+
+    try {
+      const domains = await prisma.domain.findMany({
+        where: { status: "verified" },
+        select: { name: true },
+        orderBy: { createdAt: "asc" },
+      });
+
+      const results = [];
+      for (const domain of domains) {
+        results.push({
+          domain: domain.name,
+          traefik: await writeTraefikDomainConfig(domain.name),
+        });
+      }
+
+      res.json({ success: true, count: results.length, results });
+    } catch (error: any) {
+      console.error("[Admin Domain Sync All Error]", error);
+      res.status(500).json({
+        error: "Falha ao sincronizar dominios no Traefik",
         details: error.message,
       });
     }

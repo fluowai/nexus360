@@ -36,6 +36,7 @@ model Agency {
 model Organization {
   id        String   @id @default(uuid())
   name      String
+  type      String   @default("CLIENT") // CLIENT | WHITELABEL
   slug      String?  @unique
   domain    String?
   plan      String   @default("Free")
@@ -1523,7 +1524,7 @@ model GeneratedPrompt {
 model Domain {
   id             String       @id @default(uuid())
   name           String       @unique
-  provider       String       // 'vercel' | 'directadmin'
+  provider       String       @default("docker") // docker/portainer reverse proxy
   status         String       @default("pending") // 'pending' | 'verified' | 'error'
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])

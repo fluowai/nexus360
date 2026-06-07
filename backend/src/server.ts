@@ -61,7 +61,7 @@ import { whatsappRoutes, whatsappInternalRoutes } from "./routes/whatsapp.js";
 
 const app = express();
 
-// Necessário para Railway/Heroku/Vercel — eles ficam atrás de um reverse proxy
+// Necessario para Docker/Portainer atras de proxy reverso.
 app.set('trust proxy', 1);
 
 const configuredOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')

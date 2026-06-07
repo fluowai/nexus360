@@ -2,7 +2,6 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import dns from "node:dns/promises";
 import { AuthRequest } from "../middleware/auth.js";
-import { vercelService } from "../services/vercel.js";
 
 const DOMAIN_REGEX = /^(?!-)(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$/;
 
@@ -116,7 +115,7 @@ export function domainRoutes(prisma: PrismaClient) {
   router.post("/", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     const name = normalizeDomain(req.body?.name);
-    const provider = req.body?.provider || "docker"; // docker | vercel | directadmin
+    const provider = "docker";
 
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
     if (!DOMAIN_REGEX.test(name)) {
@@ -140,13 +139,6 @@ export function domainRoutes(prisma: PrismaClient) {
           organizationId: orgId,
         },
       });
-
-      // 2. Call External API
-      if (provider === 'vercel') {
-        await vercelService.addDomain(name);
-      } else if (provider === 'directadmin') {
-        console.warn(`[domains] DirectAdmin provider not yet implemented for domain "${name}". DNS instructions provided instead.`);
-      }
 
       await prisma.organization.update({
         where: { id: orgId },

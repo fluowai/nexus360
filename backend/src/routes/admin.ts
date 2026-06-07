@@ -1,9 +1,50 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
-import { addDomainToVercel, addDomainToDirectAdmin } from "../utils/domainManager.js";
 import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
+
+const DOMAIN_REGEX = /^(?!-)(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$/;
+
+function normalizeDomain(value: unknown) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return "";
+
+  try {
+    const parsed = new URL(raw.includes("://") ? raw : `https://${raw}`);
+    return parsed.hostname.replace(/^www\./, "").replace(/\.$/, "");
+  } catch {
+    return raw
+      .replace(/^https?:\/\//, "")
+      .split("/")[0]
+      .split(":")[0]
+      .replace(/^www\./, "")
+      .replace(/\.$/, "");
+  }
+}
+
+function getDnsInstructions(domain: string) {
+  const panelUrl = process.env.FRONTEND_URL || process.env.APP_URL || "https://nexus360.consultio.com.br";
+  let panelHost = "nexus360.consultio.com.br";
+
+  try {
+    panelHost = new URL(panelUrl).hostname;
+  } catch {
+    panelHost = "nexus360.consultio.com.br";
+  }
+
+  return {
+    domain,
+    type: "CNAME",
+    host: domain,
+    value: process.env.WHITELABEL_CNAME_TARGET || panelHost,
+    www: {
+      type: "CNAME",
+      host: "www",
+      value: process.env.WHITELABEL_CNAME_TARGET || panelHost,
+    },
+  };
+}
 
 export function adminRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -35,12 +76,12 @@ export function adminRoutes(prisma: PrismaClient) {
     }
     const { orgId } = req.query;
     const whereClause = orgId ? { organizationId: String(orgId) } : {};
-    
+
     try {
       const leadsCount = await prisma.lead.count({ where: whereClause });
       const clientsCount = await prisma.client.count({ where: whereClause });
       const proposalsCount = await prisma.proposal.count({ where: whereClause });
-      
+
       let orgName = "Painel Global";
       let plan: any = { name: "Global", maxLeads: 100, leadsLimit: 100 };
       if (orgId) {
@@ -94,8 +135,13 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.get("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const typeFilter = req.query.type as string | undefined;
+    const whereClause = typeFilter && ['CLIENT', 'WHITELABEL'].includes(typeFilter)
+      ? { type: typeFilter }
+      : {};
     try {
       const orgs = await prisma.organization.findMany({
+        where: whereClause,
         include: {
           planObj: true,
           _count: { select: { users: true } }
@@ -112,16 +158,20 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, domain, plan, planId, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess } = req.body;
+    const { name, type, domain, plan, planId, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess, whiteLabelConfig } = req.body;
     const adminPasswordError = assertStrongPassword(adminPassword);
     if (adminPasswordError) return res.status(400).json({ error: adminPasswordError });
-    
+
     if (!adminEmail || !adminPassword) {
       return res.status(400).json({ error: "E-mail e Senha do administrador são obrigatórios" });
     }
 
     // Gerar um slug padrão se não for enviado
     const finalSlug = slug || name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-');
+    const normalizedDomain = normalizeDomain(domain);
+    if (normalizedDomain && !DOMAIN_REGEX.test(normalizedDomain)) {
+      return res.status(400).json({ error: "Informe um dominio valido, ex: crm.seudominio.com.br" });
+    }
 
     try {
       const result = await prisma.$transaction(async (tx) => {
@@ -132,15 +182,18 @@ export function adminRoutes(prisma: PrismaClient) {
             : null;
 
         // 1. Criar Organização
+        const validType = type && ['CLIENT', 'WHITELABEL'].includes(type) ? type : 'CLIENT';
         const org = await tx.organization.create({
-          data: { 
-            name, 
-            domain, 
+          data: {
+            name,
+            type: validType,
+            domain: normalizedDomain || null,
             plan: selectedPlan?.name || plan || "Free",
             planId: selectedPlan?.id || null,
             slug: finalSlug,
             isTestAccount: isTestAccount || false,
-            betaAccess: betaAccess || false
+            betaAccess: betaAccess || false,
+            ...(whiteLabelConfig !== undefined && { whiteLabelConfig })
           }
         });
 
@@ -158,8 +211,7 @@ export function adminRoutes(prisma: PrismaClient) {
         });
 
         // If a custom domain was provided, register it in the Domain table too
-        if (domain) {
-          const normalizedDomain = domain.toLowerCase().replace(/^www\./, '').replace(/\/$/, '');
+        if (normalizedDomain) {
           await tx.domain.upsert({
             where: { name: normalizedDomain },
             update: { organizationId: org.id, provider: 'docker' },
@@ -181,9 +233,9 @@ export function adminRoutes(prisma: PrismaClient) {
       res.json(result);
     } catch (error: any) {
       console.error("[ADMIN_ORGS_POST]", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Falha ao criar cliente e usuário administrador",
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -192,15 +244,20 @@ export function adminRoutes(prisma: PrismaClient) {
   router.patch("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { id } = req.params;
-    const { name, domain, plan, planId, slug, adminEmail, isTestAccount, betaAccess } = req.body;
+    const { name, type, domain, plan, planId, slug, adminEmail, isTestAccount, betaAccess, whiteLabelConfig } = req.body;
     const password = typeof req.body.password === "string" ? req.body.password.trim() : req.body.password;
     const shouldUpdatePassword = typeof password === "string" && password !== "" && !/^\*+$/.test(password);
+    const hasDomain = Object.prototype.hasOwnProperty.call(req.body, "domain");
+    const normalizedDomain = hasDomain ? normalizeDomain(domain) : undefined;
 
     if (shouldUpdatePassword) {
       const passwordError = assertStrongPassword(password);
       if (passwordError) return res.status(400).json({ error: passwordError });
     }
-    
+    if (normalizedDomain && !DOMAIN_REGEX.test(normalizedDomain)) {
+      return res.status(400).json({ error: "Informe um dominio valido, ex: crm.seudominio.com.br" });
+    }
+
     try {
       const result = await prisma.$transaction(async (tx) => {
         // 1. Verificar se a organização existe
@@ -215,20 +272,22 @@ export function adminRoutes(prisma: PrismaClient) {
         if (!existingOrg) throw new Error("Organização não encontrada.");
 
         // 2. Atualizar Organização
-        const org = await tx.organization.update({
-          where: { id },
-          data: { 
-            ...(name && { name }),
-            ...(domain !== undefined && { domain }),
-            ...(plan && !selectedPlan && { plan }),
-            ...(selectedPlan && { plan: selectedPlan.name }),
-            ...(hasPlanId && { planId: selectedPlan?.id || null }),
-            ...(!hasPlanId && selectedPlan && { planId: selectedPlan.id }),
-            ...(slug && { slug }),
-            ...(isTestAccount !== undefined && { isTestAccount }),
-            ...(betaAccess !== undefined && { betaAccess })
-          }
-        });
+          const org = await tx.organization.update({
+            where: { id },
+            data: {
+              ...(name && { name }),
+              ...(type && ['CLIENT', 'WHITELABEL'].includes(type) && { type }),
+              ...(hasDomain && { domain: normalizedDomain || null }),
+              ...(plan && !selectedPlan && { plan }),
+              ...(selectedPlan && { plan: selectedPlan.name }),
+              ...(hasPlanId && { planId: selectedPlan?.id || null }),
+              ...(!hasPlanId && selectedPlan && { planId: selectedPlan.id }),
+              ...(slug && { slug }),
+              ...(isTestAccount !== undefined && { isTestAccount }),
+              ...(betaAccess !== undefined && { betaAccess }),
+              ...(whiteLabelConfig !== undefined && { whiteLabelConfig })
+            }
+          });
 
         // 3. Atualizar Usuário Admin se solicitado
         if (adminEmail || shouldUpdatePassword) {
@@ -258,16 +317,15 @@ export function adminRoutes(prisma: PrismaClient) {
         }
 
         // If domain changed, upsert Domain record
-        if (domain !== undefined) {
+        if (hasDomain) {
           // Remove old domain records for this org if domain changed
-          if (existingOrg.domain && existingOrg.domain !== domain) {
+          if (existingOrg.domain && existingOrg.domain !== normalizedDomain) {
             await tx.domain.deleteMany({
               where: { name: existingOrg.domain, organizationId: id }
             });
           }
           // Create new domain record if domain is set
-          if (domain) {
-            const normalizedDomain = domain.toLowerCase().replace(/^www\./, '').replace(/\/$/, '');
+          if (normalizedDomain) {
             await tx.domain.upsert({
               where: { name: normalizedDomain },
               update: { organizationId: id, provider: 'docker' },
@@ -290,9 +348,9 @@ export function adminRoutes(prisma: PrismaClient) {
       res.json(result);
     } catch (error: any) {
       console.error("[ADMIN_ORGS_PATCH_ERROR]", error);
-      res.status(error.message.includes("encontrada") ? 404 : 500).json({ 
+      res.status(error.message.includes("encontrada") ? 404 : 500).json({
         error: "Falha ao atualizar organização",
-        details: error.message 
+        details: error.message
       });
     }
   });
@@ -301,7 +359,7 @@ export function adminRoutes(prisma: PrismaClient) {
   router.delete("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { id } = req.params;
-    
+
     try {
       await prisma.$transaction(async (tx) => {
         // Remover dependências em cascata (Exemplos)
@@ -310,15 +368,58 @@ export function adminRoutes(prisma: PrismaClient) {
         await tx.client.deleteMany({ where: { organizationId: id } });
         await tx.project.deleteMany({ where: { organizationId: id } });
         await tx.user.deleteMany({ where: { organizationId: id } });
-        
+
         // Finalmente deletar a organização
         await tx.organization.delete({ where: { id } });
       });
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("[ADMIN_ORGS_DELETE]", error);
       res.status(500).json({ error: "Failed to delete organization (cascade error)" });
+    }
+  });
+
+  // Get white-label config for an org
+  router.get("/orgs/:id/whitelabel", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          whiteLabelConfig: true,
+          domain: true,
+          slug: true,
+          plan: true,
+          planId: true,
+        }
+      });
+      if (!org) return res.status(404).json({ error: "Organização não encontrada" });
+      res.json(org);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch whitelabel config" });
+    }
+  });
+
+  // Update white-label branding for an org
+  router.patch("/orgs/:id/whitelabel", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const { id } = req.params;
+    const { whiteLabelConfig, type } = req.body;
+    try {
+      const org = await prisma.organization.update({
+        where: { id },
+        data: {
+          ...(whiteLabelConfig !== undefined && { whiteLabelConfig }),
+          ...(type && ['CLIENT', 'WHITELABEL'].includes(type) && { type }),
+        }
+      });
+      res.json({ success: true, org });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update whitelabel config" });
     }
   });
 
@@ -355,7 +456,7 @@ export function adminRoutes(prisma: PrismaClient) {
       const passwordError = assertStrongPassword(password);
       if (passwordError) return res.status(400).json({ error: passwordError });
     }
-    
+
     try {
       const data: any = { name, email, role, status, permissions, organizationId };
       if (password) {
@@ -375,33 +476,62 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.post("/domains", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { domain, orgId } = req.body;
+    const { orgId } = req.body;
+    const domain = normalizeDomain(req.body?.domain);
 
     if (!domain || !orgId) {
       return res.status(400).json({ error: "Domain and OrgId are required" });
     }
+    if (!DOMAIN_REGEX.test(domain)) {
+      return res.status(400).json({ error: "Informe um dominio valido, ex: crm.seudominio.com.br" });
+    }
 
     try {
-      // 1. Add to Vercel
-      console.log(`[Domain] Adding ${domain} to Vercel...`);
-      await addDomainToVercel(domain);
+      const org = await prisma.organization.findUnique({ where: { id: orgId } });
+      if (!org) return res.status(404).json({ error: "Organizacao nao encontrada" });
 
-      // 2. Add to DirectAdmin
-      console.log(`[Domain] Adding ${domain} to DirectAdmin...`);
-      await addDomainToDirectAdmin(domain);
+      const existing = await prisma.domain.findUnique({ where: { name: domain } });
+      if (existing && existing.organizationId !== orgId) {
+        return res.status(409).json({ error: "Este dominio ja esta vinculado a outra organizacao." });
+      }
 
-      // 3. Update Database
-      await prisma.organization.update({
-        where: { id: orgId },
-        data: { domain }
+      const savedDomain = await prisma.$transaction(async (tx) => {
+        if (org.domain && org.domain !== domain) {
+          await tx.domain.deleteMany({ where: { name: org.domain, organizationId: orgId } });
+        }
+
+        const domainRecord = await tx.domain.upsert({
+          where: { name: domain },
+          update: { organizationId: orgId, provider: "docker", status: existing?.status || "pending" },
+          create: {
+            name: domain,
+            provider: "docker",
+            status: "pending",
+            organizationId: orgId,
+          },
+        });
+
+        await tx.organization.update({
+          where: { id: orgId },
+          data: { domain },
+        });
+
+        return domainRecord;
       });
 
-      res.json({ success: true, message: "Domain registered successfully in Vercel and DirectAdmin" });
+      res.json({
+        success: true,
+        message: "Dominio cadastrado para Docker/Portainer. Configure o DNS para ativar o acesso pela URL do cliente.",
+        domain: {
+          ...savedDomain,
+          dns: getDnsInstructions(domain),
+        },
+      });
     } catch (error: any) {
       console.error("[Domain Error]", error);
-      res.status(500).json({ 
-        error: "Failed to register domain", 
-        details: error.message 
+      res.status(500).json({
+        error: "Failed to register domain",
+        details: error.message
       });
     }
   });
@@ -414,7 +544,7 @@ export function adminRoutes(prisma: PrismaClient) {
     const organizationId = req.body.organizationId || null;
     const passwordError = assertStrongPassword(password);
     if (passwordError) return res.status(400).json({ error: passwordError });
-    
+
     try {
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) return res.status(400).json({ error: "E-mail já está em uso." });
@@ -453,8 +583,8 @@ export function adminRoutes(prisma: PrismaClient) {
       res.status(500).json({ error: "Failed to delete user" });
     }
   });
-  
+
   // --- Modular Routes Handle elsewhere ---
-  
+
   return router;
 }

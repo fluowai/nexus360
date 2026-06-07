@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { 
   Building2, 
   Plus, 
@@ -14,13 +14,15 @@ import {
   RefreshCw,
   User,
   Mail,
-  Lock
+  Lock,
+  Palette
 } from "lucide-react";
 import { motion } from "motion/react";
 import { apiFetch } from "../../lib/api";
 
 export default function AdminAgencies() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [agencies, setAgencies] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -65,7 +67,7 @@ export default function AdminAgencies() {
       
       const data = await res.json();
       if (res.ok) {
-        alert("Domínio configurado com sucesso no Vercel e DirectAdmin!");
+        alert("Dominio cadastrado. Configure o DNS no servidor Docker/Portainer para ativar a URL.");
         setShowDomainModal(false);
         setCustomDomain('');
         fetchAgencies();
@@ -83,7 +85,7 @@ export default function AdminAgencies() {
   const fetchAgencies = async () => {
     setLoading(true);
     try {
-      const orgsRes = await apiFetch('/api/admin/orgs');
+      const orgsRes = await apiFetch('/api/admin/orgs?type=CLIENT');
       if (orgsRes.ok) {
         setAgencies(await orgsRes.json());
       } else {
@@ -190,10 +192,36 @@ export default function AdminAgencies() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-white rounded-[32px] border border-gray-100 shadow-sm p-1.5 w-fit">
+        <Link
+          to="/admin/agencies"
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm transition-all ${
+            !location.pathname.includes('whitelabel')
+              ? 'bg-gray-900 text-white shadow-lg shadow-gray-200'
+              : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Building2 size={18} />
+          Clientes da Agência
+        </Link>
+        <Link
+          to="/admin/whitelabel"
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-sm transition-all ${
+            location.pathname.includes('whitelabel')
+              ? 'bg-gray-900 text-white shadow-lg shadow-gray-200'
+              : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          <Palette size={18} />
+          White-label
+        </Link>
+      </div>
+
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestão de Clientes</h1>
-          <p className="text-sm text-gray-500">Gerencie todas as instâncias e sub-contas da plataforma.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Clientes da Agência</h1>
+          <p className="text-sm text-gray-500">Organizações que usam o Nexus360 como plataforma de gestão.</p>
         </div>
         <button 
           onClick={() => setShowModal(true)}
@@ -508,8 +536,8 @@ export default function AdminAgencies() {
               <div className="bg-amber-50 border border-amber-100 p-4 rounded-2xl mb-2">
                 <p className="text-[10px] font-bold text-amber-800 uppercase tracking-widest mb-1">Atenção</p>
                 <p className="text-[10px] text-amber-700 leading-relaxed">
-                  Este processo irá configurar o domínio automaticamente no <strong>Vercel</strong> e no <strong>DirectAdmin</strong>. 
-                  Certifique-se que o domínio já aponta para os nossos servidores.
+                  Este processo cadastra a URL no Nexus360 para uso com Docker/Portainer.
+                  Certifique-se que o DNS do dominio aponta para o servidor configurado.
                 </p>
               </div>
 

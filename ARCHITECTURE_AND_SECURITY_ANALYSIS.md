@@ -169,14 +169,14 @@ Key Mechanism:
 `	ypescript
 export const resolveTenant = (req, res, next) => {
   let orgId = user.orgId;
-  
+
   // Super Admin can impersonate via X-Org-Id header
   if (user.role === 'SUPER_ADMIN' && impersonatedOrgId) {
     orgId = impersonatedOrgId;
   }
-  
+
   if (!orgId) return 403 TENANT_MISSING;
-  
+
   // Inject tenant filter into request
   req.tenantFilter = { organizationId: orgId };
   next();
@@ -459,21 +459,6 @@ WHITELABEL_CNAME_TARGET=nexus360.consultio.com.br
 `
 
 ### External Integrations
-
-**Vercel (Deployment):**
-`
-VERCEL_API_TOKEN=
-VERCEL_PROJECT_ID=
-VERCEL_TEAM_ID=
-`
-
-**DirectAdmin / WHM (Server management):**
-`
-DIRECT_ADMIN_URL=https://server:2222
-DIRECT_ADMIN_USER=username
-DIRECT_ADMIN_API_KEY=
-WHM_MAIN_DOMAIN=yourdomain.com
-`
 
 **LiveKit (Video conferencing):**
 `
@@ -781,7 +766,6 @@ File: services/onboardingAI.ts
 - Docker Compose (local, VPS)
 - Portainer (Docker orchestration)
 - Railway.app (PaaS)
-- Vercel (frontend only)
 
 ---
 

@@ -34,7 +34,8 @@ import {
   Activity,
   GitBranch,
   MessageCircle,
-  Brain
+  Brain,
+  Palette
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
@@ -344,6 +345,7 @@ export const Sidebar: React.FC<{
               <SidebarItem icon={LayoutDashboard} label="Dashboard" path="/admin" isActive={location.pathname === '/admin'} collapsed={collapsed} />
               <SidebarItem icon={Zap} label="Monitoramento" path="/admin/monitor" isActive={location.pathname === '/admin/monitor'} collapsed={collapsed} />
               <SidebarItem icon={Building2} label="Clientes" path="/admin/agencies" isActive={location.pathname === '/admin/agencies'} collapsed={collapsed} />
+              <SidebarItem icon={Palette} label="White-label" path="/admin/whitelabel" isActive={location.pathname === '/admin/whitelabel'} collapsed={collapsed} />
               <SidebarItem icon={Users} label="Equipe Sistema" path="/admin/team" isActive={location.pathname === '/admin/team'} collapsed={collapsed} />
               <SidebarItem icon={Ticket} label="Planos SaaS" path="/admin/plans" isActive={location.pathname === '/admin/plans'} collapsed={collapsed} />
               <SidebarItem icon={FileText} label="Log de Auditoria" path="/admin/audit" isActive={location.pathname === '/admin/audit'} collapsed={collapsed} />

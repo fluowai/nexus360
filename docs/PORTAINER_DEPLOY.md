@@ -44,6 +44,8 @@ DNS esperado:
 
 O app identifica o tenant pelo host cadastrado em Admin > White-label e mantem o usuario no dominio personalizado. A URL `nexus360.consultio.com.br/tgamkt` continua disponivel como URL interna/alternativa.
 
+As regras do Traefik usam ``HostRegexp(`[a-z0-9.-]+`)`` para frontend e API, no formato de regra do Traefik v3. Isso permite que qualquer dominio personalizado apontado para o IP do Portainer seja roteado para o Nexus mesmo antes de existir certificado valido.
+
 Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido para o host acessado. Se `crm.tgamkt.com` mostrar `ERR_CERT_AUTHORITY_INVALID`, o DNS pode estar apontando certo, mas o certificado desse host ainda nao foi emitido/servido pelo Traefik.
 
 ## Observacoes

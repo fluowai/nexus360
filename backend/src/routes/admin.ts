@@ -3,48 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
-
-const DOMAIN_REGEX = /^(?!-)(?:[a-z0-9-]{1,63}\.)+[a-z]{2,63}$/;
-
-function normalizeDomain(value: unknown) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (!raw) return "";
-
-  try {
-    const parsed = new URL(raw.includes("://") ? raw : `https://${raw}`);
-    return parsed.hostname.replace(/^www\./, "").replace(/\.$/, "");
-  } catch {
-    return raw
-      .replace(/^https?:\/\//, "")
-      .split("/")[0]
-      .split(":")[0]
-      .replace(/^www\./, "")
-      .replace(/\.$/, "");
-  }
-}
-
-function getDnsInstructions(domain: string) {
-  const panelUrl = process.env.FRONTEND_URL || process.env.APP_URL || "https://nexus360.consultio.com.br";
-  let panelHost = "nexus360.consultio.com.br";
-
-  try {
-    panelHost = new URL(panelUrl).hostname;
-  } catch {
-    panelHost = "nexus360.consultio.com.br";
-  }
-
-  return {
-    domain,
-    type: "CNAME",
-    host: domain,
-    value: process.env.WHITELABEL_CNAME_TARGET || panelHost,
-    www: {
-      type: "CNAME",
-      host: "www",
-      value: process.env.WHITELABEL_CNAME_TARGET || panelHost,
-    },
-  };
-}
+import { DOMAIN_REGEX, getDnsInstructions, normalizeDomain, verifyDomainDns } from "../utils/domainConfig.js";
 
 export function adminRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -212,13 +171,14 @@ export function adminRoutes(prisma: PrismaClient) {
 
         // If a custom domain was provided, register it in the Domain table too
         if (normalizedDomain) {
+          const verification = await verifyDomainDns(normalizedDomain);
           await tx.domain.upsert({
             where: { name: normalizedDomain },
-            update: { organizationId: org.id, provider: 'docker' },
+            update: { organizationId: org.id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
             create: {
               name: normalizedDomain,
               provider: 'docker',
-              status: 'pending',
+              status: verification.verified ? "verified" : "pending",
               organizationId: org.id,
             },
           });
@@ -326,13 +286,14 @@ export function adminRoutes(prisma: PrismaClient) {
           }
           // Create new domain record if domain is set
           if (normalizedDomain) {
+            const verification = await verifyDomainDns(normalizedDomain);
             await tx.domain.upsert({
               where: { name: normalizedDomain },
-              update: { organizationId: id, provider: 'docker' },
+              update: { organizationId: id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
               create: {
                 name: normalizedDomain,
                 provider: 'docker',
-                status: 'pending',
+                status: verification.verified ? "verified" : "pending",
                 organizationId: id,
               },
             });
@@ -496,17 +457,19 @@ export function adminRoutes(prisma: PrismaClient) {
       }
 
       const savedDomain = await prisma.$transaction(async (tx) => {
+        const verification = await verifyDomainDns(domain);
+
         if (org.domain && org.domain !== domain) {
           await tx.domain.deleteMany({ where: { name: org.domain, organizationId: orgId } });
         }
 
         const domainRecord = await tx.domain.upsert({
           where: { name: domain },
-          update: { organizationId: orgId, provider: "docker", status: existing?.status || "pending" },
+          update: { organizationId: orgId, provider: "docker", status: verification.verified ? "verified" : existing?.status || "pending" },
           create: {
             name: domain,
             provider: "docker",
-            status: "pending",
+            status: verification.verified ? "verified" : "pending",
             organizationId: orgId,
           },
         });
@@ -516,16 +479,19 @@ export function adminRoutes(prisma: PrismaClient) {
           data: { domain },
         });
 
-        return domainRecord;
+        return { domainRecord, verification };
       });
 
       res.json({
         success: true,
-        message: "Dominio cadastrado para Docker/Portainer. Configure o DNS para ativar o acesso pela URL do cliente.",
+        message: savedDomain.verification.verified
+          ? "Dominio cadastrado e DNS validado para o servidor Nexus360."
+          : "Dominio cadastrado. Configure o DNS para apontar ao servidor Nexus360 e validar a URL do cliente.",
         domain: {
-          ...savedDomain,
-          dns: getDnsInstructions(domain),
+          ...savedDomain.domainRecord,
+          dns: getDnsInstructions(domain, org.slug),
         },
+        verification: savedDomain.verification,
       });
     } catch (error: any) {
       console.error("[Domain Error]", error);

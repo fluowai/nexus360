@@ -1,4 +1,4 @@
-const DEFAULT_PANEL_HOSTS: string[] = [];
+const DEFAULT_PANEL_HOSTS = ["nexus360.consultio.com.br", "www.nexus360.consultio.com.br"];
 
 function configuredPanelHosts() {
   const rawUrl = import.meta.env.VITE_PANEL_URL || "";

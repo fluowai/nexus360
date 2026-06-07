@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useLocation, useNavigate, useParams } from "react-router-dom";
 import { 
   Menu,
   Monitor
@@ -311,6 +311,8 @@ export default function App() {
           <Route path="/admin/releases" element={<ReleaseControl />} />
           <Route path="/admin/acp" element={<AdminAcpManager />} />
 
+          <Route path="/whitelabel/:slug/*" element={<WorkspaceAliasRedirect />} />
+
           <Route path="/:slug" element={<Dashboard />} /> 
           <Route path="/:slug/dashboard" element={<Dashboard />} />
           <Route path="/:slug/admin" element={<Dashboard />} />
@@ -372,4 +374,10 @@ export default function App() {
 function Guard({ user, selectedClientId }: { user: any; selectedClientId: string | null }) {
   useNavigationGuard(user, selectedClientId);
   return null;
+}
+
+function WorkspaceAliasRedirect() {
+  const { slug, "*": tail } = useParams();
+  const target = `/${slug || ""}${tail ? `/${tail}` : ""}`;
+  return <Navigate to={target || "/"} replace />;
 }

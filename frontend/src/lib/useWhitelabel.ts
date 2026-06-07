@@ -27,6 +27,10 @@ export function useWhitelabel() {
           setCustomDomain(Boolean(data.customDomain));
 
           if (data.organization) {
+            if (data.organization.slug) {
+              localStorage.setItem("nexus_org_slug", data.organization.slug);
+            }
+
             const wl = {
               name: data.organization.whiteLabelConfig?.name || data.organization.name,
               ...(data.organization.whiteLabelConfig || {}),

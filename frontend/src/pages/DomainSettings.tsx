@@ -22,11 +22,21 @@ interface DomainDns {
   type: string;
   host: string;
   value: string;
+  cname?: {
+    type: string;
+    host: string;
+    value: string;
+  };
   www: {
     type: string;
     host: string;
     value: string;
   };
+  internalUrl?: {
+    slug: string;
+    primary: string;
+    legacy: string;
+  } | null;
 }
 
 interface Domain {
@@ -338,13 +348,23 @@ export default function DomainSettings() {
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <DnsCard
-                        label="Registro Principal"
+                        label="Registro A principal"
                         type={domain.dns.type}
                         host={domain.dns.host}
                         value={domain.dns.value}
                         onCopy={copy}
                         copiedField={copiedField}
                       />
+                      {domain.dns.cname && (
+                        <DnsCard
+                          label="Alternativa CNAME"
+                          type={domain.dns.cname.type}
+                          host={domain.dns.cname.host}
+                          value={domain.dns.cname.value}
+                          onCopy={copy}
+                          copiedField={copiedField}
+                        />
+                      )}
                       <DnsCard
                         label="Registro www (opcional)"
                         type={domain.dns.www.type}
@@ -358,6 +378,11 @@ export default function DomainSettings() {
                       Após alterar o DNS, aguarde a propagação (5-30 min) e clique em <strong>Validar DNS</strong>.
                       O certificado HTTPS é gerado automaticamente pelo Traefik/Let's Encrypt.
                     </p>
+                    {domain.dns.internalUrl && (
+                      <p className="text-xs text-gray-500 font-mono">
+                        URL interna: {domain.dns.internalUrl.primary} ou {domain.dns.internalUrl.legacy}
+                      </p>
+                    )}
                   </div>
                 )}
 

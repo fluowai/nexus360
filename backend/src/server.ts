@@ -139,9 +139,9 @@ const authLimiter = rateLimit({
 });
 
 // Middlewares Globais de Segurança e Utilidade
-app.use(globalLimiter);
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+app.use(globalLimiter);
 app.use(express.json({ limit: '5mb' }));
 app.disable("x-powered-by");
 app.use(helmet({

@@ -2,13 +2,9 @@
 
 import { redirectToLogin } from "./navigation";
 
-const PRODUCTION_API_URL = 'https://nexus360-production.up.railway.app';
 const rawApiUrl = import.meta.env.VITE_API_URL || '';
 const normalizedApiUrl = rawApiUrl === 'same-origin' ? '' : rawApiUrl;
-
-const API_URL = normalizedApiUrl.includes('woomobzy-production.up.railway.app')
-  ? PRODUCTION_API_URL
-  : normalizedApiUrl;
+const API_URL = normalizedApiUrl;
 const ACCESS_TOKEN_KEY = 'nexus_access_token';
 
 let isRefreshing = false;
@@ -18,16 +14,6 @@ let refreshFailed = false;
 
 export function getApiBaseUrl() {
   return API_URL?.replace(/\/$/, '') || '';
-}
-
-function isLocalhost() {
-  return ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
-}
-
-function shouldRetryAgainstProductionApi(path: string, response: Response) {
-  if (getApiBaseUrl() || isLocalhost()) return false;
-  if (!path.startsWith('/api/')) return false;
-  return (response.headers.get('content-type') || '').toLowerCase().includes('text/html');
 }
 
 export async function readJsonResponse<T = any>(response: Response, fallbackMessage = 'Resposta invalida da API.'): Promise<T> {
@@ -41,7 +27,7 @@ export async function readJsonResponse<T = any>(response: Response, fallbackMess
 export async function publicApiFetch(path: string, options: RequestInit = {}) {
   const normalizedBase = getApiBaseUrl();
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  let response = await fetch(`${normalizedBase}${normalizedPath}`, {
+  return fetch(`${normalizedBase}${normalizedPath}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -49,19 +35,6 @@ export async function publicApiFetch(path: string, options: RequestInit = {}) {
     },
     credentials: 'include',
   });
-
-  if (shouldRetryAgainstProductionApi(normalizedPath, response)) {
-    response = await fetch(`${PRODUCTION_API_URL}${normalizedPath}`, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string> || {}),
-      },
-      credentials: 'include',
-    });
-  }
-
-  return response;
 }
 
 function isAuthPath(path: string) {
@@ -121,21 +94,13 @@ async function refreshAccessToken(): Promise<string | null> {
       credentials: 'include',
     });
 
-    const finalResponse = shouldRetryAgainstProductionApi('/api/auth/refresh', response)
-      ? await fetch(`${PRODUCTION_API_URL}/api/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        })
-      : response;
-
-    if (!finalResponse.ok) {
+    if (!response.ok) {
       clearAuthSession();
       refreshFailed = true;
       return null;
     }
 
-    const data = await readJsonResponse(finalResponse, 'Nao foi possivel renovar a sessao.');
+    const data = await readJsonResponse(response, 'Nao foi possivel renovar a sessao.');
     if (data.token) {
       setAccessToken(data.token);
       return data.token;
@@ -198,14 +163,6 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
       });
     } finally {
       clearTimeout(timeoutId);
-    }
-
-    if (shouldRetryAgainstProductionApi(normalizedPath, response)) {
-      response = await fetch(`${PRODUCTION_API_URL}${normalizedPath}`, {
-        ...options,
-        headers,
-        credentials: 'include',
-      });
     }
 
     if (response.status === 401) {

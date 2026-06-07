@@ -18,7 +18,7 @@ import {
   getRefreshTokenFromRequest,
   setRefreshTokenCookie,
 } from "../utils/security.js";
-import { findVerifiedTenantDomain } from "../utils/tenantHost.js";
+import { findTenantHostContext } from "../utils/tenantHost.js";
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -52,7 +52,7 @@ export function authRoutes(prisma: PrismaClient) {
     userOrgId: string | null | undefined,
     userRole: string | null | undefined
   ) {
-    const tenantDomain = await findVerifiedTenantDomain(
+    const tenantDomain = await findTenantHostContext(
       prisma,
       req.headers["x-forwarded-host"] || req.headers.host
     );
@@ -441,7 +441,7 @@ export function authRoutes(prisma: PrismaClient) {
     }
 
     try {
-      const tenantDomain = await findVerifiedTenantDomain(
+      const tenantDomain = await findTenantHostContext(
         prisma,
         req.headers["x-forwarded-host"] || req.headers.host
       );

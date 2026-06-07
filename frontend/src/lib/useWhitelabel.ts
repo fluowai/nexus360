@@ -30,6 +30,16 @@ export function useWhitelabel() {
             if (data.organization.slug) {
               localStorage.setItem("nexus_org_slug", data.organization.slug);
             }
+            if (data.customDomain && data.internalUrl?.subdomain) {
+              const target = new URL(data.internalUrl.subdomain);
+              if (window.location.hostname !== target.hostname) {
+                target.pathname = window.location.pathname;
+                target.search = window.location.search;
+                target.hash = window.location.hash;
+                window.location.replace(target.toString());
+                return;
+              }
+            }
 
             const wl = {
               name: data.organization.whiteLabelConfig?.name || data.organization.name,

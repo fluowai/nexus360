@@ -38,17 +38,22 @@ export function getInternalWorkspaceUrls(slug?: string | null) {
   const panelHost = getPanelHost();
   const normalizedSlug = String(slug || "").trim().replace(/^\/+|\/+$/g, "");
   if (!normalizedSlug) return null;
+  const systemHost = `${normalizedSlug}.${panelHost}`;
 
   return {
     slug: normalizedSlug,
-    primary: `https://${panelHost}/${normalizedSlug}`,
-    legacy: `https://${panelHost}/whitelabel/${normalizedSlug}`,
+    host: systemHost,
+    subdomain: `https://${systemHost}`,
+    path: `https://${panelHost}/${normalizedSlug}`,
+    legacyPath: `https://${panelHost}/whitelabel/${normalizedSlug}`,
   };
 }
 
 export function getDnsInstructions(domain: string, slug?: string | null) {
   const panelHost = getPanelHost();
   const expectedIp = getExpectedWhitelabelIp();
+  const internalUrl = getInternalWorkspaceUrls(slug);
+  const cnameTarget = internalUrl?.host || process.env.WHITELABEL_CNAME_TARGET || panelHost;
 
   return {
     domain,
@@ -58,30 +63,43 @@ export function getDnsInstructions(domain: string, slug?: string | null) {
     cname: {
       type: "CNAME",
       host: domain,
-      value: process.env.WHITELABEL_CNAME_TARGET || panelHost,
+      value: cnameTarget,
     },
+    systemSubdomain: internalUrl
+      ? {
+          type: "A",
+          host: internalUrl.host,
+          value: expectedIp,
+        }
+      : null,
     www: {
       type: "CNAME",
       host: "www",
       value: domain,
     },
-    internalUrl: getInternalWorkspaceUrls(slug),
+    internalUrl,
   };
 }
 
-export async function verifyDomainDns(domain: string) {
+export async function verifyDomainDns(domain: string, slug?: string | null) {
   const expectedIp = getExpectedWhitelabelIp();
-  const expectedCname = (process.env.WHITELABEL_CNAME_TARGET || getPanelHost()).replace(/\.$/, "").toLowerCase();
+  const internalUrl = getInternalWorkspaceUrls(slug);
+  const expectedCnames = [
+    internalUrl?.host,
+    process.env.WHITELABEL_CNAME_TARGET || getPanelHost(),
+  ]
+    .filter(Boolean)
+    .map(item => String(item).replace(/\.$/, "").toLowerCase());
   const result: {
     verified: boolean;
-    expected: { ip: string; cname: string };
+    expected: { ip: string; cname: string[] };
     records: { a: string[]; cname: string[] };
     message: string;
   } = {
     verified: false,
-    expected: { ip: expectedIp, cname: expectedCname },
+    expected: { ip: expectedIp, cname: expectedCnames },
     records: { a: [], cname: [] },
-    message: `DNS ainda nao aponta para ${expectedIp} nem para ${expectedCname}.`,
+    message: `DNS ainda nao aponta para ${expectedIp} nem para ${expectedCnames.join(" ou ")}.`,
   };
 
   try {
@@ -99,7 +117,7 @@ export async function verifyDomainDns(domain: string) {
   try {
     const cnames = await dns.resolveCname(domain);
     result.records.cname = cnames.map(item => item.replace(/\.$/, "").toLowerCase());
-    if (result.records.cname.includes(expectedCname)) {
+    if (result.records.cname.some(record => expectedCnames.includes(record))) {
       result.verified = true;
       result.message = "Dominio apontando corretamente via CNAME.";
       return result;

@@ -172,7 +172,7 @@ export function adminRoutes(prisma: PrismaClient) {
 
         // If a custom domain was provided, register it in the Domain table too
         if (normalizedDomain) {
-          const verification = await verifyDomainDns(normalizedDomain);
+          const verification = await verifyDomainDns(normalizedDomain, org.slug);
           await tx.domain.upsert({
             where: { name: normalizedDomain },
             update: { organizationId: org.id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
@@ -287,7 +287,7 @@ export function adminRoutes(prisma: PrismaClient) {
           }
           // Create new domain record if domain is set
           if (normalizedDomain) {
-            const verification = await verifyDomainDns(normalizedDomain);
+            const verification = await verifyDomainDns(normalizedDomain, org.slug);
             await tx.domain.upsert({
               where: { name: normalizedDomain },
               update: { organizationId: id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
@@ -458,7 +458,7 @@ export function adminRoutes(prisma: PrismaClient) {
       }
 
       const savedDomain = await prisma.$transaction(async (tx) => {
-        const verification = await verifyDomainDns(domain);
+        const verification = await verifyDomainDns(domain, org.slug);
 
         if (org.domain && org.domain !== domain) {
           await tx.domain.deleteMany({ where: { name: org.domain, organizationId: orgId } });
@@ -513,7 +513,7 @@ export function adminRoutes(prisma: PrismaClient) {
       });
       if (!domain) return res.status(404).json({ error: "Dominio nao encontrado" });
 
-      const verification = await verifyDomainDns(domain.name);
+      const verification = await verifyDomainDns(domain.name, domain.organization.slug);
       const updated = await prisma.domain.update({
         where: { id: domain.id },
         data: { status: verification.verified ? "verified" : "pending" },

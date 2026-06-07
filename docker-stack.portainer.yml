@@ -64,7 +64,7 @@ services:
       FRONTEND_URL: "https://nexus360.consultio.com.br"
       ALLOWED_ORIGINS: "https://nexus360.consultio.com.br,https://www.nexus360.consultio.com.br"
       CORS_ORIGINS: "https://nexus360.consultio.com.br,https://www.nexus360.consultio.com.br"
-      WHITELABEL_DOCKER_IP: "${WHITELABEL_DOCKER_IP:-}"
+      WHITELABEL_DOCKER_IP: "${WHITELABEL_DOCKER_IP:-207.58.153.219}"
       WHITELABEL_CNAME_TARGET: "${WHITELABEL_CNAME_TARGET:-nexus360.consultio.com.br}"
       DATABASE_URL: "${DATABASE_URL}"
       DIRECT_URL: "${DIRECT_URL}"

@@ -43,7 +43,11 @@ export function domainRoutes(prisma: PrismaClient) {
         return res.status(409).json({ error: "Este dominio ja esta vinculado a outra organizacao." });
       }
 
-      const verification = await verifyDomainDns(name);
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { slug: true },
+      });
+      const verification = await verifyDomainDns(name, org?.slug);
       const domain = await prisma.domain.upsert({
         where: { name },
         update: { provider, status: verification.verified ? "verified" : existing?.status || "pending" },
@@ -55,7 +59,7 @@ export function domainRoutes(prisma: PrismaClient) {
         },
       });
 
-      const org = await prisma.organization.update({
+      const updatedOrg = await prisma.organization.update({
         where: { id: orgId },
         data: { domain: name },
         select: { slug: true },
@@ -63,7 +67,7 @@ export function domainRoutes(prisma: PrismaClient) {
 
       res.json({
         ...domain,
-        dns: getDnsInstructions(name, org.slug),
+        dns: getDnsInstructions(name, updatedOrg.slug),
         verification,
       });
     } catch (error: any) {
@@ -82,7 +86,7 @@ export function domainRoutes(prisma: PrismaClient) {
       });
       if (!domain) return res.status(404).json({ error: "Dominio nao encontrado" });
 
-      const verification = await verifyDomainDns(domain.name);
+      const verification = await verifyDomainDns(domain.name, domain.organization?.slug);
       const updated = await prisma.domain.update({
         where: { id: domain.id },
         data: { status: verification.verified ? "verified" : "pending" },

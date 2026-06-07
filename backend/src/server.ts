@@ -9,7 +9,7 @@ import { prisma } from "./lib/prisma.js";
 import { authenticateToken } from "./middleware/auth.js";
 import { resolveTenant } from "./middleware/tenant.js";
 import { sanitizeStoredHtml } from "./utils/security.js";
-import { findTenantDomainStatus, findVerifiedTenantDomain, normalizeRequestHost } from "./utils/tenantHost.js";
+import { findTenantDomainStatus, findTenantHostContext, normalizeRequestHost } from "./utils/tenantHost.js";
 import { MissionScheduler } from "./services/prospect/MissionScheduler.js";
 import { emitAutomationEvent } from "./workers/automationWorker.js";
 
@@ -77,12 +77,12 @@ const allowedOrigins = new Set([
 ]);
 
 async function isRegisteredTenantHost(hostname: string) {
-  return Boolean(await findVerifiedTenantDomain(prisma, hostname));
+  return Boolean(await findTenantHostContext(prisma, hostname));
 }
 
 async function enforceTenantDomain(req: any, res: any, next: any) {
   try {
-    const tenantDomain = await findVerifiedTenantDomain(
+    const tenantDomain = await findTenantHostContext(
       prisma,
       req.headers["x-forwarded-host"] || req.headers.host
     );
@@ -181,13 +181,15 @@ app.get("/api/domain/context", async (req, res, next) => {
     const host = normalizeRequestHost(req.headers["x-forwarded-host"] as string || req.headers.host);
     if (!host) return res.json({ customDomain: false });
 
-    const tenantDomain = await findVerifiedTenantDomain(prisma, host);
+    const tenantDomain = await findTenantHostContext(prisma, host);
 
     if (tenantDomain) {
       return res.json({
-        customDomain: true,
+        customDomain: tenantDomain.kind === "custom-domain",
+        systemSubdomain: tenantDomain.kind === "system-subdomain",
         domain: tenantDomain.domain,
         status: tenantDomain.status,
+        internalUrl: tenantDomain.internalUrl,
         organization: tenantDomain.organization,
       });
     }

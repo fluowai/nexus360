@@ -27,11 +27,6 @@ interface DomainDns {
     host: string;
     value: string;
   };
-  systemSubdomain?: {
-    type: string;
-    host: string;
-    value: string;
-  } | null;
   www: {
     type: string;
     host: string;
@@ -39,10 +34,8 @@ interface DomainDns {
   };
   internalUrl?: {
     slug: string;
-    host: string;
-    subdomain: string;
-    path: string;
-    legacyPath: string;
+    primary: string;
+    legacy: string;
   } | null;
 }
 
@@ -103,7 +96,6 @@ export default function DomainSettings() {
     fetchData();
   }, []);
 
-  const systemSubdomainUrl = orgInfo?.slug ? `https://${orgInfo.slug}.${panelHost}` : null;
   const pathUrl = orgInfo?.slug ? `https://${panelHost}/${orgInfo.slug}` : null;
   const legacyPathUrl = orgInfo?.slug ? `https://${panelHost}/whitelabel/${orgInfo.slug}` : null;
 
@@ -201,11 +193,11 @@ export default function DomainSettings() {
             <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-4">
               <Globe size={16} className="text-slate-400 shrink-0" />
               <code className="text-sm text-blue-300 font-mono flex-1 truncate">
-                {systemSubdomainUrl || "Sem slug configurado"}
+                {pathUrl || "Sem slug configurado"}
               </code>
-              {systemSubdomainUrl && (
+              {pathUrl && (
                 <button
-                  onClick={() => copy(systemSubdomainUrl, "temp-url")}
+                  onClick={() => copy(pathUrl, "temp-url")}
                   className="p-2 hover:bg-white/10 rounded-lg transition-colors shrink-0"
                   title="Copiar URL"
                 >
@@ -213,9 +205,9 @@ export default function DomainSettings() {
                 </button>
               )}
             </div>
-            {pathUrl && legacyPathUrl && (
+            {legacyPathUrl && (
               <p className="text-[11px] text-slate-500 font-mono">
-                Alternativas: {pathUrl} | {legacyPathUrl}
+                Alternativa: {legacyPathUrl}
               </p>
             )}
           </div>
@@ -268,7 +260,7 @@ export default function DomainSettings() {
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">2</span>
-                <p className="text-blue-800/80">O cliente cria um <code className="font-bold">CNAME</code> para o subdominio do sistema ou um <code className="font-bold">A</code> para o IP do servidor</p>
+                <p className="text-blue-800/80">O cliente cria um registro <code className="font-bold">A</code> apontando para o IP do servidor Portainer</p>
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
@@ -369,16 +361,6 @@ export default function DomainSettings() {
                         onCopy={copy}
                         copiedField={copiedField}
                       />
-                      {domain.dns.systemSubdomain && (
-                        <DnsCard
-                          label="Subdominio do sistema"
-                          type={domain.dns.systemSubdomain.type}
-                          host={domain.dns.systemSubdomain.host}
-                          value={domain.dns.systemSubdomain.value}
-                          onCopy={copy}
-                          copiedField={copiedField}
-                        />
-                      )}
                       {domain.dns.cname && (
                         <DnsCard
                           label="Alternativa CNAME"
@@ -404,7 +386,7 @@ export default function DomainSettings() {
                     </p>
                     {domain.dns.internalUrl && (
                       <p className="text-xs text-gray-500 font-mono">
-                        Subdominio: {domain.dns.internalUrl.subdomain} | Alternativas: {domain.dns.internalUrl.path} ou {domain.dns.internalUrl.legacyPath}
+                        URL interna: {domain.dns.internalUrl.primary} ou {domain.dns.internalUrl.legacy}
                       </p>
                     )}
                   </div>
@@ -463,13 +445,13 @@ export default function DomainSettings() {
                 <p className="text-xs text-gray-400">Ex: crm.minhaimobiliaria.com.br, painel.empresa.com</p>
               </div>
 
-              {systemSubdomainUrl && (
+              {pathUrl && (
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Mapeamento</span>
                   <div className="flex items-center gap-2 text-sm">
                     <code className="text-blue-600 font-bold">{newDomain.name || "dominio.com.br"}</code>
                     <ArrowRight size={14} className="text-gray-400" />
-                    <code className="text-gray-600 text-xs truncate">{orgInfo?.slug}.{panelHost}</code>
+                    <code className="text-gray-600 text-xs truncate">{panelHost}/{orgInfo?.slug}</code>
                   </div>
                 </div>
               )}

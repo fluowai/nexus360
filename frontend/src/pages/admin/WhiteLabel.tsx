@@ -42,9 +42,8 @@ interface AdminDomain {
   dns?: {
     value?: string;
     internalUrl?: {
-      subdomain: string;
-      path: string;
-      legacyPath: string;
+      primary: string;
+      legacy: string;
     } | null;
   };
 }
@@ -99,9 +98,8 @@ export default function AdminWhiteLabel() {
     if (!cleanSlug) return null;
 
     return {
-      subdomain: `https://${cleanSlug}.${panelHost}`,
-      path: `https://${panelHost}/${cleanSlug}`,
-      legacyPath: `https://${panelHost}/whitelabel/${cleanSlug}`,
+      primary: `https://${panelHost}/${cleanSlug}`,
+      legacy: `https://${panelHost}/whitelabel/${cleanSlug}`,
     };
   };
 
@@ -368,15 +366,15 @@ export default function AdminWhiteLabel() {
                           <div className="flex flex-col gap-1">
                             <button
                               type="button"
-                              onClick={() => copy(internalUrls.subdomain, `internal-${org.id}`)}
+                              onClick={() => copy(internalUrls.primary, `internal-${org.id}`)}
                               className="w-fit flex items-center gap-1 text-[10px] font-mono font-bold text-blue-600 hover:text-blue-800"
                               title="Copiar URL interna"
                             >
                               {copiedField === `internal-${org.id}` ? <Check size={12} /> : <Copy size={12} />}
-                              {internalUrls.subdomain.replace("https://", "")}
+                              {internalUrls.primary.replace("https://", "")}
                             </button>
                             <span className="text-[10px] text-gray-400 font-mono">
-                              Alias: {internalUrls.path.replace("https://", "")} | {internalUrls.legacyPath.replace("https://", "")}
+                              Alias: {internalUrls.legacy.replace("https://", "")}
                             </span>
                           </div>
                         )}
@@ -567,10 +565,10 @@ export default function AdminWhiteLabel() {
                         <div>
                           <p className="font-bold text-blue-900">URL interna criada</p>
                           <p className="font-mono text-blue-700">
-                            {form.slug ? `${form.slug}.${panelHost}` : `slug.${panelHost}`}
+                            {form.slug ? `${panelHost}/${form.slug}` : `${panelHost}/slug`}
                           </p>
                           <p className="font-mono text-blue-700">
-                            {form.slug ? `${panelHost}/${form.slug}` : `${panelHost}/slug`} | {form.slug ? `${panelHost}/whitelabel/${form.slug}` : `${panelHost}/whitelabel/slug`}
+                            {form.slug ? `${panelHost}/whitelabel/${form.slug}` : `${panelHost}/whitelabel/slug`}
                           </p>
                         </div>
                       </div>

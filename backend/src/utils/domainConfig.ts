@@ -38,14 +38,11 @@ export function getInternalWorkspaceUrls(slug?: string | null) {
   const panelHost = getPanelHost();
   const normalizedSlug = String(slug || "").trim().replace(/^\/+|\/+$/g, "");
   if (!normalizedSlug) return null;
-  const systemHost = `${normalizedSlug}.${panelHost}`;
 
   return {
     slug: normalizedSlug,
-    host: systemHost,
-    subdomain: `https://${systemHost}`,
-    path: `https://${panelHost}/${normalizedSlug}`,
-    legacyPath: `https://${panelHost}/whitelabel/${normalizedSlug}`,
+    primary: `https://${panelHost}/${normalizedSlug}`,
+    legacy: `https://${panelHost}/whitelabel/${normalizedSlug}`,
   };
 }
 
@@ -53,7 +50,7 @@ export function getDnsInstructions(domain: string, slug?: string | null) {
   const panelHost = getPanelHost();
   const expectedIp = getExpectedWhitelabelIp();
   const internalUrl = getInternalWorkspaceUrls(slug);
-  const cnameTarget = internalUrl?.host || process.env.WHITELABEL_CNAME_TARGET || panelHost;
+  const cnameTarget = process.env.WHITELABEL_CNAME_TARGET || panelHost;
 
   return {
     domain,
@@ -65,13 +62,6 @@ export function getDnsInstructions(domain: string, slug?: string | null) {
       host: domain,
       value: cnameTarget,
     },
-    systemSubdomain: internalUrl
-      ? {
-          type: "A",
-          host: internalUrl.host,
-          value: expectedIp,
-        }
-      : null,
     www: {
       type: "CNAME",
       host: "www",
@@ -83,9 +73,7 @@ export function getDnsInstructions(domain: string, slug?: string | null) {
 
 export async function verifyDomainDns(domain: string, slug?: string | null) {
   const expectedIp = getExpectedWhitelabelIp();
-  const internalUrl = getInternalWorkspaceUrls(slug);
   const expectedCnames = [
-    internalUrl?.host,
     process.env.WHITELABEL_CNAME_TARGET || getPanelHost(),
   ]
     .filter(Boolean)

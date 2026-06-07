@@ -186,7 +186,6 @@ app.get("/api/domain/context", async (req, res, next) => {
     if (tenantDomain) {
       return res.json({
         customDomain: tenantDomain.kind === "custom-domain",
-        systemSubdomain: tenantDomain.kind === "system-subdomain",
         domain: tenantDomain.domain,
         status: tenantDomain.status,
         internalUrl: tenantDomain.internalUrl,

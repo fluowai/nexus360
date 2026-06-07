@@ -35,12 +35,14 @@ Se o banco estiver vazio, rode `npx prisma db push --skip-generate` fora do boot
 
 ## White-label e dominios customizados
 
-Cada white-label deve ter um subdominio do sistema no formato `slug.nexus360.consultio.com.br`, por exemplo `tgamkt.nexus360.consultio.com.br`.
+Cada white-label tem uma URL interna por path no formato `nexus360.consultio.com.br/slug`, por exemplo `nexus360.consultio.com.br/tgamkt`. Essa URL nao exige DNS extra, pois usa o mesmo host principal publicado no Portainer.
 
 DNS esperado:
 
-- `tgamkt.nexus360.consultio.com.br` deve apontar com registro `A` para `207.58.153.219` ou existir via wildcard `*.nexus360.consultio.com.br`.
-- `crm.tgamkt.com` pode apontar com registro `CNAME` para `tgamkt.nexus360.consultio.com.br` ou com registro `A` para `207.58.153.219`.
+- `crm.tgamkt.com` deve apontar com registro `A` para `207.58.153.219`.
+- Opcionalmente, `www.crm.tgamkt.com` pode apontar com `CNAME` para `crm.tgamkt.com`.
+
+O app identifica o tenant pelo host cadastrado em Admin > White-label e mantem o usuario no dominio personalizado. A URL `nexus360.consultio.com.br/tgamkt` continua disponivel como URL interna/alternativa.
 
 Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido para o host acessado. Se `crm.tgamkt.com` mostrar `ERR_CERT_AUTHORITY_INVALID`, o DNS pode estar apontando certo, mas o certificado desse host ainda nao foi emitido/servido pelo Traefik.
 

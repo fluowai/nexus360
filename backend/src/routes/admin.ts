@@ -102,6 +102,7 @@ export function adminRoutes(prisma: PrismaClient) {
       const orgs = await prisma.organization.findMany({
         where: whereClause,
         include: {
+          domains: { orderBy: { createdAt: 'desc' } },
           planObj: true,
           _count: { select: { users: true } }
         },
@@ -498,6 +499,39 @@ export function adminRoutes(prisma: PrismaClient) {
       res.status(500).json({
         error: "Failed to register domain",
         details: error.message
+      });
+    }
+  });
+
+  router.post("/domains/:id/verify", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+
+    try {
+      const domain = await prisma.domain.findUnique({
+        where: { id: req.params.id },
+        include: { organization: { select: { slug: true } } },
+      });
+      if (!domain) return res.status(404).json({ error: "Dominio nao encontrado" });
+
+      const verification = await verifyDomainDns(domain.name);
+      const updated = await prisma.domain.update({
+        where: { id: domain.id },
+        data: { status: verification.verified ? "verified" : "pending" },
+      });
+
+      res.json({
+        success: true,
+        domain: {
+          ...updated,
+          dns: getDnsInstructions(domain.name, domain.organization.slug),
+        },
+        verification,
+      });
+    } catch (error: any) {
+      console.error("[Admin Domain Verify Error]", error);
+      res.status(500).json({
+        error: "Falha ao validar DNS",
+        details: error.message,
       });
     }
   });

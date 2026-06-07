@@ -17,7 +17,12 @@ import {
   RefreshCw,
   Lock,
   Loader2,
-  Monitor
+  Monitor,
+  CheckCircle,
+  AlertCircle,
+  Copy,
+  Check,
+  ShieldCheck
 } from "lucide-react";
 import { motion } from "motion/react";
 import { apiFetch } from "../../lib/api";
@@ -30,6 +35,21 @@ interface WhitelabelBranding {
   secondaryColor?: string;
 }
 
+interface AdminDomain {
+  id: string;
+  name: string;
+  status: string;
+  dns?: {
+    value?: string;
+    internalUrl?: {
+      primary: string;
+      legacy: string;
+    } | null;
+  };
+}
+
+const EXPECTED_DNS_IP = "207.58.153.219";
+
 export default function AdminWhiteLabel() {
   const location = useLocation();
   const [orgs, setOrgs] = useState<any[]>([]);
@@ -37,6 +57,9 @@ export default function AdminWhiteLabel() {
   const [showModal, setShowModal] = useState(false);
   const [editingOrg, setEditingOrg] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [verifyingDomainId, setVerifyingDomainId] = useState<string | null>(null);
+  const [validationByOrg, setValidationByOrg] = useState<Record<string, any>>({});
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: '',
@@ -55,6 +78,37 @@ export default function AdminWhiteLabel() {
     primaryColor: '#2563eb',
     secondaryColor: '#1e40af',
   });
+
+  const panelHost = (() => {
+    const panelUrl = import.meta.env.VITE_PANEL_URL || "https://nexus360.consultio.com.br";
+    try {
+      return new URL(panelUrl).hostname;
+    } catch {
+      return String(panelUrl).replace(/^https?:\/\//, "").replace(/\/$/, "");
+    }
+  })();
+
+  const getPrimaryDomain = (org: any): AdminDomain | null => {
+    const domains = Array.isArray(org.domains) ? org.domains : [];
+    return domains.find((domain: AdminDomain) => domain.name === org.domain) || domains[0] || null;
+  };
+
+  const getInternalUrls = (slug?: string | null) => {
+    const cleanSlug = String(slug || "").replace(/^\/+|\/+$/g, "");
+    if (!cleanSlug) return null;
+
+    return {
+      primary: `https://${panelHost}/${cleanSlug}`,
+      legacy: `https://${panelHost}/whitelabel/${cleanSlug}`,
+    };
+  };
+
+  const copy = (value: string, field: string) => {
+    navigator.clipboard?.writeText(value).then(() => {
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1800);
+    }).catch(() => {});
+  };
 
   const fetchOrgs = async () => {
     setLoading(true);
@@ -128,6 +182,29 @@ export default function AdminWhiteLabel() {
       console.error(err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleVerifyDomain = async (org: any) => {
+    const domain = getPrimaryDomain(org);
+    if (!domain) return;
+
+    setVerifyingDomainId(domain.id);
+    try {
+      const res = await apiFetch(`/api/admin/domains/${domain.id}/verify`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.details || data.error || "Erro ao validar DNS");
+        return;
+      }
+
+      setValidationByOrg(prev => ({ ...prev, [org.id]: data.verification }));
+      fetchOrgs();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao validar DNS.");
+    } finally {
+      setVerifyingDomainId(null);
     }
   };
 
@@ -238,6 +315,10 @@ export default function AdminWhiteLabel() {
                 <tr><td colSpan={5} className="py-20 text-center text-gray-400">Nenhum white-label encontrado.</td></tr>
               ) : orgs.map((org) => {
                 const wl = org.whiteLabelConfig || {};
+                const domain = getPrimaryDomain(org);
+                const internalUrls = getInternalUrls(org.slug);
+                const validation = validationByOrg[org.id];
+                const isVerified = domain?.status === "verified";
                 return (
                   <tr key={org.id} className="group border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                     <td className="px-8 py-5">
@@ -274,12 +355,61 @@ export default function AdminWhiteLabel() {
                         {org.planObj?.name || org.plan}
                       </span>
                     </td>
-                    <td className="px-4 py-5">
+                    <td className="px-4 py-5 min-w-[320px]">
                       {org.domain ? (
                         <span className="text-[10px] text-emerald-600 font-bold">{org.domain}</span>
                       ) : (
                         <span className="text-[10px] text-gray-400">—</span>
                       )}
+                      <div className="mt-2 flex flex-col gap-2">
+                        {internalUrls && (
+                          <div className="flex flex-col gap-1">
+                            <button
+                              type="button"
+                              onClick={() => copy(internalUrls.primary, `internal-${org.id}`)}
+                              className="w-fit flex items-center gap-1 text-[10px] font-mono font-bold text-blue-600 hover:text-blue-800"
+                              title="Copiar URL interna"
+                            >
+                              {copiedField === `internal-${org.id}` ? <Check size={12} /> : <Copy size={12} />}
+                              {internalUrls.primary.replace("https://", "")}
+                            </button>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              Alias: {internalUrls.legacy.replace("https://", "")}
+                            </span>
+                          </div>
+                        )}
+
+                        {domain ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold ${
+                              isVerified ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                            }`}>
+                              {isVerified ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+                              {isVerified ? "DNS verificado" : "Aguardando DNS"}
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-mono">A {EXPECTED_DNS_IP}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleVerifyDomain(org)}
+                              disabled={verifyingDomainId === domain.id}
+                              className="inline-flex items-center gap-1 rounded-lg bg-gray-950 px-2 py-1 text-[10px] font-bold text-white disabled:opacity-60"
+                            >
+                              {verifyingDomainId === domain.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                              Validar DNS
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-gray-400">
+                            <Globe size={12} /> Sem domínio personalizado
+                          </span>
+                        )}
+
+                        {validation && (
+                          <span className={`text-[10px] font-medium ${validation.verified ? "text-emerald-600" : "text-amber-700"}`}>
+                            {validation.message}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-8 py-5 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -427,6 +557,34 @@ export default function AdminWhiteLabel() {
                       onChange={e => setForm({...form, domain: e.target.value})}
                       placeholder="mkt.cliente.com.br"
                     />
+                  </div>
+                  <div className="md:col-span-2 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div className="flex items-start gap-2">
+                        <ShieldCheck size={16} className="mt-0.5 text-blue-600 shrink-0" />
+                        <div>
+                          <p className="font-bold text-blue-900">URL interna criada</p>
+                          <p className="font-mono text-blue-700">
+                            {form.slug ? `${panelHost}/${form.slug}` : `${panelHost}/slug`}
+                          </p>
+                          <p className="font-mono text-blue-700">
+                            {form.slug ? `${panelHost}/whitelabel/${form.slug}` : `${panelHost}/whitelabel/slug`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Globe size={16} className="mt-0.5 text-emerald-600 shrink-0" />
+                        <div>
+                          <p className="font-bold text-emerald-900">Validação DNS</p>
+                          <p className="font-mono text-emerald-700">
+                            {form.domain || "crm.cliente.com.br"} A {EXPECTED_DNS_IP}
+                          </p>
+                          <p className="text-emerald-700/80">
+                            O domínio personalizado abre o mesmo workspace do slug.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Plano</label>

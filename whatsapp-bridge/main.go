@@ -27,6 +27,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	_ "modernc.org/sqlite"
 )
@@ -538,6 +539,42 @@ func (a *app) extractMessage(client *whatsmeow.Client, messageID string, msg *wa
 		})
 		return "location", string(payload), "", location.GetName(), "application/json", "", 0
 	}
+	if liveLocation := msg.GetLiveLocationMessage(); liveLocation != nil {
+		return "live_location", protoPayload(liveLocation), "", liveLocation.GetCaption(), "application/json", "", 0
+	}
+	if poll := firstMessagePart(
+		msg.GetPollCreationMessage(),
+		msg.GetPollCreationMessageV2(),
+		msg.GetPollCreationMessageV3(),
+		msg.GetPollCreationMessageV5(),
+		msg.GetPollCreationMessageV6(),
+	); poll != nil {
+		return "poll", protoPayload(poll), "", "", "application/json", "", 0
+	}
+	if msg.GetPollUpdateMessage() != nil {
+		return "poll_update", protoPayload(msg.GetPollUpdateMessage()), "", "", "application/json", "", 0
+	}
+	if interactive := firstMessagePart(
+		msg.GetButtonsMessage(),
+		msg.GetButtonsResponseMessage(),
+		msg.GetListMessage(),
+		msg.GetListResponseMessage(),
+		msg.GetTemplateMessage(),
+		msg.GetTemplateButtonReplyMessage(),
+		msg.GetInteractiveMessage(),
+		msg.GetInteractiveResponseMessage(),
+	); interactive != nil {
+		return "interactive", protoPayload(interactive), "", "", "application/json", "", 0
+	}
+	if commerce := firstMessagePart(msg.GetProductMessage(), msg.GetOrderMessage()); commerce != nil {
+		return "commerce", protoPayload(commerce), "", "", "application/json", "", 0
+	}
+	if call := firstMessagePart(msg.GetCall(), msg.GetCallLogMesssage()); call != nil {
+		return "call", protoPayload(call), "", "", "application/json", "", 0
+	}
+	if event := msg.GetEventMessage(); event != nil {
+		return "event", protoPayload(event), "", "", "application/json", "", 0
+	}
 	if image := msg.GetImageMessage(); image != nil {
 		caption = image.GetCaption()
 		mimeType = image.GetMimetype()
@@ -568,6 +605,23 @@ func (a *app) extractMessage(client *whatsmeow.Client, messageID string, msg *wa
 		return "image", "", "", "sticker.webp", mimeType, mediaURL, fileSize
 	}
 	return "text", "[mensagem nao suportada]", "", "", "", "", 0
+}
+
+func protoPayload(message proto.Message) string {
+	data, err := protojson.MarshalOptions{EmitUnpopulated: false}.Marshal(message)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+func firstMessagePart(parts ...proto.Message) proto.Message {
+	for _, part := range parts {
+		if part != nil {
+			return part
+		}
+	}
+	return nil
 }
 
 func (a *app) indexParticipant(index map[string]participantIdentity, participant participantIdentity) {

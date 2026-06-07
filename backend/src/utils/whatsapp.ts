@@ -141,6 +141,12 @@ export function mapWhatsAppMediaType(type?: string | null, mimeType?: string | n
   if (mediaType.includes("reaction")) return "reaction";
   if (mediaType.includes("deleted") || mediaType.includes("revoked")) return "deleted";
   if (mediaType.includes("edited")) return "edited";
+  if (mediaType.includes("poll")) return "poll";
+  if (mediaType.includes("interactive") || mediaType.includes("button") || mediaType.includes("list") || mediaType.includes("template")) return "interactive";
+  if (mediaType.includes("call")) return "call";
+  if (mediaType.includes("event")) return "event";
+  if (mediaType.includes("commerce") || mediaType.includes("product") || mediaType.includes("order")) return "commerce";
+  if (mediaType.includes("live_location")) return "live_location";
   if (mediaType.includes("sticker") || mime.includes("webp")) return "sticker";
   if (mediaType.includes("location")) return "location";
   if (mediaType.includes("contact") || mediaType.includes("vcard")) return "contact";

@@ -139,7 +139,7 @@ const messageSender = (message: Message, selectedConversation?: Conversation | n
 
 function MediaPreview({ message }: { message: Message }) {
   if (!message.fileUrl) return null;
-  if (message.type === "image") {
+  if (message.type === "image" || message.type === "sticker") {
     return <img src={message.fileUrl} alt={message.metadata?.fileName || "Imagem"} className="mt-2 max-h-60 rounded-xl border border-gray-100 object-cover" />;
   }
   if (message.type === "audio") {
@@ -165,16 +165,36 @@ function parseMessageJson(message: Message) {
   }
 }
 
+function firstPayloadText(payload: any, keys: string[]) {
+  for (const key of keys) {
+    const value = key.split(".").reduce((acc, part) => acc?.[part], payload);
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "";
+}
+
+function StructuredMessageCard({ icon: Icon, title, detail }: { icon: any; title: string; detail?: string }) {
+  return (
+    <div className="mt-2 flex items-start gap-2 rounded-xl bg-white/70 p-3 text-sm font-bold text-gray-700">
+      <Icon size={16} className="mt-0.5 shrink-0" />
+      <span>
+        {title}
+        {detail && <span className="block text-xs font-medium opacity-70">{detail}</span>}
+      </span>
+    </div>
+  );
+}
+
 function MessageBody({ message }: { message: Message }) {
   const payload = parseMessageJson(message);
 
-  if (message.type === "location" && payload) {
+  if ((message.type === "location" || message.type === "live_location") && payload) {
     const mapsUrl = payload.url || (payload.latitude && payload.longitude ? `https://www.google.com/maps?q=${payload.latitude},${payload.longitude}` : "");
     return (
       <a href={mapsUrl || undefined} target="_blank" rel="noreferrer" className="mt-2 flex items-start gap-2 rounded-xl bg-white/70 p-3 text-sm font-bold text-gray-700">
         <MapPin size={16} className="mt-0.5 shrink-0" />
         <span>
-          {payload.name || "Localizacao compartilhada"}
+          {payload.name || (message.type === "live_location" ? "Localizacao ao vivo" : "Localizacao compartilhada")}
           {payload.address && <span className="block text-xs font-medium opacity-70">{payload.address}</span>}
         </span>
       </a>
@@ -210,6 +230,43 @@ function MessageBody({ message }: { message: Message }) {
 
   if (message.type === "edited") {
     return <p className="text-sm font-medium italic opacity-70">Mensagem editada.</p>;
+  }
+
+  if (message.type === "poll" && payload) {
+    const optionCount = Array.isArray(payload.options) ? payload.options.length : 0;
+    return <StructuredMessageCard icon={MessageCircle} title={payload.name || "Enquete recebida"} detail={optionCount ? `${optionCount} opcoes` : undefined} />;
+  }
+
+  if (message.type === "poll_update") {
+    return <StructuredMessageCard icon={CheckCircle2} title="Atualizacao de enquete recebida" />;
+  }
+
+  if (message.type === "interactive" && payload) {
+    const title = firstPayloadText(payload, [
+      "selectedDisplayText",
+      "selectedRowId",
+      "buttonText.displayText",
+      "hydratedTemplate.hydratedContentText",
+      "body.text",
+      "footer.text",
+      "title",
+    ]);
+    return <StructuredMessageCard icon={MessageCircle} title={title || "Mensagem interativa recebida"} detail={message.metadata?.rawType || undefined} />;
+  }
+
+  if (message.type === "call") {
+    return <StructuredMessageCard icon={Phone} title="Registro de chamada recebido" />;
+  }
+
+  if (message.type === "event" && payload) {
+    const title = firstPayloadText(payload, ["name", "title", "description"]) || "Evento recebido";
+    const detail = firstPayloadText(payload, ["location.name", "location.address", "description"]);
+    return <StructuredMessageCard icon={MapPin} title={title} detail={detail || undefined} />;
+  }
+
+  if (message.type === "commerce" && payload) {
+    const title = firstPayloadText(payload, ["title", "product.name", "orderTitle", "sellerJid"]) || "Mensagem comercial recebida";
+    return <StructuredMessageCard icon={FileText} title={title} detail={message.metadata?.rawType || undefined} />;
   }
 
   if (message.content) {
@@ -434,7 +491,7 @@ export default function WhatsApp() {
           </div>
           <div>
             <h1 className="text-2xl font-black tracking-tight text-gray-950">WhatsApp</h1>
-            <p className="text-sm font-medium text-gray-500">Instancias Whatsmeow, LLMs e mensagens normais ou de grupos.</p>
+            <p className="text-sm font-medium text-gray-500">Conexoes Whatsmeow, LLMs e mensagens normais ou de grupos.</p>
           </div>
         </div>
 
@@ -451,7 +508,7 @@ export default function WhatsApp() {
       </header>
 
       <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-100 bg-white p-2 shadow-sm">
-        {renderTabButton("instances", "Instancias", PlugZap)}
+        {renderTabButton("instances", "Conexoes", PlugZap)}
         {renderTabButton("llms", "LLMs", KeyRound)}
         {renderTabButton("messages", "Mensagens", MessageCircle)}
       </div>
@@ -459,9 +516,9 @@ export default function WhatsApp() {
       {activeTab === "instances" && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_1fr]">
           <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Criar instancia</h2>
+            <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Criar conexao</h2>
             <div className="mt-4 space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome da instancia</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome da conexao</label>
               <input value={instanceName} onChange={(e) => setInstanceName(e.target.value)} placeholder="Ex: SDR Paulo" className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-sm font-bold outline-none focus:border-emerald-200 focus:ring-2 focus:ring-emerald-100" />
 
               <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Numero WhatsApp</label>
@@ -535,7 +592,7 @@ export default function WhatsApp() {
                   </button>
                   <button onClick={() => deleteInstance(conn.id)} disabled={loading} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 py-2 text-xs font-black text-red-600 hover:bg-red-50">
                     <Trash2 size={14} />
-                    Remover instancia
+                    Remover conexao
                   </button>
                 </div>
               </div>
@@ -640,7 +697,7 @@ export default function WhatsApp() {
                 <div className="flex-1 space-y-3 overflow-y-auto bg-gray-50/60 p-5">
                   {messages.map((message) => {
                     const fromMe = message.senderType === "USER" || message.metadata?.fromMe;
-                    const Icon = message.type === "image" ? Image : message.type === "audio" ? Headphones : message.type === "document" ? FileText : message.type === "location" ? MapPin : message.type === "contact" ? UserRound : message.type === "reaction" ? Smile : MessageCircle;
+                    const Icon = message.type === "image" || message.type === "sticker" ? Image : message.type === "audio" ? Headphones : message.type === "document" ? FileText : message.type === "location" || message.type === "live_location" ? MapPin : message.type === "contact" ? UserRound : message.type === "reaction" ? Smile : MessageCircle;
                     return (
                       <div key={message.id} className={`flex ${fromMe ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[72%] rounded-2xl px-4 py-3 shadow-sm ${fromMe ? "bg-emerald-600 text-white" : "bg-white text-gray-800"}`}>

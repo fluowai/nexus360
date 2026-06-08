@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { PrismaClient } from "@prisma/client";
 
 type TraefikSyncResult = {
   enabled: boolean;
@@ -123,4 +124,22 @@ export async function removeTraefikDomainConfig(domain: string): Promise<Traefik
 
 export async function syncTraefikDomainConfig(domain: string, verified: boolean): Promise<TraefikSyncResult> {
   return verified ? writeTraefikDomainConfig(domain) : removeTraefikDomainConfig(domain);
+}
+
+export async function syncVerifiedTraefikDomains(prisma: PrismaClient) {
+  if (!getDynamicDir()) return { enabled: false, total: 0, written: 0, failed: 0 };
+
+  const domains = await prisma.domain.findMany({
+    where: { status: "verified" },
+    select: { name: true },
+  });
+
+  const results = await Promise.allSettled(
+    domains.map(domain => writeTraefikDomainConfig(domain.name))
+  );
+
+  const written = results.filter(result => result.status === "fulfilled" && result.value.action === "written").length;
+  const failed = results.length - written;
+
+  return { enabled: true, total: domains.length, written, failed };
 }

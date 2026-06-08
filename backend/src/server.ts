@@ -10,6 +10,7 @@ import { authenticateToken } from "./middleware/auth.js";
 import { resolveTenant } from "./middleware/tenant.js";
 import { sanitizeStoredHtml } from "./utils/security.js";
 import { findTenantDomainStatus, findTenantHostContext, findTenantSlugContext, normalizeRequestHost } from "./utils/tenantHost.js";
+import { syncVerifiedTraefikDomains } from "./services/traefikDomainConfig.js";
 import { MissionScheduler } from "./services/prospect/MissionScheduler.js";
 import { emitAutomationEvent } from "./workers/automationWorker.js";
 
@@ -410,6 +411,16 @@ import { createServer } from "http";
 import { initSocketManager } from "./services/socketManager.js";
 const httpServer = createServer(app);
 initSocketManager(httpServer);
+
+syncVerifiedTraefikDomains(prisma)
+  .then(result => {
+    if (result.enabled) {
+      console.log(`[TRAEFIK_SYNC] dominios=${result.total} escritos=${result.written} falhas=${result.failed}`);
+    }
+  })
+  .catch(error => {
+    console.error("[TRAEFIK_SYNC_ERROR]", error?.message || error);
+  });
 
 httpServer.listen(PORT, () => {
   console.log(`\n🚀 Nexus360 Core rodando na porta ${PORT}`);

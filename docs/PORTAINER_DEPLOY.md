@@ -46,13 +46,36 @@ DNS esperado:
 
 O app identifica o tenant pelo host cadastrado em Admin > White-label e mantem o usuario no dominio personalizado. A URL `nexus360.consultio.com.br/tgamkt` continua disponivel como URL interna/alternativa.
 
-As regras da stack usam ``HostRegexp(`{host:.+}`)`` para frontend e API. Assim, qualquer dominio personalizado apontado para o IP do Portainer chega no Nexus sem depender de criar bind mount no host.
+As regras da stack mantem um `HostRegexp` global para roteamento generico, mas certificado HTTPS valido para dominios de clientes precisa de regra concreta `Host(...)`. Por isso o fluxo escalavel usa arquivos dinamicos do Traefik:
 
-O fluxo por arquivos dinamicos do Traefik continua suportado pela API, mas a stack padrao nao monta `/opt/traefik/dynamic` porque o Swarm rejeita bind mounts cujo caminho ainda nao existe no node.
+1. O cliente aponta o dominio para `207.58.153.219`.
+2. O admin cadastra/valida o dominio no front.
+3. A API escreve um arquivo em `/traefik/dynamic` com os routers `Host(...)` daquele dominio.
+4. O Traefik le esse arquivo pelo provider file e emite o certificado pelo `letsencryptresolver`.
 
-Na stack padrao, o botao "Validar DNS/Traefik" pode retornar `Traefik: rota global da stack`. Isso e esperado: significa que nao ha arquivo dinamico para gerar e que o dominio sera atendido pela regra global `HostRegexp`.
+A stack do Nexus monta o volume nomeado `traefik_dynamic` em `/traefik/dynamic`; isso evita o erro de bind mount quando `/opt/traefik/dynamic` nao existe no host.
 
-Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido para o host acessado. Se `crm.tgamkt.com` mostrar `ERR_CERT_AUTHORITY_INVALID`, o DNS pode estar apontando certo, mas o certificado desse host ainda nao foi emitido/servido pelo Traefik.
+### Ajuste unico na stack do Traefik
+
+O servico Traefik tambem precisa montar o mesmo volume e habilitar o provider file. Isso e feito uma unica vez na stack do Traefik, nao por cliente:
+
+```yaml
+services:
+  traefik:
+    command:
+      - "--providers.file.directory=/traefik/dynamic"
+      - "--providers.file.watch=true"
+    volumes:
+      - traefik_dynamic:/traefik/dynamic
+
+volumes:
+  traefik_dynamic:
+    name: traefik_dynamic
+```
+
+Se o Traefik ja tiver uma lista `command`, apenas adicione essas duas linhas `providers.file`. Se ele ja tiver `volumes`, apenas adicione o volume `traefik_dynamic`.
+
+Em Swarm com mais de um node, a API e o Traefik precisam enxergar o mesmo volume. Em servidor unico, o volume local funciona. Em cluster multi-node, use volume compartilhado ou restrinja API e Traefik ao mesmo node.
 
 ## Observacoes
 

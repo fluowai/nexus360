@@ -54,5 +54,5 @@ Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido
 
 - Nao versione secrets reais no reposititorio.
 - Para Docker/Swarm, prefira o pooler IPv4 no `DATABASE_URL`. O host direto do Supabase pode resolver apenas IPv6 em alguns projetos.
-- O Traefik roteia `/api` e `/lp` para `nexus360_api`. O frontend nao precisa proxyar a API.
+- O Traefik roteia `/api` e `/lp` para `nexus360_api`. O Nginx do frontend serve apenas o SPA e nao referencia o host interno `backend` para evitar falha no startup do container.
 - Se o login retornar 500, veja os logs do servico `nexus360_api` no Portainer. Os erros de login normalmente aparecem como `[LOGIN_ERROR]` com `prismaCode`.

@@ -198,7 +198,13 @@ export default function AdminWhiteLabel() {
         return;
       }
 
-      setValidationByOrg(prev => ({ ...prev, [org.id]: data.verification }));
+      setValidationByOrg(prev => ({
+        ...prev,
+        [org.id]: {
+          verification: data.verification,
+          traefik: data.traefik,
+        },
+      }));
       fetchOrgs();
     } catch (err) {
       console.error(err);
@@ -317,7 +323,9 @@ export default function AdminWhiteLabel() {
                 const wl = org.whiteLabelConfig || {};
                 const domain = getPrimaryDomain(org);
                 const internalUrls = getInternalUrls(org.slug);
-                const validation = validationByOrg[org.id];
+                const validationResult = validationByOrg[org.id];
+                const validation = validationResult?.verification || validationResult;
+                const traefik = validationResult?.traefik;
                 const isVerified = domain?.status === "verified";
                 return (
                   <tr key={org.id} className="group border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
@@ -395,7 +403,7 @@ export default function AdminWhiteLabel() {
                               className="inline-flex items-center gap-1 rounded-lg bg-gray-950 px-2 py-1 text-[10px] font-bold text-white disabled:opacity-60"
                             >
                               {verifyingDomainId === domain.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                              Validar DNS
+                              Validar DNS/Traefik
                             </button>
                           </div>
                         ) : (
@@ -407,6 +415,23 @@ export default function AdminWhiteLabel() {
                         {validation && (
                           <span className={`text-[10px] font-medium ${validation.verified ? "text-emerald-600" : "text-amber-700"}`}>
                             {validation.message}
+                          </span>
+                        )}
+                        {traefik && (
+                          <span className={`text-[10px] font-medium ${
+                            traefik.action === "written"
+                              ? "text-emerald-600"
+                              : traefik.error
+                                ? "text-red-600"
+                                : "text-amber-700"
+                          }`}>
+                            Traefik: {traefik.action === "written"
+                              ? "rota gerada"
+                              : traefik.action === "removed"
+                                ? "rota removida"
+                                : "nao sincronizado"}
+                            {traefik.file ? ` (${traefik.file})` : ""}
+                            {traefik.error ? ` - ${traefik.error}` : ""}
                           </span>
                         )}
                       </div>

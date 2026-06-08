@@ -50,6 +50,8 @@ As regras da stack usam ``HostRegexp(`{host:.+}`)`` para frontend e API. Assim, 
 
 O fluxo por arquivos dinamicos do Traefik continua suportado pela API, mas a stack padrao nao monta `/opt/traefik/dynamic` porque o Swarm rejeita bind mounts cujo caminho ainda nao existe no node.
 
+Na stack padrao, o botao "Validar DNS/Traefik" pode retornar `Traefik: rota global da stack`. Isso e esperado: significa que nao ha arquivo dinamico para gerar e que o dominio sera atendido pela regra global `HostRegexp`.
+
 Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido para o host acessado. Se `crm.tgamkt.com` mostrar `ERR_CERT_AUTHORITY_INVALID`, o DNS pode estar apontando certo, mas o certificado desse host ainda nao foi emitido/servido pelo Traefik.
 
 ## Observacoes

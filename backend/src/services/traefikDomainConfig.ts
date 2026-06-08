@@ -6,6 +6,7 @@ type TraefikSyncResult = {
   action: "written" | "removed" | "skipped";
   file?: string;
   error?: string;
+  message?: string;
 };
 
 function getDynamicDir() {
@@ -78,7 +79,7 @@ export async function writeTraefikDomainConfig(domain: string): Promise<TraefikS
     return {
       enabled: false,
       action: "skipped",
-      error: "TRAEFIK_DYNAMIC_DIR nao configurado na stack da API.",
+      message: "TRAEFIK_DYNAMIC_DIR nao configurado; usando rota global HostRegexp da stack.",
     };
   }
 
@@ -106,7 +107,7 @@ export async function removeTraefikDomainConfig(domain: string): Promise<Traefik
     return {
       enabled: false,
       action: "skipped",
-      error: "TRAEFIK_DYNAMIC_DIR nao configurado na stack da API.",
+      message: "TRAEFIK_DYNAMIC_DIR nao configurado; usando rota global HostRegexp da stack.",
     };
   }
 

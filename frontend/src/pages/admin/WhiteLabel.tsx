@@ -419,7 +419,7 @@ export default function AdminWhiteLabel() {
                         )}
                         {traefik && (
                           <span className={`text-[10px] font-medium ${
-                            traefik.action === "written"
+                            traefik.action === "written" || traefik.enabled === false
                               ? "text-emerald-600"
                               : traefik.error
                                 ? "text-red-600"
@@ -427,10 +427,13 @@ export default function AdminWhiteLabel() {
                           }`}>
                             Traefik: {traefik.action === "written"
                               ? "rota gerada"
-                              : traefik.action === "removed"
+                              : traefik.enabled === false
+                                ? "rota global da stack"
+                                : traefik.action === "removed"
                                 ? "rota removida"
                                 : "nao sincronizado"}
                             {traefik.file ? ` (${traefik.file})` : ""}
+                            {traefik.message ? ` - ${traefik.message}` : ""}
                             {traefik.error ? ` - ${traefik.error}` : ""}
                           </span>
                         )}

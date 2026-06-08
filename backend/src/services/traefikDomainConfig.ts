@@ -17,7 +17,7 @@ function getDynamicDir() {
 }
 
 function getSyncMode() {
-  return String(process.env.TRAEFIK_SYNC_MODE || "file").trim().toLowerCase();
+  return String(process.env.TRAEFIK_SYNC_MODE || "docker-service").trim().toLowerCase();
 }
 
 function getServiceUrl(envName: string, fallbackUrl: string) {
@@ -243,7 +243,7 @@ export async function writeTraefikDomainConfig(domain: string): Promise<TraefikS
     return {
       enabled: false,
       action: "skipped",
-      message: "TRAEFIK_DYNAMIC_DIR nao configurado; usando rota global HostRegexp da stack.",
+      message: "TRAEFIK_DYNAMIC_DIR nao configurado; defina TRAEFIK_SYNC_MODE=docker-service ou monte o provider file do Traefik.",
     };
   }
 
@@ -283,7 +283,7 @@ export async function removeTraefikDomainConfig(domain: string): Promise<Traefik
     return {
       enabled: false,
       action: "skipped",
-      message: "TRAEFIK_DYNAMIC_DIR nao configurado; usando rota global HostRegexp da stack.",
+      message: "TRAEFIK_DYNAMIC_DIR nao configurado; defina TRAEFIK_SYNC_MODE=docker-service ou monte o provider file do Traefik.",
     };
   }
 

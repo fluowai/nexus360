@@ -44,7 +44,7 @@ DNS esperado:
 
 O app identifica o tenant pelo host cadastrado em Admin > White-label e mantem o usuario no dominio personalizado. A URL `nexus360.consultio.com.br/tgamkt` continua disponivel como URL interna/alternativa.
 
-As regras do Traefik usam ``HostRegexp(`[a-z0-9.-]+`)`` para frontend e API, no formato de regra do Traefik v3. Isso permite que qualquer dominio personalizado apontado para o IP do Portainer seja roteado para o Nexus mesmo antes de existir certificado valido.
+As regras fixas da stack atendem apenas `nexus360.consultio.com.br`. Dominios personalizados nao dependem de catch-all: eles entram por arquivos dinamicos gerados pela API com routers explicitos `Host(dominio)`.
 
 Quando um dominio e cadastrado ou validado com DNS correto, a API tambem gera um arquivo em `TRAEFIK_DYNAMIC_DIR` com routers explicitos `Host(dominio)` para frontend e API. Na stack, o caminho padrao dentro do container e `/traefik/dynamic`, montado a partir de `TRAEFIK_DYNAMIC_HOST_PATH` no host.
 

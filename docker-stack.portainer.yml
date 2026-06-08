@@ -28,7 +28,9 @@ services:
         '    proxy_set_header X-Forwarded-Proto $$scheme;'
         '    proxy_set_header X-Real-IP $$remote_addr;'
         '  }'
-        '  location / {}'
+        '  location / {'
+        '    try_files $$uri $$uri/ /index.html;'
+        '  }'
         '}'
         > /etc/nginx/conf.d/default.conf
         && nginx -t
@@ -49,7 +51,7 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=consultio1"
-        - "traefik.http.routers.nexus360_frontend.rule=Host(`nexus360.consultio.com.br`)"
+        - "traefik.http.routers.nexus360_frontend.rule=HostRegexp(`{host:.+}`)"
         - "traefik.http.routers.nexus360_frontend.entrypoints=websecure"
         - "traefik.http.routers.nexus360_frontend.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_frontend.priority=1"
@@ -66,11 +68,6 @@ services:
       CORS_ORIGINS: "https://nexus360.consultio.com.br,https://www.nexus360.consultio.com.br"
       WHITELABEL_DOCKER_IP: "${WHITELABEL_DOCKER_IP:-207.58.153.219}"
       WHITELABEL_CNAME_TARGET: "${WHITELABEL_CNAME_TARGET:-nexus360.consultio.com.br}"
-      TRAEFIK_DYNAMIC_DIR: "${TRAEFIK_DYNAMIC_DIR:-/traefik/dynamic}"
-      TRAEFIK_SERVICE_PROVIDER: "${TRAEFIK_SERVICE_PROVIDER:-swarm}"
-      TRAEFIK_FRONTEND_SERVICE: "${TRAEFIK_FRONTEND_SERVICE:-nexus360_frontend@swarm}"
-      TRAEFIK_API_SERVICE: "${TRAEFIK_API_SERVICE:-nexus360_api@swarm}"
-      TRAEFIK_CERT_RESOLVER: "${TRAEFIK_CERT_RESOLVER:-letsencryptresolver}"
       DATABASE_URL: "${DATABASE_URL}"
       DIRECT_URL: "${DIRECT_URL}"
       SUPABASE_DB_URL: "${DATABASE_URL}"
@@ -103,8 +100,6 @@ services:
       nexus360_internal:
         aliases:
           - backend
-    volumes:
-      - "${TRAEFIK_DYNAMIC_HOST_PATH:-/opt/traefik/dynamic}:/traefik/dynamic"
     deploy:
       replicas: 1
       restart_policy:
@@ -117,29 +112,12 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=consultio1"
-        - "traefik.http.routers.nexus360_api.rule=Host(`nexus360.consultio.com.br`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
+        - "traefik.http.routers.nexus360_api.rule=HostRegexp(`{host:.+}`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
         - "traefik.http.routers.nexus360_api.entrypoints=websecure"
         - "traefik.http.routers.nexus360_api.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_api.priority=10"
         - "traefik.http.routers.nexus360_api.service=nexus360_api"
         - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
-
-  whatsapp-bridge:
-    image: ghcr.io/fluowai/nexus360-whatsapp-bridge:latest
-    environment:
-      WHATSAPP_BRIDGE_ADDR: ":8091"
-      WHATSAPP_BRIDGE_SECRET: "${WHATSAPP_BRIDGE_SECRET}"
-      WHATSAPP_BRIDGE_PUBLIC_URL: "${WHATSAPP_BRIDGE_PUBLIC_URL:-https://nexus360.consultio.com.br}"
-      NEXUS_BACKEND_URL: "http://backend:10000"
-    volumes:
-      - whatsapp_bridge_data:/app/data
-    networks:
-      - nexus360_internal
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-
 networks:
   consultio1:
     external: true
@@ -148,6 +126,3 @@ networks:
   nexus360_internal:
     driver: overlay
     attachable: true
-
-volumes:
-  whatsapp_bridge_data:

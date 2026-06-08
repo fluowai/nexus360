@@ -44,13 +44,9 @@ DNS esperado:
 
 O app identifica o tenant pelo host cadastrado em Admin > White-label e mantem o usuario no dominio personalizado. A URL `nexus360.consultio.com.br/tgamkt` continua disponivel como URL interna/alternativa.
 
-As regras fixas da stack atendem apenas `nexus360.consultio.com.br`. Dominios personalizados nao dependem de catch-all: eles entram por arquivos dinamicos gerados pela API com routers explicitos `Host(dominio)`.
+As regras da stack usam ``HostRegexp(`{host:.+}`)`` para frontend e API. Assim, qualquer dominio personalizado apontado para o IP do Portainer chega no Nexus sem depender de criar bind mount no host.
 
-Quando um dominio e cadastrado ou validado com DNS correto, a API tambem gera um arquivo em `TRAEFIK_DYNAMIC_DIR` com routers explicitos `Host(dominio)` para frontend e API. Na stack, o caminho padrao dentro do container e `/traefik/dynamic`, montado a partir de `TRAEFIK_DYNAMIC_HOST_PATH` no host.
-
-O Traefik do Portainer precisa estar configurado com file provider observando o mesmo diretorio do host, por exemplo `--providers.file.directory=/opt/traefik/dynamic` e `--providers.file.watch=true`. Depois de configurar isso, use `POST /api/admin/domains/sync-all` como superadmin para regerar os arquivos dos dominios ja verificados.
-
-Atualizar apenas a imagem da API nao adiciona o volume nem as variaveis novas. A definicao da stack no Portainer tambem precisa ser atualizada com `TRAEFIK_DYNAMIC_DIR` e o volume `TRAEFIK_DYNAMIC_HOST_PATH:/traefik/dynamic`.
+O fluxo por arquivos dinamicos do Traefik continua suportado pela API, mas a stack padrao nao monta `/opt/traefik/dynamic` porque o Swarm rejeita bind mounts cujo caminho ainda nao existe no node.
 
 Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido para o host acessado. Se `crm.tgamkt.com` mostrar `ERR_CERT_AUTHORITY_INVALID`, o DNS pode estar apontando certo, mas o certificado desse host ainda nao foi emitido/servido pelo Traefik.
 

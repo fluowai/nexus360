@@ -50,6 +50,8 @@ Quando um dominio e cadastrado ou validado com DNS correto, a API tambem gera um
 
 O Traefik do Portainer precisa estar configurado com file provider observando o mesmo diretorio do host, por exemplo `--providers.file.directory=/opt/traefik/dynamic` e `--providers.file.watch=true`. Depois de configurar isso, use `POST /api/admin/domains/sync-all` como superadmin para regerar os arquivos dos dominios ja verificados.
 
+Atualizar apenas a imagem da API nao adiciona o volume nem as variaveis novas. A definicao da stack no Portainer tambem precisa ser atualizada com `TRAEFIK_DYNAMIC_DIR` e o volume `TRAEFIK_DYNAMIC_HOST_PATH:/traefik/dynamic`.
+
 Para HTTPS sem aviso de privacidade, o Traefik precisa emitir certificado valido para o host acessado. Se `crm.tgamkt.com` mostrar `ERR_CERT_AUTHORITY_INVALID`, o DNS pode estar apontando certo, mas o certificado desse host ainda nao foi emitido/servido pelo Traefik.
 
 ## Observacoes

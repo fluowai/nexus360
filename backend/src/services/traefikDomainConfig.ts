@@ -74,7 +74,13 @@ function buildDynamicConfig(domain: string) {
 
 export async function writeTraefikDomainConfig(domain: string): Promise<TraefikSyncResult> {
   const dynamicDir = getDynamicDir();
-  if (!dynamicDir) return { enabled: false, action: "skipped" };
+  if (!dynamicDir) {
+    return {
+      enabled: false,
+      action: "skipped",
+      error: "TRAEFIK_DYNAMIC_DIR nao configurado na stack da API.",
+    };
+  }
 
   const file = path.join(dynamicDir, getSafeDomainFile(domain));
   const tempFile = `${file}.${Date.now()}.tmp`;
@@ -96,7 +102,13 @@ export async function writeTraefikDomainConfig(domain: string): Promise<TraefikS
 
 export async function removeTraefikDomainConfig(domain: string): Promise<TraefikSyncResult> {
   const dynamicDir = getDynamicDir();
-  if (!dynamicDir) return { enabled: false, action: "skipped" };
+  if (!dynamicDir) {
+    return {
+      enabled: false,
+      action: "skipped",
+      error: "TRAEFIK_DYNAMIC_DIR nao configurado na stack da API.",
+    };
+  }
 
   const file = path.join(dynamicDir, getSafeDomainFile(domain));
 

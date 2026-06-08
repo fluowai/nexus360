@@ -9,7 +9,7 @@ import { prisma } from "./lib/prisma.js";
 import { authenticateToken } from "./middleware/auth.js";
 import { resolveTenant } from "./middleware/tenant.js";
 import { sanitizeStoredHtml } from "./utils/security.js";
-import { findTenantDomainStatus, findTenantHostContext, normalizeRequestHost } from "./utils/tenantHost.js";
+import { findTenantDomainStatus, findTenantHostContext, findTenantSlugContext, normalizeRequestHost } from "./utils/tenantHost.js";
 import { MissionScheduler } from "./services/prospect/MissionScheduler.js";
 import { emitAutomationEvent } from "./workers/automationWorker.js";
 
@@ -179,6 +179,18 @@ app.get("/api/ping", (req, res) => res.json({ message: "pong", timestamp: new Da
 app.get("/api/domain/context", async (req, res, next) => {
   try {
     const host = normalizeRequestHost(req.headers["x-forwarded-host"] as string || req.headers.host);
+    const slugContext = await findTenantSlugContext(prisma, req.query.slug);
+
+    if (slugContext) {
+      return res.json({
+        customDomain: false,
+        domain: null,
+        status: slugContext.status,
+        internalUrl: slugContext.internalUrl,
+        organization: slugContext.organization,
+      });
+    }
+
     if (!host) return res.json({ customDomain: false });
 
     const tenantDomain = await findTenantHostContext(prisma, host);

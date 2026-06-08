@@ -1,6 +1,57 @@
 import { useEffect, useState } from "react";
 import { publicApiFetch, readJsonResponse } from "./api";
 
+const RESERVED_WORKSPACE_SLUGS = new Set([
+  "admin",
+  "api",
+  "login",
+  "onboarding",
+  "site",
+  "vendas",
+  "meet",
+  "p",
+  "lp",
+  "client-portal",
+  "dashboard",
+  "crm",
+  "prospecting",
+  "finance",
+  "settings",
+  "team",
+  "projects",
+  "reports",
+  "clients",
+  "sold-services",
+  "ad-accounts",
+  "assets",
+  "landing-pages",
+  "quiz",
+  "content",
+  "marketing",
+  "sales-machine",
+  "proposals",
+  "agents-hub",
+  "ai-settings",
+  "prompt-architect",
+  "billing",
+  "automations",
+  "notifications",
+  "delivery",
+  "service-catalog",
+  "time-tracking",
+  "knowledge-base",
+  "client-health",
+  "whatsapp",
+  "acp",
+]);
+
+function getWorkspaceSlugFromPath() {
+  const slug = window.location.pathname.split("/").filter(Boolean)[0]?.toLowerCase() || "";
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) return "";
+  if (RESERVED_WORKSPACE_SLUGS.has(slug)) return "";
+  return slug;
+}
+
 export interface WhitelabelConfig {
   name?: string;
   logoUrl?: string;
@@ -21,7 +72,9 @@ export function useWhitelabel() {
     // but if the system wants to apply whitelabel even on slugs, this logic can be adjusted.
     const fetchContext = async () => {
       try {
-        const res = await publicApiFetch("/api/domain/context");
+        const slug = getWorkspaceSlugFromPath();
+        const path = slug ? `/api/domain/context?slug=${encodeURIComponent(slug)}` : "/api/domain/context";
+        const res = await publicApiFetch(path);
         if (res.ok) {
           const data = await readJsonResponse(res, "Contexto white label indisponivel.");
           setCustomDomain(Boolean(data.customDomain));

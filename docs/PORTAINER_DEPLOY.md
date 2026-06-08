@@ -46,18 +46,21 @@ DNS esperado:
 
 O app identifica o tenant pelo host cadastrado em Admin > White-label e mantem o usuario no dominio personalizado. A URL `nexus360.consultio.com.br/tgamkt` continua disponivel como URL interna/alternativa.
 
-As regras da stack mantem um `HostRegexp` global para roteamento generico, mas certificado HTTPS valido para dominios de clientes precisa de regra concreta `Host(...)`. Por isso o fluxo escalavel usa arquivos dinamicos do Traefik:
+As regras da stack mantem um `HostRegexp` global para roteamento generico, mas certificado HTTPS valido para dominios de clientes precisa de regra concreta `Host(...)`. Quando nao ha acesso a stack do Traefik, o fluxo escalavel usa um servico auxiliar `domain_router` dentro da propria stack do Nexus:
 
 1. O cliente aponta o dominio para `207.58.153.219`.
 2. O admin cadastra/valida o dominio no front.
-3. A API escreve um arquivo em `/traefik/dynamic` com os routers `Host(...)` daquele dominio e services apontando para `http://nexus360_frontend:80` e `http://nexus360_api:10000`.
-4. O Traefik le esse arquivo pelo provider file e emite o certificado pelo `letsencryptresolver`.
+3. A API atualiza os labels Docker/Swarm do servico `nexus360_domain_router` usando `/var/run/docker.sock`.
+4. O Traefik, que ja le labels Docker, enxerga `Host(...)` com o dominio concreto e emite o certificado pelo `letsencryptresolver`.
+5. O `domain_router` encaminha `/api` e `/lp` para a API e o restante para o frontend.
 
-A stack do Nexus monta o volume nomeado `traefik_dynamic` em `/traefik/dynamic`; isso evita o erro de bind mount quando `/opt/traefik/dynamic` nao existe no host.
+A stack do Nexus monta `/var/run/docker.sock` na API. Isso da permissao alta ao container da API, mas evita editar a stack do Traefik a cada dominio. A API fica restrita a node `manager`, pois atualizacao de labels de servico no Swarm precisa do Docker API de um manager.
 
-### Ajuste unico na stack do Traefik
+Depois de cadastrar ou validar um dominio, confira no retorno do front se aparece `Docker service nexus360_domain_router atualizado`. Se aparecer erro de Docker socket, o Portainer/Swarm nao permitiu o bind `/var/run/docker.sock`.
 
-O servico Traefik tambem precisa montar o mesmo volume e habilitar o provider file. Isso e feito uma unica vez na stack do Traefik, nao por cliente:
+### Alternativa com provider file do Traefik
+
+Se houver acesso futuro a stack do Traefik, tambem e possivel usar provider file. Nesse modo, configure `TRAEFIK_SYNC_MODE=file` e habilite no Traefik:
 
 ```yaml
 services:

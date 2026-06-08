@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import http from "node:http";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
 
@@ -15,8 +16,147 @@ function getDynamicDir() {
   return value || null;
 }
 
+function getSyncMode() {
+  return String(process.env.TRAEFIK_SYNC_MODE || "file").trim().toLowerCase();
+}
+
 function getServiceUrl(envName: string, fallbackUrl: string) {
   return String(process.env[envName] || "").trim() || fallbackUrl;
+}
+
+function getDockerSocketPath() {
+  return String(process.env.DOCKER_SOCKET_PATH || "/var/run/docker.sock").trim();
+}
+
+function getRouterServiceName() {
+  return String(process.env.TRAEFIK_ROUTER_SERVICE || "nexus360_domain_router").trim();
+}
+
+function getRouterLabelPrefix() {
+  return String(process.env.TRAEFIK_ROUTER_LABEL_PREFIX || "nexus360_domain_router").trim();
+}
+
+function getDockerNetwork() {
+  return String(process.env.TRAEFIK_DOCKER_NETWORK || "consultio1").trim();
+}
+
+function normalizeDomains(domains: string[]) {
+  return [...new Set(domains.map(domain => domain.trim().toLowerCase()).filter(Boolean))].sort();
+}
+
+function buildHostRule(domains: string[]) {
+  const safeDomains = normalizeDomains(domains);
+  if (!safeDomains.length) return "Host(`nexus360-disabled.localhost`)";
+  return `Host(${safeDomains.map(domain => `\`${domain}\``).join(",")})`;
+}
+
+function parseHostRule(rule?: string) {
+  if (!rule) return [];
+  const domains: string[] = [];
+  const matches = rule.matchAll(/`([^`]+)`/g);
+  for (const match of matches) {
+    if (match[1] && match[1] !== "nexus360-disabled.localhost") domains.push(match[1]);
+  }
+  return normalizeDomains(domains);
+}
+
+function dockerRequest<T>(method: string, requestPath: string, body?: unknown): Promise<T> {
+  const payload = body === undefined ? undefined : JSON.stringify(body);
+
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        socketPath: getDockerSocketPath(),
+        path: requestPath,
+        method,
+        headers: payload
+          ? {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(payload),
+            }
+          : undefined,
+      },
+      res => {
+        let raw = "";
+        res.setEncoding("utf8");
+        res.on("data", chunk => {
+          raw += chunk;
+        });
+        res.on("end", () => {
+          if ((res.statusCode || 500) >= 400) {
+            return reject(new Error(`Docker API ${method} ${requestPath} retornou ${res.statusCode}: ${raw}`));
+          }
+
+          if (!raw.trim()) return resolve({} as T);
+
+          try {
+            resolve(JSON.parse(raw) as T);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+
+    req.on("error", reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+async function updateRouterServiceDomains(domains: string[]): Promise<TraefikSyncResult> {
+  const serviceName = getRouterServiceName();
+  const labelPrefix = getRouterLabelPrefix();
+  const service = await dockerRequest<any>("GET", `/services/${encodeURIComponent(serviceName)}`);
+  const version = service?.Version?.Index;
+  const spec = service?.Spec;
+
+  if (!version || !spec) {
+    throw new Error(`Servico Docker ${serviceName} nao encontrado ou sem versao.`);
+  }
+
+  const labels = { ...(spec.Labels || {}) };
+  const routerKey = `traefik.http.routers.${labelPrefix}`;
+  const serviceKey = `traefik.http.services.${labelPrefix}`;
+  const nextDomains = normalizeDomains(domains);
+
+  labels["traefik.enable"] = nextDomains.length ? "true" : "false";
+  labels["traefik.docker.network"] = getDockerNetwork();
+  labels[`${routerKey}.rule`] = buildHostRule(nextDomains);
+  labels[`${routerKey}.entrypoints`] = "websecure";
+  labels[`${routerKey}.tls.certresolver`] = String(process.env.TRAEFIK_CERT_RESOLVER || "letsencryptresolver").trim();
+  labels[`${routerKey}.priority`] = "200";
+  labels[`${routerKey}.service`] = labelPrefix;
+  labels[`${serviceKey}.loadbalancer.server.port`] = "8080";
+
+  spec.Labels = labels;
+
+  await dockerRequest("POST", `/services/${encodeURIComponent(serviceName)}/update?version=${version}`, spec);
+
+  return {
+    enabled: true,
+    action: "written",
+    message: `Docker service ${serviceName} atualizado com ${nextDomains.length} dominio(s).`,
+  };
+}
+
+async function getRouterServiceDomains() {
+  const serviceName = getRouterServiceName();
+  const labelPrefix = getRouterLabelPrefix();
+  const service = await dockerRequest<any>("GET", `/services/${encodeURIComponent(serviceName)}`);
+  const labels = service?.Spec?.Labels || {};
+  return parseHostRule(labels[`traefik.http.routers.${labelPrefix}.rule`]);
+}
+
+async function writeDockerRouterDomain(domain: string): Promise<TraefikSyncResult> {
+  const domains = await getRouterServiceDomains();
+  return updateRouterServiceDomains([...domains, domain]);
+}
+
+async function removeDockerRouterDomain(domain: string): Promise<TraefikSyncResult> {
+  const normalized = domain.trim().toLowerCase();
+  const domains = await getRouterServiceDomains();
+  return updateRouterServiceDomains(domains.filter(item => item !== normalized));
 }
 
 function getSafeDomainFile(domain: string) {
@@ -86,6 +226,18 @@ function buildDynamicConfig(domain: string) {
 }
 
 export async function writeTraefikDomainConfig(domain: string): Promise<TraefikSyncResult> {
+  if (getSyncMode() === "docker-service") {
+    try {
+      return await writeDockerRouterDomain(domain);
+    } catch (error: any) {
+      return {
+        enabled: true,
+        action: "skipped",
+        error: error?.message || "Falha ao atualizar labels do servico Docker",
+      };
+    }
+  }
+
   const dynamicDir = getDynamicDir();
   if (!dynamicDir) {
     return {
@@ -114,6 +266,18 @@ export async function writeTraefikDomainConfig(domain: string): Promise<TraefikS
 }
 
 export async function removeTraefikDomainConfig(domain: string): Promise<TraefikSyncResult> {
+  if (getSyncMode() === "docker-service") {
+    try {
+      return await removeDockerRouterDomain(domain);
+    } catch (error: any) {
+      return {
+        enabled: true,
+        action: "skipped",
+        error: error?.message || "Falha ao atualizar labels do servico Docker",
+      };
+    }
+  }
+
   const dynamicDir = getDynamicDir();
   if (!dynamicDir) {
     return {
@@ -138,12 +302,17 @@ export async function syncTraefikDomainConfig(domain: string, verified: boolean)
 }
 
 export async function syncVerifiedTraefikDomains(prisma: PrismaClient) {
-  if (!getDynamicDir()) return { enabled: false, total: 0, written: 0, failed: 0 };
-
   const domains = await prisma.domain.findMany({
     where: { status: "verified" },
     select: { name: true },
   });
+
+  if (getSyncMode() === "docker-service") {
+    const result = await updateRouterServiceDomains(domains.map(domain => domain.name));
+    return { enabled: result.enabled, total: domains.length, written: domains.length, failed: 0 };
+  }
+
+  if (!getDynamicDir()) return { enabled: false, total: 0, written: 0, failed: 0 };
 
   const results = await Promise.allSettled(
     domains.map(domain => writeTraefikDomainConfig(domain.name))

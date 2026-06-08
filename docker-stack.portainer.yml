@@ -74,8 +74,12 @@ services:
       WHATSAPP_BRIDGE_URL: "${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:8091}"
       WHATSAPP_BRIDGE_SECRET: "${WHATSAPP_BRIDGE_SECRET}"
     volumes:
-      - traefik_dynamic:/traefik/dynamic
-      - /var/run/docker.sock:/var/run/docker.sock
+      - type: volume
+        source: traefik_dynamic
+        target: /traefik/dynamic
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
     networks:
       consultio1:
       nexus360_internal:

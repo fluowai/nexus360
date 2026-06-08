@@ -104,6 +104,17 @@ function dockerRequest<T>(method: string, requestPath: string, body?: unknown): 
   });
 }
 
+function formatDockerSyncError(error: any) {
+  const message = error?.message || "Falha ao atualizar labels do servico Docker";
+  if (error?.code === "ENOENT" || message.includes("ENOENT")) {
+    return `${message}. O Docker socket nao esta montado no container da API; reaplique a stack com o bind /var/run/docker.sock:/var/run/docker.sock.`;
+  }
+  if (error?.code === "EACCES" || message.includes("permission denied")) {
+    return `${message}. A API nao tem permissao para acessar /var/run/docker.sock.`;
+  }
+  return message;
+}
+
 async function updateRouterServiceDomains(domains: string[]): Promise<TraefikSyncResult> {
   const serviceName = getRouterServiceName();
   const labelPrefix = getRouterLabelPrefix();
@@ -233,7 +244,7 @@ export async function writeTraefikDomainConfig(domain: string): Promise<TraefikS
       return {
         enabled: true,
         action: "skipped",
-        error: error?.message || "Falha ao atualizar labels do servico Docker",
+        error: formatDockerSyncError(error),
       };
     }
   }
@@ -273,7 +284,7 @@ export async function removeTraefikDomainConfig(domain: string): Promise<Traefik
       return {
         enabled: true,
         action: "skipped",
-        error: error?.message || "Falha ao atualizar labels do servico Docker",
+        error: formatDockerSyncError(error),
       };
     }
   }

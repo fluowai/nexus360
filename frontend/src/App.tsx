@@ -62,6 +62,7 @@ const MissionsList = lazy(() => import("./pages/prospecting/MissionsList"));
 const FunnelBuilder = lazy(() => import("./pages/prospecting/FunnelBuilder"));
 const WhatsApp = lazy(() => import("./pages/WhatsApp"));
 const ClientPortal = lazy(() => import("./pages/ClientPortal"));
+const ClientResults = lazy(() => import("./pages/ClientResults"));
 const Login = lazy(() => import("./pages/Login"));
 const CRMSalesPage = lazy(() => import("./pages/CRMSalesPage"));
 const AcpHub = lazy(() => import("./pages/AcpHub"));
@@ -90,7 +91,8 @@ function isPublicPath(pathname: string) {
     pathname === '/vendas' ||
     pathname.startsWith('/meet') ||
     pathname.startsWith('/p/') ||
-    pathname.startsWith('/client-portal')
+    pathname.startsWith('/client-portal') ||
+    pathname.startsWith('/client-results')
   );
 }
 
@@ -297,6 +299,7 @@ export default function App() {
           <Route path="/landing-editor" element={<LandingEditor />} />
           <Route path="/p/:slug" element={<PublicProposal />} />
           <Route path="/client-portal" element={<ClientPortal />} />
+          <Route path="/client-results/:token" element={<ClientResults />} />
 
           <Route path="/admin" element={<SuperAdmin />} />
           <Route path="/admin/agencies" element={<AdminAgencies />} />

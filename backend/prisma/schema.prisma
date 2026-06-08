@@ -96,6 +96,10 @@ model Organization {
   notifications     Notification[]
   calendarEvents    CalendarEvent[]
   adAccounts        AdAccount[]
+  adMetricSnapshots AdMetricSnapshot[]
+  adsInsights       AdsInsight[]
+  adsRecommendations AdsRecommendation[]
+  clientReportShares ClientReportShare[]
   assets            Asset[]
   assetFolders      AssetFolder[]
   landingPages      LandingPage[]
@@ -665,6 +669,11 @@ model Client {
   aiGenerations    AIGeneration[]
   generatedPrompts GeneratedPrompt[]
   agentQueueItems  AgentQueueItem[]
+  adAccounts       AdAccount[]
+  adMetricSnapshots AdMetricSnapshot[]
+  adsInsights      AdsInsight[]
+  adsRecommendations AdsRecommendation[]
+  reportShares     ClientReportShare[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1168,15 +1177,26 @@ model AdAccount {
   accountTimezone String?
   dailySpendLimit Float     @default(0)
   currentSpend    Float     @default(0)
+  lastSyncedAt     DateTime?
+  syncStatus       String    @default("pending")
+  syncError        String?   @db.Text
+  providerMetadata Json?
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
+  clientId       String?
+  client         Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   campaigns CampaignAd[]
   creatives AdCreative[]
   audiences CustomAudience[]
+  metricSnapshots AdMetricSnapshot[]
+  insights AdsInsight[]
+  recommendations AdsRecommendation[]
 
   @@index([organizationId])
+  @@index([clientId])
+  @@unique([organizationId, platform, accountId])
 }
 
 model CampaignAd {
@@ -1203,6 +1223,7 @@ model CampaignAd {
   adAccountId String
   adAccount   AdAccount @relation(fields: [adAccountId], references: [id])
   adSets      AdSet[]
+  metricSnapshots AdMetricSnapshot[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1283,6 +1304,124 @@ model CustomAudience {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model AdMetricSnapshot {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String?
+  client         Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  adAccountId    String
+  adAccount      AdAccount @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  campaignAdId   String?
+  campaignAd     CampaignAd? @relation(fields: [campaignAdId], references: [id], onDelete: SetNull)
+
+  platform       String
+  entityType     String   @default("account")
+  entityId       String
+  entityName     String?
+  date           DateTime
+  currency       String?
+  impressions    Int      @default(0)
+  clicks         Int      @default(0)
+  spend          Float    @default(0)
+  conversions    Float    @default(0)
+  conversionValue Float   @default(0)
+  leads          Int      @default(0)
+  ctr            Float    @default(0)
+  cpc            Float    @default(0)
+  cpm            Float    @default(0)
+  cpa            Float    @default(0)
+  roas           Float    @default(0)
+  raw            Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([adAccountId, entityType, entityId, date])
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([platform])
+  @@index([date])
+}
+
+model AdsInsight {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String?
+  client         Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  adAccountId    String?
+  adAccount      AdAccount? @relation(fields: [adAccountId], references: [id], onDelete: SetNull)
+
+  agentId        String   @default("ads_performance")
+  agentName      String   @default("Agente Performance Ads")
+  periodStart    DateTime
+  periodEnd      DateTime
+  summary        String   @db.Text
+  severity       String   @default("medium")
+  status         String   @default("open")
+  metrics        Json?
+
+  recommendations AdsRecommendation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([adAccountId])
+  @@index([periodEnd])
+}
+
+model AdsRecommendation {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String?
+  client         Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  adAccountId    String?
+  adAccount      AdAccount? @relation(fields: [adAccountId], references: [id], onDelete: SetNull)
+  insightId      String?
+  insight        AdsInsight? @relation(fields: [insightId], references: [id], onDelete: SetNull)
+
+  title          String
+  description    String   @db.Text
+  actionType     String
+  impact         String   @default("medium")
+  effort         String   @default("medium")
+  status         String   @default("suggested")
+  estimatedLift  Float?
+  metadata       Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model ClientReportShare {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  token          String   @unique
+  title          String?
+  isActive       Boolean  @default(true)
+  expiresAt      DateTime?
+  lastViewedAt   DateTime?
+  settings       Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
 }
 
 model Asset {

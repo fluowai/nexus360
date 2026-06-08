@@ -28,6 +28,10 @@ interface AdAccount {
   accountCurrency?: string;
   dailySpendLimit: number;
   currentSpend: number;
+  clientId?: string | null;
+  client?: ClientSummary | null;
+  lastSyncedAt?: string | null;
+  syncStatus?: string;
 }
 
 interface Campaign {
@@ -39,6 +43,12 @@ interface Campaign {
   budgetType: string;
   budgetAmount: number;
   spendAmount: number;
+}
+
+interface ClientSummary {
+  id: string;
+  corporateName: string;
+  tradeName?: string | null;
 }
 
 const platformIcons: Record<string, string> = {
@@ -58,10 +68,13 @@ const platformColors: Record<string, string> = {
 export default function AdAccounts() {
   const [accounts, setAccounts] = useState<AdAccount[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [clients, setClients] = useState<ClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'accounts' | 'campaigns' | 'analytics'>('accounts');
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [reportLinks, setReportLinks] = useState<Record<string, string>>({});
 
   const orgId = localStorage.getItem('nexus_org_id');
 
@@ -72,14 +85,17 @@ export default function AdAccounts() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [accountsRes, campaignsRes] = await Promise.all([
+      const [accountsRes, campaignsRes, clientsRes] = await Promise.all([
         apiFetch(`/api/ads/ad-accounts`),
-        apiFetch(`/api/ads/campaigns-ads`)
+        apiFetch(`/api/ads/campaigns-ads`),
+        apiFetch(`/api/clients`)
       ]);
       const accountsData = await accountsRes.json();
       const campaignsData = await campaignsRes.json();
+      const clientsData = await clientsRes.json();
       setAccounts(accountsData);
       setCampaigns(campaignsData);
+      setClients(Array.isArray(clientsData) ? clientsData : []);
     } catch (error) {
       console.error("Error fetching data:", error);
     }
@@ -97,7 +113,8 @@ export default function AdAccounts() {
           accountId: formData.get('accountId'),
           accountName: formData.get('accountName'),
           platform: formData.get('platform'),
-          accessToken: formData.get('accessToken')
+          accessToken: formData.get('accessToken'),
+          clientId: formData.get('clientId') || null
         })
       });
       setShowModal(false);
@@ -127,6 +144,53 @@ export default function AdAccounts() {
       fetchData();
     } catch (error) {
       console.error("Error deleting account:", error);
+    }
+  };
+
+  const syncAccount = async (account: AdAccount) => {
+    setBusyAction(`sync:${account.id}`);
+    try {
+      await apiFetch(`/api/ads/ad-accounts/${account.id}/sync`, { method: 'POST' });
+      fetchData();
+    } catch (error) {
+      console.error("Error syncing account:", error);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const analyzeClient = async (account: AdAccount) => {
+    if (!account.clientId) {
+      alert('Vincule esta conta a um cliente antes de analisar.');
+      return;
+    }
+    setBusyAction(`analyze:${account.id}`);
+    try {
+      await apiFetch(`/api/ads/clients/${account.clientId}/analyze`, { method: 'POST' });
+      fetchData();
+    } catch (error) {
+      console.error("Error analyzing client ads:", error);
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const createReportLink = async (account: AdAccount) => {
+    if (!account.clientId) {
+      alert('Vincule esta conta a um cliente antes de gerar o link.');
+      return;
+    }
+    setBusyAction(`share:${account.id}`);
+    try {
+      const response = await apiFetch(`/api/ads/clients/${account.clientId}/share`, { method: 'POST' });
+      const data = await response.json();
+      const absoluteUrl = `${window.location.origin}${data.url}`;
+      setReportLinks(prev => ({ ...prev, [account.clientId || account.id]: absoluteUrl }));
+      await navigator.clipboard?.writeText(absoluteUrl).catch(() => undefined);
+    } catch (error) {
+      console.error("Error creating report link:", error);
+    } finally {
+      setBusyAction(null);
     }
   };
 
@@ -289,6 +353,9 @@ export default function AdAccounts() {
                     <div>
                       <h3 className="font-semibold text-gray-900">{account.accountName}</h3>
                       <p className="text-sm text-gray-500 capitalize">{account.platform}</p>
+                      {account.client && (
+                        <p className="text-xs text-gray-400">{account.client.tradeName || account.client.corporateName}</p>
+                      )}
                     </div>
                   </div>
                   {getStatusIcon(account.accountStatus)}
@@ -309,30 +376,76 @@ export default function AdAccounts() {
                       <span className="font-medium">{account.accountCurrency}</span>
                     </div>
                   )}
+                  {account.lastSyncedAt && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Atualizado</span>
+                      <span className="font-medium">{new Date(account.lastSyncedAt).toLocaleString('pt-BR')}</span>
+                    </div>
+                  )}
                 </div>
                 
                 {selectedAccount === account.id && (
-                  <div className="flex gap-2 pt-4 border-t border-gray-100">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleAccountStatus(account); }}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
-                    >
-                      {account.accountStatus === 'active' ? <Pause size={16} /> : <Play size={16} />}
-                      {account.accountStatus === 'active' ? 'Pausar' : 'Ativar'}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); }}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
-                    >
-                      <Settings size={16} />
-                      Configurar
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteAccount(account.id); }}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors text-sm"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                  <div className="space-y-3 pt-4 border-t border-gray-100">
+                    {account.clientId && reportLinks[account.clientId] && (
+                      <a
+                        href={reportLinks[account.clientId]}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Link de resultados copiado
+                        <ExternalLink size={15} />
+                      </a>
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); syncAccount(account); }}
+                        disabled={busyAction === `sync:${account.id}`}
+                        className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors text-sm disabled:opacity-60"
+                      >
+                        <RefreshCw size={16} className={busyAction === `sync:${account.id}` ? 'animate-spin' : ''} />
+                        Sincronizar
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); analyzeClient(account); }}
+                        disabled={busyAction === `analyze:${account.id}`}
+                        className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors text-sm disabled:opacity-60"
+                      >
+                        <TrendingUp size={16} />
+                        Analisar IA
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); createReportLink(account); }}
+                        disabled={busyAction === `share:${account.id}`}
+                        className="col-span-2 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors text-sm disabled:opacity-60"
+                      >
+                        <ExternalLink size={16} />
+                        Gerar link individual
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleAccountStatus(account); }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
+                      >
+                        {account.accountStatus === 'active' ? <Pause size={16} /> : <Play size={16} />}
+                        {account.accountStatus === 'active' ? 'Pausar' : 'Ativar'}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors text-sm"
+                      >
+                        <Settings size={16} />
+                        Configurar
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteAccount(account.id); }}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors text-sm"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -485,6 +598,23 @@ export default function AdAccounts() {
                   placeholder="Ex: act_123456789"
                   className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cliente vinculado
+                </label>
+                <select
+                  name="clientId"
+                  className="w-full px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
+                  <option value="">Sem cliente vinculado</option>
+                  {clients.map(client => (
+                    <option key={client.id} value={client.id}>
+                      {client.tradeName || client.corporateName}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div>

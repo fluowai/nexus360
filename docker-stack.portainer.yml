@@ -25,6 +25,11 @@ services:
         - "traefik.http.routers.nexus360_frontend.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_frontend.priority=1"
         - "traefik.http.routers.nexus360_frontend.service=nexus360_frontend"
+        - "traefik.http.routers.nexus360_custom_frontend.rule=Host(`${WHITELABEL_PRIMARY_DOMAIN:-crm.tgamkt.com}`)"
+        - "traefik.http.routers.nexus360_custom_frontend.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_custom_frontend.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_custom_frontend.priority=100"
+        - "traefik.http.routers.nexus360_custom_frontend.service=nexus360_frontend"
         - "traefik.http.services.nexus360_frontend.loadbalancer.server.port=80"
 
   api:
@@ -87,6 +92,11 @@ services:
         - "traefik.http.routers.nexus360_api.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_api.priority=10"
         - "traefik.http.routers.nexus360_api.service=nexus360_api"
+        - "traefik.http.routers.nexus360_custom_api.rule=Host(`${WHITELABEL_PRIMARY_DOMAIN:-crm.tgamkt.com}`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
+        - "traefik.http.routers.nexus360_custom_api.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_custom_api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_custom_api.priority=110"
+        - "traefik.http.routers.nexus360_custom_api.service=nexus360_api"
         - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
 networks:
   consultio1:

@@ -15,12 +15,8 @@ function getDynamicDir() {
   return value || null;
 }
 
-function getServiceRef(serviceName: string, fallbackName: string) {
-  const raw = String(process.env[serviceName] || "").trim();
-  if (raw) return raw;
-
-  const provider = String(process.env.TRAEFIK_SERVICE_PROVIDER || "swarm").trim() || "swarm";
-  return `${fallbackName}@${provider}`;
+function getServiceUrl(envName: string, fallbackUrl: string) {
+  return String(process.env[envName] || "").trim() || fallbackUrl;
 }
 
 function getSafeDomainFile(domain: string) {
@@ -45,8 +41,10 @@ function getRouterName(domain: string, suffix = "") {
 }
 
 function buildDynamicConfig(domain: string) {
-  const frontendService = getServiceRef("TRAEFIK_FRONTEND_SERVICE", "nexus360_frontend");
-  const apiService = getServiceRef("TRAEFIK_API_SERVICE", "nexus360_api");
+  const frontendService = getRouterName(domain, "-frontend-service");
+  const apiService = getRouterName(domain, "-api-service");
+  const frontendUrl = getServiceUrl("TRAEFIK_FRONTEND_URL", "http://nexus360_frontend:80");
+  const apiUrl = getServiceUrl("TRAEFIK_API_URL", "http://nexus360_api:10000");
   const certResolver = String(process.env.TRAEFIK_CERT_RESOLVER || "letsencryptresolver").trim();
   const frontendRouter = getRouterName(domain);
   const apiRouter = getRouterName(domain, "-api");
@@ -61,6 +59,8 @@ function buildDynamicConfig(domain: string) {
     `      service: ${apiService}`,
     "      tls:",
     `        certResolver: ${certResolver}`,
+    "        domains:",
+    `          - main: "${domain}"`,
     "      priority: 100",
     `    ${frontendRouter}:`,
     `      rule: "Host(\`${domain}\`)"`,
@@ -69,7 +69,18 @@ function buildDynamicConfig(domain: string) {
     `      service: ${frontendService}`,
     "      tls:",
     `        certResolver: ${certResolver}`,
+    "        domains:",
+    `          - main: "${domain}"`,
     "      priority: 90",
+    "  services:",
+    `    ${apiService}:`,
+    "      loadBalancer:",
+    "        servers:",
+    `          - url: "${apiUrl}"`,
+    `    ${frontendService}:`,
+    "      loadBalancer:",
+    "        servers:",
+    `          - url: "${frontendUrl}"`,
     "",
   ].join("\n");
 }

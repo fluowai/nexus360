@@ -50,7 +50,7 @@ As regras da stack mantem um `HostRegexp` global para roteamento generico, mas c
 
 1. O cliente aponta o dominio para `207.58.153.219`.
 2. O admin cadastra/valida o dominio no front.
-3. A API escreve um arquivo em `/traefik/dynamic` com os routers `Host(...)` daquele dominio.
+3. A API escreve um arquivo em `/traefik/dynamic` com os routers `Host(...)` daquele dominio e services apontando para `http://nexus360_frontend:80` e `http://nexus360_api:10000`.
 4. O Traefik le esse arquivo pelo provider file e emite o certificado pelo `letsencryptresolver`.
 
 A stack do Nexus monta o volume nomeado `traefik_dynamic` em `/traefik/dynamic`; isso evita o erro de bind mount quando `/opt/traefik/dynamic` nao existe no host.
@@ -76,6 +76,8 @@ volumes:
 Se o Traefik ja tiver uma lista `command`, apenas adicione essas duas linhas `providers.file`. Se ele ja tiver `volumes`, apenas adicione o volume `traefik_dynamic`.
 
 Em Swarm com mais de um node, a API e o Traefik precisam enxergar o mesmo volume. Em servidor unico, o volume local funciona. Em cluster multi-node, use volume compartilhado ou restrinja API e Traefik ao mesmo node.
+
+Depois de aplicar o ajuste no Traefik, revalide o dominio no front ou chame `POST /api/admin/domains/sync-all` como super admin para regenerar os arquivos dinamicos dos dominios ja verificados.
 
 ## Observacoes
 

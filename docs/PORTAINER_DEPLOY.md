@@ -24,6 +24,8 @@ SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
+Se `DATABASE_URL`, `DIRECT_URL` ou `JWT_SECRET` aparecerem vazios nos detalhes do container da API, a API vai encerrar com exit code 1. A stack usa variaveis obrigatorias para impedir deploy sem esses valores.
+
 Se o banco estiver vazio, rode `npx prisma db push --skip-generate` fora do boot da API e depois execute `node prisma/seed.js` uma vez. Nao deixe migracao/seed no comando principal da API em producao.
 
 ## Publicacao

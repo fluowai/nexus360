@@ -3,24 +3,6 @@ version: "3.8"
 services:
   frontend:
     image: ghcr.io/fluowai/nexus360-frontend:latest
-    command:
-      - /bin/sh
-      - -c
-      - >
-        printf '%s\n'
-        'server {'
-        '  listen 80;'
-        '  server_name _;'
-        '  root /usr/share/nginx/html;'
-        '  index index.html;'
-        '  error_page 404 =200 /index.html;'
-        '  location / {'
-        '    try_files $$uri $$uri/ /index.html;'
-        '  }'
-        '}'
-        > /etc/nginx/conf.d/default.conf
-        && nginx -t
-        && exec nginx -g 'daemon off;'
     environment:
       VITE_API_URL: "same-origin"
       VITE_LIVEKIT_URL: ""

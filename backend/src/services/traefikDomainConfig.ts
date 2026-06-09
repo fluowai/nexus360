@@ -17,7 +17,7 @@ function getDynamicDir() {
 }
 
 function getSyncMode() {
-  return String(process.env.TRAEFIK_SYNC_MODE || "docker-service").trim().toLowerCase();
+  return String(process.env.TRAEFIK_SYNC_MODE || "file").trim().toLowerCase();
 }
 
 function getServiceUrl(envName: string, fallbackUrl: string) {
@@ -29,11 +29,11 @@ function getDockerSocketPath() {
 }
 
 function getRouterServiceName() {
-  return String(process.env.TRAEFIK_ROUTER_SERVICE || "nexus360_domain_router").trim();
+  return String(process.env.TRAEFIK_ROUTER_SERVICE || "nexus360_frontend").trim();
 }
 
 function getRouterLabelPrefix() {
-  return String(process.env.TRAEFIK_ROUTER_LABEL_PREFIX || "nexus360_domain_router").trim();
+  return String(process.env.TRAEFIK_ROUTER_LABEL_PREFIX || "nexus360_custom").trim();
 }
 
 function getDockerNetwork() {
@@ -138,7 +138,7 @@ async function updateRouterServiceDomains(domains: string[]): Promise<TraefikSyn
   labels[`${routerKey}.tls.certresolver`] = String(process.env.TRAEFIK_CERT_RESOLVER || "letsencryptresolver").trim();
   labels[`${routerKey}.priority`] = "200";
   labels[`${routerKey}.service`] = labelPrefix;
-  labels[`${serviceKey}.loadbalancer.server.port`] = "8080";
+  labels[`${serviceKey}.loadbalancer.server.port`] = "80";
 
   spec.Labels = labels;
 

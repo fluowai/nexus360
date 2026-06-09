@@ -65,16 +65,23 @@ const app = express();
 // Necessario para Docker/Portainer atras de proxy reverso.
 app.set('trust proxy', 1);
 
-const configuredOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '')
+const panelUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://nexus360.consultio.com.br';
+const panelOrigin = panelUrl.replace(/\/+$/, '');
+
+let panelHostname = 'nexus360.consultio.com.br';
+try { panelHostname = new URL(panelOrigin).hostname; } catch { /* fallback */ }
+
+const configuredOrigins = (process.env.CORS_ORIGINS || panelUrl || '')
   .split(',')
   .map(origin => origin.trim())
   .filter(Boolean);
 
 const allowedOrigins = new Set([
   ...configuredOrigins,
+  panelOrigin,
+  `https://www.${panelHostname}`,
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://nexus360.consultio.com.br'
 ]);
 
 async function isRegisteredTenantHost(hostname: string) {

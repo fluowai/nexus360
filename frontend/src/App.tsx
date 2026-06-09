@@ -53,6 +53,8 @@ const WhiteLabel = lazy(() => import("./pages/admin/WhiteLabel"));
 const ReleaseControl = lazy(() => import("./pages/admin/ReleaseControl"));
 const AdminAcpManager = lazy(() => import("./pages/admin/AcpManager"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
+const LandingPageWizard = lazy(() => import("./pages/LandingPageWizard"));
+const LandingPageEditor = lazy(() => import("./pages/LandingPageEditor"));
 const PromptArchitect = lazy(() => import("./pages/PromptArchitect"));
 const LandingDemo = lazy(() => import("./pages/LandingDemo"));
 const LandingEditor = lazy(() => import("./pages/LandingTemplates/LandingEditor"));
@@ -286,6 +288,8 @@ export default function App() {
           <Route path="/ad-accounts" element={<AdAccounts />} />
           <Route path="/assets" element={<AssetsLibrary />} />
           <Route path="/landing-pages" element={<LandingPages />} />
+          <Route path="/landing-pages/new" element={<LandingPageWizard />} />
+          <Route path="/landing-pages/:id/edit" element={<LandingPageEditor />} />
           <Route path="/quiz" element={<QuizBuilder />} />
           <Route path="/content" element={<Content />} />
           <Route path="/projects" element={<Projects />} />
@@ -340,6 +344,8 @@ export default function App() {
           <Route path="/:slug/ad-accounts" element={<AdAccounts />} />
           <Route path="/:slug/assets" element={<AssetsLibrary />} />
           <Route path="/:slug/landing-pages" element={<LandingPages />} />
+          <Route path="/:slug/landing-pages/new" element={<LandingPageWizard />} />
+          <Route path="/:slug/landing-pages/:id/edit" element={<LandingPageEditor />} />
           <Route path="/:slug/prospecting/capture" element={<LeadCapture />} />
           <Route path="/:slug/prospecting/lists" element={<CapturedLists />} />
           <Route path="/:slug/prospecting/funnels" element={<ProspectingFunnels />} />

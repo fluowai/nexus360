@@ -1491,6 +1491,13 @@ model LandingPage {
   organizationId  String
   organization    Organization @relation(fields: [organizationId], references: [id])
 
+  sections       Json?    // Structured section data for Puck Editor
+  wizardData     Json?    // Original wizard input (company, offer, audience data)
+  theme          Json?    // Theme config: colors, fonts, spacing
+  tracking       Json?    // Analytics: GA4, Meta Pixel, conversion events
+  formFields     Json?    // Custom form fields configuration
+  publishedAt    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

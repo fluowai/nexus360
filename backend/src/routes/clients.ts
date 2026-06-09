@@ -60,7 +60,12 @@ export function clientRoutes(prisma: PrismaClient) {
       });
       await ensureClientAgentContext(prisma, client, data.aiBriefing || data.briefing || {});
       res.json(client);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === "P2002") {
+        const target = error.meta?.target as string[] | undefined;
+        const field = target?.[0] || "campo";
+        return res.status(409).json({ error: `Já existe um cliente com este ${field}. Verifique o CNPJ ou CPF.` });
+      }
       next(error);
     }
   });

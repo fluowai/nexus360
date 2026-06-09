@@ -27,20 +27,8 @@ function ensureUniqueSlug(prisma: PrismaClient, baseSlug: string, orgId: string,
   return trySlug(baseSlug, 1);
 }
 
-export function landingPageRoutes(prisma: PrismaClient) {
-  const router = Router();
-
-  router.post("/generate-content", async (req: AuthRequest, res) => {
-    try {
-      const orgId = req.user?.orgId;
-      if (!orgId) return res.status(401).json({ error: "Unauthorized" });
-
-      const { wizardData, theme: themeInput } = req.body;
-      if (!wizardData) return res.status(400).json({ error: "Dados do wizard são obrigatórios" });
-
-      const { geminiKey } = await getOrgAIKeys(prisma, orgId);
-
-      const prompt = `Você é um copywriter especialista em landing pages de alta conversão. Gere uma landing page completa em JSON.
+function buildLPPrompt(wizardData: any, themeInput: any): string {
+  return `Você é um copywriter especialista em landing pages de alta conversão. Gere uma landing page completa em JSON.
 
 DADOS DA OFERTA:
 - Empresa: ${wizardData.companyName || "Não informado"}
@@ -62,6 +50,8 @@ CORES DA MARCA:
 - Primária: ${themeInput?.primaryColor || "#3B82F6"}
 - Secundária: ${themeInput?.secondaryColor || "#1E40AF"}
 
+IMPORTANTE: gere imagens hero com placeholders realistas usando https://picsum.photos/seed/{palavra-chave}/1200/600. Escolha seeds relacionadas ao tema.
+
 Retorne APENAS um JSON válido com esta estrutura exata (sem markdown, sem \`\`\`json):
 {
   "metaTitle": "SEO title otimizada (máx 60 chars)",
@@ -74,26 +64,18 @@ Retorne APENAS um JSON válido com esta estrutura exata (sem markdown, sem \`\`\
         "subheadline": "Subheadline complementar",
         "ctaText": "Texto do botão CTA",
         "ctaUrl": "#form",
-        "imageUrl": "",
+        "imageUrl": "https://picsum.photos/seed/{palavra-chave}/1200/600",
         "alignment": "center",
         "visible": true
       }
     },
     {
       "type": "ProblemBlock",
-      "props": {
-        "title": "Título do problema",
-        "description": "Descrição da dor do cliente",
-        "visible": true
-      }
+      "props": { "title": "Título do problema", "description": "Descrição da dor do cliente", "visible": true }
     },
     {
       "type": "SolutionBlock",
-      "props": {
-        "title": "Título da solução",
-        "description": "Descrição da solução",
-        "visible": true
-      }
+      "props": { "title": "Título da solução", "description": "Descrição da solução", "visible": true }
     },
     {
       "type": "BenefitsBlock",
@@ -112,9 +94,9 @@ Retorne APENAS um JSON válido com esta estrutura exata (sem markdown, sem \`\`\
       "props": {
         "title": "Como funciona",
         "steps": [
-          { "step": "1", "title": "Passo 1", "description": "Descrição do passo" },
-          { "step": "2", "title": "Passo 2", "description": "Descrição do passo" },
-          { "step": "3", "title": "Passo 3", "description": "Descrição do passo" }
+          { "step": "1", "title": "Passo 1", "description": "Descrição" },
+          { "step": "2", "title": "Passo 2", "description": "Descrição" },
+          { "step": "3", "title": "Passo 3", "description": "Descrição" }
         ],
         "visible": true
       }
@@ -124,7 +106,7 @@ Retorne APENAS um JSON válido com esta estrutura exata (sem markdown, sem \`\`\
       "props": {
         "title": "Quem já confia",
         "testimonials": [
-          { "name": "Nome do cliente", "role": "Cargo", "text": "Depoimento real", "photoUrl": "" }
+          { "name": "Nome", "role": "Cargo", "text": "Depoimento real", "photoUrl": "" }
         ],
         "visible": true
       }
@@ -154,7 +136,7 @@ Retorne APENAS um JSON válido com esta estrutura exata (sem markdown, sem \`\`\
       "type": "FormBlock",
       "props": {
         "title": "Solicite um contato",
-        "description": "Preencha o formulário abaixo",
+        "description": "Preencha o formulário",
         "buttonText": "Enviar",
         "fields": ["nome", "telefone", "email", "mensagem"],
         "visible": true
@@ -163,45 +145,172 @@ Retorne APENAS um JSON válido com esta estrutura exata (sem markdown, sem \`\`\
   ],
   "seoSlug": "${generateSlug(wizardData.companyName || wizardData.product || "landing-page")}"
 }`;
+}
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }
-        })
-      });
+function cleanJSONResponse(raw: string): string {
+  return raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+}
 
-      if (!response.ok) {
-        const err = await response.text();
-        console.error("[LP_GEN_ERROR]", err);
-        return res.status(500).json({ error: "Falha ao gerar landing page" });
-      }
+function parseGeneratedContent(rawContent: string): any {
+  const cleaned = cleanJSONResponse(rawContent);
+  return JSON.parse(cleaned);
+}
 
-      const data = await response.json();
-      const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+async function callGemini(prompt: string, geminiKey: string): Promise<string> {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 8192 }
+    })
+  });
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Gemini: ${response.status} ${err.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
 
-      let parsed;
+async function callGroq(prompt: string, groqKey: string): Promise<string> {
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${groqKey}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: "Você é um copywriter especialista em landing pages. Responda apenas com JSON válido." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 8192,
+      response_format: { type: "json_object" }
+    })
+  });
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`Groq: ${response.status} ${err.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+async function callOpenAI(prompt: string, openaiKey: string): Promise<string> {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${openaiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "Você é um copywriter especialista em landing pages. Responda apenas com JSON válido." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 8192,
+      response_format: { type: "json_object" }
+    })
+  });
+  if (!response.ok) {
+    const err = await response.text();
+    throw new Error(`OpenAI: ${response.status} ${err.slice(0, 200)}`);
+  }
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || "";
+}
+
+async function generateWithFallback(prompt: string, keys: any): Promise<string> {
+  const provider = keys.aiProvider || "gemini";
+  const errors: string[] = [];
+
+  const ordered: { name: string; fn: () => Promise<string> }[] = [];
+
+  if (provider === "groq" && keys.groqKey) ordered.push({ name: "Groq", fn: () => callGroq(prompt, keys.groqKey) });
+  if (provider === "openai" && (keys.openaiKey || keys.chatgptKey)) ordered.push({ name: "OpenAI", fn: () => callOpenAI(prompt, keys.openaiKey || keys.chatgptKey) });
+  if (provider === "gemini" && keys.geminiKey) ordered.push({ name: "Gemini", fn: () => callGemini(prompt, keys.geminiKey) });
+
+  if (keys.geminiKey) ordered.push({ name: "Gemini", fn: () => callGemini(prompt, keys.geminiKey) });
+  if (keys.groqKey && provider !== "groq") ordered.push({ name: "Groq", fn: () => callGroq(prompt, keys.groqKey) });
+  if ((keys.openaiKey || keys.chatgptKey) && provider !== "openai") ordered.push({ name: "OpenAI", fn: () => callOpenAI(prompt, keys.openaiKey || keys.chatgptKey) });
+
+  for (const { name, fn } of ordered) {
+    try {
+      const result = await fn();
+      if (result) return result;
+    } catch (err: any) {
+      errors.push(`${name}: ${err.message}`);
+      console.warn(`[LP_FALLBACK] ${name} falhou, tentando próximo...`, err.message);
+    }
+  }
+
+  throw new Error(`Todos os providers falharam: ${errors.join(" | ")}`);
+}
+
+export function landingPageRoutes(prisma: PrismaClient) {
+  const router = Router();
+
+  router.post("/generate-content", async (req: AuthRequest, res) => {
+    try {
+      const orgId = req.user?.orgId;
+      if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+      const { wizardData, theme: themeInput } = req.body;
+      if (!wizardData) return res.status(400).json({ error: "Dados do wizard são obrigatórios" });
+
+      const keys = await getOrgAIKeys(prisma, orgId);
+      const prompt = buildLPPrompt(wizardData, themeInput);
+
+      const rawContent = await generateWithFallback(prompt, keys);
+
+      let parsed: any;
       try {
-        const cleaned = rawContent.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
-        parsed = JSON.parse(cleaned);
+        parsed = parseGeneratedContent(rawContent);
       } catch {
-        return res.status(500).json({ error: "Resposta da IA em formato inválido", raw: rawContent });
+        return res.status(500).json({ error: "Resposta da IA em formato inválido. Tente novamente.", raw: rawContent.slice(0, 500) });
       }
 
       const slug = await ensureUniqueSlug(prisma, parsed.seoSlug || generateSlug(wizardData.companyName || "lp"), orgId);
+      const companyName = wizardData.companyName || wizardData.product || "Landing Page";
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+
+      const heroSection = (parsed.sections || []).find((s: any) => s.type === "HeroBlock");
+      const heroImage = heroSection?.props?.imageUrl || "";
+
+      const page = await prisma.landingPage.create({
+        data: {
+          name: companyName,
+          slug,
+          organizationId: orgId,
+          status: "draft",
+          metaTitle: parsed.metaTitle || companyName,
+          metaDescription: parsed.metaDescription || "",
+          headline: heroSection?.props?.headline || "",
+          heroImage,
+          sections: parsed.sections || [],
+          wizardData,
+          theme: themeInput || {},
+        },
+      });
 
       res.json({
-        name: wizardData.companyName || wizardData.product || "Landing Page",
-        slug,
+        id: page.id,
+        name: page.name,
+        slug: page.slug,
+        url: `${baseUrl}/lp/${page.slug}`,
         metaTitle: parsed.metaTitle || "",
         metaDescription: parsed.metaDescription || "",
         sections: parsed.sections || [],
+        heroImage,
       });
-    } catch (error) {
-      console.error("[LP_GENERATE_ERROR]", error);
-      res.status(500).json({ error: "Erro interno ao gerar landing page" });
+    } catch (error: any) {
+      console.error("[LP_GENERATE_ERROR]", error.message || error);
+      res.status(500).json({ error: error.message || "Erro interno ao gerar landing page" });
     }
   });
 

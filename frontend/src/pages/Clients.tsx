@@ -253,7 +253,7 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
         <div className="px-10 py-6 border-b border-gray-100 flex justify-between items-center shrink-0">
           <div>
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">{initialData ? 'Editar Cliente' : 'Novo Cliente'}</h2>
-            <p className="text-xs text-gray-400 font-medium mt-1">Cadastro completo com dados da empresa, origem, negócio e responsável</p>
+            <p className="text-xs text-gray-500 font-medium mt-1">Cadastro completo com dados da empresa, origem, negócio e responsável</p>
           </div>
           <button onClick={onClose} className="p-2.5 hover:bg-gray-50 rounded-2xl transition-all">
             <X size="22" className="text-gray-400" />
@@ -323,7 +323,7 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Canal de Origem</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Canal de Origem</label>
                     <select className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})}>
                       <option value="Google Ads">Google Ads</option>
                       <option value="Meta Ads">Meta Ads (FB/IG)</option>
@@ -335,7 +335,7 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Status da Conta</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Status da Conta</label>
                     <select className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
                       <option value="prospect">Prospect</option>
                       <option value="onboarding">Onboarding</option>
@@ -344,7 +344,7 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Detalhes da Origem</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Detalhes da Origem</label>
                     <textarea className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all min-h-[100px]" placeholder="Ex: Nome da pessoa que indicou, campanha ou evento específico" value={formData.sourceDetail} onChange={e => setFormData({...formData, sourceDetail: e.target.value})} />
                   </div>
                 </div>
@@ -356,11 +356,11 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
                 <h3 className="text-sm font-bold text-gray-900 mb-5">Dados do Negócio</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Segmento</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Segmento</label>
                     <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="Ex: Advocacia, Saúde" value={formData.segment} onChange={e => setFormData({...formData, segment: e.target.value})} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Porte</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Porte</label>
                     <select className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" value={formData.porte} onChange={e => setFormData({...formData, porte: e.target.value})}>
                       <option value="Micro">Micro (até 10)</option>
                       <option value="Pequeno">Pequeno (até 50)</option>
@@ -369,7 +369,7 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Faturamento Mensal</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Faturamento Mensal</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">R$</span>
                       <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" type="number" placeholder="0,00" value={formData.revenue} onChange={e => setFormData({...formData, revenue: parseFloat(e.target.value) || 0})} />
@@ -384,23 +384,23 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
                 <h3 className="text-sm font-bold text-gray-900 mb-5">Dados do Responsável</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Nome Completo do Decisor</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Nome Completo do Decisor</label>
                     <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" placeholder="Nome completo" value={formData.responsibleName} onChange={e => setFormData({...formData, responsibleName: e.target.value})} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Cargo</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Cargo</label>
                     <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="CEO, Diretor, Sócio" value={formData.responsibleRole} onChange={e => setFormData({...formData, responsibleRole: e.target.value})} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">E-mail Direto</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">E-mail Direto</label>
                     <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" type="email" placeholder="nome@empresa.com" value={formData.responsibleEmail} onChange={e => setFormData({...formData, responsibleEmail: e.target.value})} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Telefone Direto</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">Telefone Direto</label>
                     <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="(11) 99999-9999" value={formData.responsiblePhone} onChange={e => setFormData({...formData, responsiblePhone: e.target.value})} />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">CPF</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1.5">CPF</label>
                     <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-mono" placeholder="000.000.000-00" value={formData.cpf || ''} onChange={e => setFormData({...formData, cpf: e.target.value})} />
                   </div>
                 </div>

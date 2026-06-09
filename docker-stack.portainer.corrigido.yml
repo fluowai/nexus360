@@ -1,0 +1,126 @@
+version: "3.8"
+
+services:
+  frontend:
+    image: ghcr.io/fluowai/nexus360-frontend:latest
+    environment:
+      VITE_API_URL: "same-origin"
+      VITE_LIVEKIT_URL: ""
+      VITE_PANEL_URL: "https://nexus360.consultio.com.br"
+      VITE_SUPABASE_URL: "https://ywvhfgvlnbigfmerilcq.supabase.co"
+      VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3dmhmZ3ZsbmJpZ2ZtZXJpbGNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MDYyOTEsImV4cCI6MjA5MzA4MjI5MX0.2FezfFHWhx7aXYKCTORnvDXeEDfshzHvzyiA9DMP5vs"
+    networks:
+      - consultio1
+      - nexus360_internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=consultio1"
+        - "traefik.http.routers.nexus360_frontend.rule=Host(`nexus360.consultio.com.br`)"
+        - "traefik.http.routers.nexus360_frontend.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_frontend.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_frontend.priority=1"
+        - "traefik.http.routers.nexus360_frontend.service=nexus360_frontend"
+        - "traefik.http.services.nexus360_frontend.loadbalancer.server.port=80"
+
+  api:
+    image: ghcr.io/fluowai/nexus360-api:latest
+    environment:
+      NODE_ENV: "production"
+      PORT: "10000"
+      FRONTEND_URL: "https://nexus360.consultio.com.br"
+      CORS_ORIGINS: "https://nexus360.consultio.com.br,https://www.nexus360.consultio.com.br"
+      WHITELABEL_DOCKER_IP: "207.58.153.219"
+      WHITELABEL_CNAME_TARGET: "nexus360.consultio.com.br"
+      TRAEFIK_SYNC_MODE: "file"
+      TRAEFIK_DYNAMIC_DIR: "/dynamic"
+      TRAEFIK_FRONTEND_URL: "http://nexus360_frontend:80"
+      TRAEFIK_API_URL: "http://nexus360_api:10000"
+      TRAEFIK_CERT_RESOLVER: "letsencryptresolver"
+      TRAEFIK_ROUTER_SERVICE: "nexus360_frontend"
+      TRAEFIK_ROUTER_LABEL_PREFIX: "nexus360_custom"
+      TRAEFIK_DOCKER_NETWORK: "consultio1"
+      DOCKER_SOCKET_PATH: "/var/run/docker.sock"
+      DATABASE_URL: "postgresql://postgres.ywvhfgvlnbigfmerilcq:Q8YvwfX28WWhW3dz@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
+      DIRECT_URL: "postgresql://postgres:Q8YvwfX28WWhW3dz@db.ywvhfgvlnbigfmerilcq.supabase.co:5432/postgres?sslmode=require&schema=public"
+      SUPABASE_DB_URL: "postgresql://postgres.ywvhfgvlnbigfmerilcq:Q8YvwfX28WWhW3dz@aws-1-sa-east-1.pooler.supabase.com:6543/postgres?sslmode=require"
+      PGSSLMODE: "require"
+      JWT_SECRET: "MTluDh9gIwUTonk9op8kRc3B/cYihNKj2RYPL8+0D1F6iCykx2shnfvPJLmJsJ/cn0z81JFY52G5os0hFjokuQ=="
+      SUPABASE_URL: "https://ywvhfgvlnbigfmerilcq.supabase.co"
+      SUPABASE_REST_URL: "https://ywvhfgvlnbigfmerilcq.supabase.co/rest/v1"
+      SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3dmhmZ3ZsbmJpZ2ZtZXJpbGNxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MDYyOTEsImV4cCI6MjA5MzA4MjI5MX0.2FezfFHWhx7aXYKCTORnvDXeEDfshzHvzyiA9DMP5vs"
+      SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3dmhmZ3ZsbmJpZ2ZtZXJpbGNxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzUwNjI5MSwiZXhwIjoyMDkzMDgyMjkxfQ.wIihcD0zm4rqQwvur7Smzy3-5sc0YJgTWwSQR5u47AE"
+      SUPABASE_JWT_SECRET: "MTluDh9gIwUTonk9op8kRc3B/cYihNKj2RYPL8+0D1F6iCykx2shnfvPJLmJsJ/cn0z81JFY52G5os0hFjokuQ=="
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT}"
+      MINIO_PORT: "${MINIO_PORT:-443}"
+      MINIO_USE_SSL: "${MINIO_USE_SSL:-true}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY}"
+      MINIO_PUBLIC_URL: "${MINIO_PUBLIC_URL}"
+      MINIO_REGION: "${MINIO_REGION:-us-east-1}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      SERPER_API_KEY: "${SERPER_API_KEY:-}"
+      SERPAPI_API_KEY: "${SERPAPI_API_KEY:-}"
+      SERP_API_KEY: "${SERP_API_KEY:-}"
+      OUTSCRAPER_API_KEY: "${OUTSCRAPER_API_KEY:-}"
+      OUTSCRAPER_KEY: "${OUTSCRAPER_KEY:-}"
+      MUAC_API_KEY: "${MUAC_API_KEY:-}"
+      TOGETHER_API_KEY: "${TOGETHER_API_KEY:-}"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-}"
+      LIVEKIT_URL: "${LIVEKIT_URL:-}"
+      BILLING_WEBHOOK_SECRET: "${BILLING_WEBHOOK_SECRET:-}"
+      ASAAS_WEBHOOK_SECRET: "${ASAAS_WEBHOOK_SECRET:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      WHATSAPP_BRIDGE_URL: "${WHATSAPP_BRIDGE_URL:-}"
+      WHATSAPP_BRIDGE_SECRET: "${WHATSAPP_BRIDGE_SECRET:-}"
+    volumes:
+      - type: volume
+        source: imobzy_traefik_dynamic
+        target: /dynamic
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    networks:
+      consultio1:
+      nexus360_internal:
+        aliases:
+          - backend
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+      update_config:
+        order: stop-first
+        failure_action: rollback
+      rollback_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=consultio1"
+        - "traefik.http.routers.nexus360_api.rule=Host(`nexus360.consultio.com.br`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
+        - "traefik.http.routers.nexus360_api.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_api.priority=10"
+        - "traefik.http.routers.nexus360_api.service=nexus360_api"
+        - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
+
+volumes:
+  imobzy_traefik_dynamic:
+    external: true
+    name: imobzy_traefik_dynamic
+
+networks:
+  consultio1:
+    external: true
+    name: consultio1
+  nexus360_internal:
+    driver: overlay
+    attachable: true

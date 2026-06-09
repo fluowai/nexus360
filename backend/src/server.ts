@@ -59,6 +59,7 @@ import { prospectRoutes } from "./routes/prospect.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { omnichannelRoutes } from "./routes/omnichannel.js";
 import { whatsappRoutes, whatsappInternalRoutes } from "./routes/whatsapp.js";
+import { storageRoutes, adminStorageRoutes } from "./routes/storage.js";
 
 const app = express();
 
@@ -327,6 +328,8 @@ const protectedRoutes = [
   { path: "/api/whatsapp", router: whatsappRoutes },
   { path: "/api/acp", router: acpRoutes },
   { path: "/api/agent-queue", router: agentQueueRoutes },
+  { path: "/api/storage", router: storageRoutes },
+  { path: "/api/admin/storage", router: adminStorageRoutes },
 ];
 
 // Rotas Administrativas de Planos

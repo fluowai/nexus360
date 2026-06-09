@@ -113,7 +113,24 @@ export function livekitRoutes(prisma: PrismaClient) {
         return res.status(400).json({ error: "roomName, participantName, email and code are required" });
       }
 
-      const meeting = scheduledMeetings.get(String(code));
+      let meeting = scheduledMeetings.get(String(code));
+
+      if (!meeting) {
+        const dbEvent = await prisma.calendarEvent.findFirst({
+          where: { meetingLink: { contains: `code=${code}` } },
+        });
+        if (dbEvent) {
+          meeting = {
+            id: dbEvent.meetingLink?.split("?")[0].split("/").pop(),
+            title: dbEvent.title,
+            code,
+            orgId: dbEvent.organizationId,
+            expiresAt: new Date(dbEvent.endDate || dbEvent.startDate).getTime() + 24 * 60 * 60 * 1000,
+            guests: [],
+          };
+        }
+      }
+
       const expectedRoomName = meeting ? `nexus-360-${meeting.id}` : null;
       if (!meeting || meeting.expiresAt < Date.now() || !isGuestAllowed(meeting, normalizeEmail(email))) {
         return res.status(403).json({ error: "Acesso a reuniao negado." });

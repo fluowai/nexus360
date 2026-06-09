@@ -214,7 +214,8 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
     responsibleName: initialData?.responsibleName || '',
     responsibleEmail: initialData?.responsibleEmail || '',
     responsiblePhone: initialData?.responsiblePhone || '',
-    responsibleRole: initialData?.responsibleRole || ''
+    responsibleRole: initialData?.responsibleRole || '',
+    cpf: initialData?.cpf || ''
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -239,194 +240,185 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
   };
 
   const tabs = [
-    { id: 'empresa', label: '🏢 Empresa', icon: <Building2 size={14} /> },
-    { id: 'raiox', label: '🎯 Raio-X Origem', icon: <Target size={14} /> },
-    { id: 'business', label: '💼 Negócio', icon: <Briefcase size={14} /> },
-    { id: 'pessoa', label: '👤 Responsável', icon: <Users size={14} /> },
+    { id: 'empresa', label: 'Empresa', icon: Building2 },
+    { id: 'raiox', label: 'Raio-X', icon: Target },
+    { id: 'business', label: 'Negócio', icon: Briefcase },
+    { id: 'pessoa', label: 'Responsável', icon: Users },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-      />
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-[32px] shadow-2xl w-full max-w-2xl overflow-hidden relative z-10 flex flex-col max-h-[90vh]"
-      >
-        <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-slate-50/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+      <div onClick={onClose} className="absolute inset-0 bg-black/60" />
+      <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-5xl overflow-hidden relative z-10 flex flex-col max-h-[92vh]">
+        <div className="px-10 py-6 border-b border-gray-100 flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-xl font-black text-gray-900 tracking-tight">{initialData ? 'Editar Cliente' : 'Novo Cliente Premium'}</h2>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Cadastro Detalhado 360°</p>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">{initialData ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+            <p className="text-xs text-gray-400 font-medium mt-1">Cadastro completo com dados da empresa, origem, negócio e responsável</p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white rounded-full transition-all">
-            <X size={20} className="text-gray-400" />
+          <button onClick={onClose} className="p-2.5 hover:bg-gray-50 rounded-2xl transition-all">
+            <X size="22" className="text-gray-400" />
           </button>
         </div>
 
-        {/* Tab Selector */}
-        <div className="flex border-b border-gray-100 px-8 bg-gray-50/30">
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id as any)}
-              className={`px-4 py-4 text-[10px] font-black uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${tab === t.id ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
+        <div className="flex gap-1 px-10 pt-6 pb-4 bg-gray-50/30 border-b border-gray-100 shrink-0 overflow-x-auto">
+          {tabs.map(t => {
+            const Icon = t.icon;
+            const isActive = tab === t.id;
+            return (
+              <button key={t.id} onClick={() => setTab(t.id as any)}
+                className={`flex items-center gap-2.5 px-5 py-3 rounded-2xl text-xs font-bold transition-all whitespace-nowrap ${isActive ? 'bg-white text-gray-900 shadow-sm border border-gray-200' : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'}`}
+              >
+                <Icon size={16} className={isActive ? 'text-blue-600' : ''} /> {t.label}
+              </button>
+            );
+          })}
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 overflow-y-auto flex-1 custom-scrollbar">
-          <AnimatePresence mode="wait">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-10 py-8">
+          <div className="max-w-4xl">
             {tab === 'empresa' && (
-              <motion.div 
-                key="empresa" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
-                className="space-y-6"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-2 md:col-span-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Razão Social</label>
-                    <input className="modal-input font-bold" placeholder="Nome Jurídico Completo" value={formData.corporateName} onChange={e => setFormData({...formData, corporateName: e.target.value})} required />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome Fantasia</label>
-                    <input className="modal-input" placeholder="Como é conhecido" value={formData.tradeName} onChange={e => setFormData({...formData, tradeName: e.target.value})} />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">CNPJ</label>
-                    <input className="modal-input" placeholder="00.000.000/0001-00" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">E-mail Corporativo</label>
-                    <input className="modal-input" type="email" placeholder="financeiro@empresa.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">WhatsApp/Telefone</label>
-                    <input className="modal-input" placeholder="(11) 99999-9999" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 mb-5">Dados da Empresa</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">Razão Social</label>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" placeholder="Nome jurídico completo" value={formData.corporateName} onChange={e => setFormData({...formData, corporateName: e.target.value})} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">Nome Fantasia</label>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="Como é conhecida" value={formData.tradeName} onChange={e => setFormData({...formData, tradeName: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">CNPJ</label>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-mono" placeholder="00.000.000/0001-00" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">E-mail Corporativo</label>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" type="email" placeholder="contato@empresa.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">Telefone / WhatsApp</label>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="(11) 99999-9999" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">Site</label>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="https://..." value={formData.website} onChange={e => setFormData({...formData, website: e.target.value})} />
+                    </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {tab === 'raiox' && (
-              <motion.div 
-                key="raiox" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
-                className="space-y-6"
-              >
-                <div className="p-6 bg-blue-50/50 rounded-[24px] border border-blue-100 flex items-start gap-4 mb-6">
-                   <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center text-white shadow-lg">
-                      <Sparkles size={24} />
-                   </div>
-                   <div>
-                      <h4 className="font-bold text-blue-900 leading-none mb-1 text-sm">Raio-X de Aquisição</h4>
-                      <p className="text-xs text-blue-600/70">Entenda de onde esse cliente veio para otimizar seu CAC.</p>
-                   </div>
+              <div className="space-y-8">
+                <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100 flex items-start gap-4">
+                  <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-md shrink-0">
+                    <Sparkles size="24" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-blue-900 text-sm">Raio-X de Aquisição</h4>
+                    <p className="text-xs text-blue-600/70 mt-0.5">Entenda de onde esse cliente veio para otimizar seu CAC.</p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Canal de Origem</label>
-                    <select className="modal-input font-bold" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Canal de Origem</label>
+                    <select className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})}>
                       <option value="Google Ads">Google Ads</option>
                       <option value="Meta Ads">Meta Ads (FB/IG)</option>
                       <option value="Indicação">Indicação</option>
-                      <option value="Prospecção Ativa">Prospecção Ativa (Cold Call/Email)</option>
+                      <option value="Prospecção Ativa">Prospecção Ativa</option>
                       <option value="LinkedIn">LinkedIn</option>
                       <option value="Orgânico / SEO">Orgânico / SEO</option>
                       <option value="Evento / Networking">Evento / Networking</option>
                     </select>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status da Conta</label>
-                    <select className="modal-input font-bold" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                      <option value="prospect">Prospect (Em negociação)</option>
-                      <option value="onboarding">Onboarding (Implantando)</option>
-                      <option value="ativo">Ativo (Rodando)</option>
-                      <option value="churned">Churn (Perdido)</option>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Status da Conta</label>
+                    <select className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                      <option value="prospect">Prospect</option>
+                      <option value="onboarding">Onboarding</option>
+                      <option value="ativo">Ativo</option>
+                      <option value="churned">Churn</option>
                     </select>
                   </div>
-                  <div className="flex flex-col gap-2 md:col-span-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Detalhes da Origem</label>
-                    <textarea className="modal-input min-h-[100px]" placeholder="Ex: Nome da pessoa que indicou ou Campanha 'Advocacia SP - 2024'" value={formData.sourceDetail} onChange={e => setFormData({...formData, sourceDetail: e.target.value})} />
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Detalhes da Origem</label>
+                    <textarea className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all min-h-[100px]" placeholder="Ex: Nome da pessoa que indicou, campanha ou evento específico" value={formData.sourceDetail} onChange={e => setFormData({...formData, sourceDetail: e.target.value})} />
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {tab === 'business' && (
-              <motion.div 
-                key="business" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
-                className="space-y-6"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Segmento / Nicho</label>
-                    <input className="modal-input" placeholder="Ex: Advocacia, Saúde, Varejo" value={formData.segment} onChange={e => setFormData({...formData, segment: e.target.value})} />
+              <div className="space-y-8">
+                <h3 className="text-sm font-bold text-gray-900 mb-5">Dados do Negócio</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Segmento</label>
+                    <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="Ex: Advocacia, Saúde" value={formData.segment} onChange={e => setFormData({...formData, segment: e.target.value})} />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Porte da Empresa</label>
-                    <select className="modal-input" value={formData.porte} onChange={e => setFormData({...formData, porte: e.target.value})}>
-                      <option value="Micro">Micro (Até 10 func.)</option>
-                      <option value="Pequeno">Pequeno (Até 50 func.)</option>
-                      <option value="Médio">Médio (Até 250 func.)</option>
-                      <option value="Grande">Grande (Acima de 250 func.)</option>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Porte</label>
+                    <select className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" value={formData.porte} onChange={e => setFormData({...formData, porte: e.target.value})}>
+                      <option value="Micro">Micro (até 10)</option>
+                      <option value="Pequeno">Pequeno (até 50)</option>
+                      <option value="Médio">Médio (até 250)</option>
+                      <option value="Grande">Grande (250+)</option>
                     </select>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Faturamento Estimado (Mensal)</label>
-                    <input className="modal-input" type="number" placeholder="R$ 0,00" value={formData.revenue} onChange={e => setFormData({...formData, revenue: parseFloat(e.target.value)})} />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Site / URL</label>
-                    <input className="modal-input" placeholder="https://..." value={formData.website} onChange={e => setFormData({...formData, website: e.target.value})} />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Faturamento Mensal</label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">R$</span>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" type="number" placeholder="0,00" value={formData.revenue} onChange={e => setFormData({...formData, revenue: parseFloat(e.target.value) || 0})} />
+                    </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {tab === 'pessoa' && (
-              <motion.div 
-                key="pessoa" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
-                className="space-y-6"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex flex-col gap-2 md:col-span-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nome do Responsável / Decisor</label>
-                    <input className="modal-input font-bold" placeholder="Nome Completo" value={formData.responsibleName} onChange={e => setFormData({...formData, responsibleName: e.target.value})} />
+              <div className="space-y-8">
+                <h3 className="text-sm font-bold text-gray-900 mb-5">Dados do Responsável</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Nome Completo do Decisor</label>
+                    <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-semibold" placeholder="Nome completo" value={formData.responsibleName} onChange={e => setFormData({...formData, responsibleName: e.target.value})} />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Cargo</label>
-                    <input className="modal-input" placeholder="Ex: CEO, Diretor Comercial" value={formData.responsibleRole} onChange={e => setFormData({...formData, responsibleRole: e.target.value})} />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Cargo</label>
+                    <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="CEO, Diretor, Sócio" value={formData.responsibleRole} onChange={e => setFormData({...formData, responsibleRole: e.target.value})} />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">E-mail Direto</label>
-                    <input className="modal-input" type="email" placeholder="nome@empresa.com" value={formData.responsibleEmail} onChange={e => setFormData({...formData, responsibleEmail: e.target.value})} />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">E-mail Direto</label>
+                    <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" type="email" placeholder="nome@empresa.com" value={formData.responsibleEmail} onChange={e => setFormData({...formData, responsibleEmail: e.target.value})} />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Telefone Direto</label>
-                    <input className="modal-input" placeholder="(11) 99999-9999" value={formData.responsiblePhone} onChange={e => setFormData({...formData, responsiblePhone: e.target.value})} />
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">Telefone Direto</label>
+                    <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" placeholder="(11) 99999-9999" value={formData.responsiblePhone} onChange={e => setFormData({...formData, responsiblePhone: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">CPF</label>
+                    <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-mono" placeholder="000.000.000-00" value={formData.cpf || ''} onChange={e => setFormData({...formData, cpf: e.target.value})} />
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          </div>
 
-          <div className="pt-10 flex gap-4 mt-auto">
-            <button type="button" onClick={onClose} className="flex-1 py-4 text-xs font-black uppercase text-gray-400 hover:text-gray-600 transition-all">Cancelar</button>
-            <button 
-              type="submit" 
-              disabled={submitting}
-              className="flex-[2] py-4 bg-primary text-white text-xs font-black uppercase rounded-2xl shadow-xl shadow-blue-100 hover:bg-blue-600 transition-all flex items-center justify-center gap-2"
+          <div className="mt-10 pt-6 border-t border-gray-100 flex items-center justify-between gap-4">
+            <button type="button" onClick={onClose} className="px-6 py-3.5 text-sm font-semibold text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-50 transition-all">Cancelar</button>
+            <button type="submit" disabled={submitting}
+              className="px-10 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-bold rounded-xl hover:opacity-90 disabled:opacity-50 transition-all flex items-center gap-2 shadow-lg shadow-blue-600/20"
             >
-              {submitting ? 'Salvando...' : (initialData ? 'Salvar Alterações' : 'Cadastrar Cliente')}
-              {!submitting && <ChevronRight size={16} />}
+              {submitting ? 'Salvando...' : initialData ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+              {!submitting && <ChevronRight size={18} />}
             </button>
           </div>
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 }

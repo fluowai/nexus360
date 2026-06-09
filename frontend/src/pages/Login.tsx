@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch, readJsonResponse, setAccessToken } from "../lib/api";
 import { workspacePath } from "../lib/workspaceRoute";
 import { useWhitelabel } from "../lib/useWhitelabel";
-import { Mail, Lock, ArrowRight, Zap } from "lucide-react";
-import { motion } from "motion/react";
+import { Mail, Lock, ArrowRight, Zap, Palette, Monitor, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 export default function Login({ onAuthenticated }: { onAuthenticated?: (user: any) => void }) {
   const [email, setEmail] = useState("");
@@ -14,10 +14,15 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
   const navigate = useNavigate();
 
   const [isRegister, setIsRegister] = useState(false);
+  const [isWhitelabel, setIsWhitelabel] = useState(false);
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
+  const [brandName, setBrandName] = useState("");
+  const [wlPrimaryColor, setWlPrimaryColor] = useState("#3B82F6");
+  const [wlSecondaryColor, setWlSecondaryColor] = useState("#1E40AF");
+  const [wlLogoUrl, setWlLogoUrl] = useState("");
   const { config: whiteLabel, customDomain } = useWhitelabel();
-  const brandName = whiteLabel?.name || "Nexus360";
+  const brandLabel = whiteLabel?.name || "Nexus360";
 
   useEffect(() => {
     if (customDomain) setIsRegister(false);
@@ -33,9 +38,13 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
         throw new Error("Cadastro indisponivel neste dominio.");
       }
 
-      const endpoint = isRegister ? "/api/auth/register" : "/api/auth/login";
-      const body = isRegister 
-        ? { name, email, password, organizationName: orgName }
+      const endpoint = isRegister
+        ? (isWhitelabel ? "/api/auth/register/whitelabel" : "/api/auth/register")
+        : "/api/auth/login";
+      const body = isRegister
+        ? isWhitelabel
+          ? { name, email, password, organizationName: orgName, brandName: brandName || orgName, logoUrl: wlLogoUrl || undefined, primaryColor: wlPrimaryColor, secondaryColor: wlSecondaryColor }
+          : { name, email, password, organizationName: orgName }
         : { email, password };
 
       const res = await apiFetch(endpoint, {
@@ -55,11 +64,16 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
       localStorage.setItem("nexus_user_name", data.user.name || "");
       localStorage.setItem("nexus_org_id", data.user.orgId);
       localStorage.setItem("nexus_org_slug", data.user.orgSlug || "");
+      localStorage.setItem("nexus_org_type", data.user.orgType || "CLIENT");
       localStorage.setItem("nexus_beta_access", String(data.user.betaAccess || false));
       localStorage.setItem("nexus_is_test", String(data.user.isTestAccount || false));
       
       if (isRegister) {
-        navigate("/onboarding");
+        if (isWhitelabel) {
+          navigate("/onboarding/whitelabel");
+        } else {
+          navigate("/onboarding");
+        }
       } else {
         localStorage.setItem("nexus_onboarding_done", "true");
         if (data.user.role === 'SUPER_ADMIN') {
@@ -102,7 +116,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
               </div>
             )}
             <div className="text-center">
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900">{brandName}</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900">{brandLabel}</h1>
               <p className="text-sm text-gray-400 font-medium uppercase tracking-widest mt-1">
                 {customDomain ? "Portal do cliente" : "Agency OS"}
               </p>
@@ -110,18 +124,25 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
           </div>
 
           {!customDomain && (
-            <div className="flex bg-gray-50 p-1 rounded-2xl mb-8">
+            <div className="flex bg-gray-50 p-1 rounded-2xl mb-4">
               <button
-                onClick={() => setIsRegister(false)}
+                onClick={() => { setIsRegister(false); setIsWhitelabel(false); }}
                 className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${!isRegister ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 Login
               </button>
               <button
-                onClick={() => setIsRegister(true)}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${isRegister ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+                onClick={() => { setIsRegister(true); setIsWhitelabel(false); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${isRegister && !isWhitelabel ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 Cadastro
+              </button>
+              <button
+                onClick={() => { setIsRegister(true); setIsWhitelabel(true); }}
+                className={`flex items-center justify-center gap-1.5 flex-1 py-2 text-xs font-bold rounded-xl transition-all ${isRegister && isWhitelabel ? 'bg-white shadow-sm text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                <Palette size={12} />
+                White Label
               </button>
             </div>
           )}
@@ -138,7 +159,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
           )}
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-            {isRegister && (
+            {isRegister && !isWhitelabel && (
               <>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nome Completo</label>
@@ -163,6 +184,104 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
                   />
                 </div>
               </>
+            )}
+
+            {isRegister && isWhitelabel && (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key="wl-fields"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 overflow-hidden"
+                >
+                  <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3">
+                    <Palette className="text-blue-500 shrink-0 mt-0.5" size={16} />
+                    <p className="text-[10px] text-blue-700">Parceiro White Label — personalize o sistema com sua marca para revender para seus clientes.</p>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nome Completo</label>
+                    <input 
+                      type="text"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="Seu nome"
+                      value={name}
+                      onChange={e => setName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nome da Agência</label>
+                    <input 
+                      type="text"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="Ex: Agência Exemplo"
+                      value={orgName}
+                      onChange={e => setOrgName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Nome da Marca (white label)</label>
+                    <input 
+                      type="text"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="Ex: Meu CRM"
+                      value={brandName}
+                      onChange={e => setBrandName(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Logo URL (opcional)</label>
+                    <input 
+                      type="url"
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      placeholder="https://..."
+                      value={wlLogoUrl}
+                      onChange={e => setWlLogoUrl(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Cor Primária</label>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="color"
+                          className="w-10 h-10 rounded-lg border border-gray-200 bg-transparent cursor-pointer shrink-0"
+                          value={wlPrimaryColor}
+                          onChange={e => setWlPrimaryColor(e.target.value)}
+                        />
+                        <input
+                          className="flex-1 bg-gray-50 border border-gray-100 rounded-xl py-3 px-3 text-xs font-mono outline-none uppercase"
+                          value={wlPrimaryColor}
+                          onChange={e => setWlPrimaryColor(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Cor Secundária</label>
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="color"
+                          className="w-10 h-10 rounded-lg border border-gray-200 bg-transparent cursor-pointer shrink-0"
+                          value={wlSecondaryColor}
+                          onChange={e => setWlSecondaryColor(e.target.value)}
+                        />
+                        <input
+                          className="flex-1 bg-gray-50 border border-gray-100 rounded-xl py-3 px-3 text-xs font-mono outline-none uppercase"
+                          value={wlSecondaryColor}
+                          onChange={e => setWlSecondaryColor(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
             )}
 
             <div className="flex flex-col gap-1.5">
@@ -200,7 +319,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
               type="submit"
               className="mt-4 w-full bg-primary text-white font-bold py-4 rounded-2xl shadow-xl shadow-primary/20 hover:bg-blue-600 transition-all flex items-center justify-center gap-2 group"
             >
-              {loading ? "Processando..." : isRegister ? "Criar Minha Agência" : "Entrar no Dashboard"}
+              {loading ? "Processando..." : isRegister && isWhitelabel ? "Criar Agência White Label" : isRegister ? "Criar Minha Agência" : "Entrar no Dashboard"}
               {!loading && <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />}
             </button>
           </form>

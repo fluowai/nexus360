@@ -30,6 +30,8 @@ const SoldServicesPage = lazy(() => import("./pages/SoldServices"));
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
 const Onboarding = lazy(() => import("./pages/OnboardingWizard"));
 const OnboardingPreview = lazy(() => import("./pages/OnboardingPreview"));
+const WhitelabelOnboarding = lazy(() => import("./pages/WhitelabelOnboardingWizard"));
+const WhitelabelOnboardingPreview = lazy(() => import("./pages/WhitelabelOnboardingPreview"));
 const AgentsHub = lazy(() => import("./pages/AgentsHub"));
 const AISettings = lazy(() => import("./pages/AISettings"));
 const Finance = lazy(() => import("./pages/Finance"));
@@ -87,6 +89,8 @@ function isPublicPath(pathname: string) {
   return (
     pathname === '/login' ||
     pathname === '/onboarding' ||
+    pathname === '/onboarding/whitelabel' ||
+    pathname === '/onboarding/whitelabel/preview' ||
     pathname === '/site' ||
     pathname === '/vendas' ||
     pathname.startsWith('/meet') ||
@@ -213,8 +217,13 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
       return;
     }
 
-    if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding' && !isCustomWorkspaceHost()) {
-      navigate('/onboarding', { replace: true });
+    if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding' && pathname !== '/onboarding/whitelabel' && !isCustomWorkspaceHost()) {
+      const orgType = localStorage.getItem('nexus_org_type');
+      if (orgType === 'WHITELABEL') {
+        navigate('/onboarding/whitelabel', { replace: true });
+      } else {
+        navigate('/onboarding', { replace: true });
+      }
     }
   }, [navigate, pathname, selectedClientId, user?.role]);
 }
@@ -294,6 +303,8 @@ export default function App() {
           <Route path="/login" element={<Login onAuthenticated={setUser} />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/onboarding/preview" element={<OnboardingPreview />} />
+          <Route path="/onboarding/whitelabel" element={<WhitelabelOnboarding />} />
+          <Route path="/onboarding/whitelabel/preview" element={<WhitelabelOnboardingPreview />} />
           <Route path="/meet/:roomName" element={<MeetingRoom />} />
           <Route path="/landing-demo" element={<LandingDemo />} />
           <Route path="/landing-editor" element={<LandingEditor />} />

@@ -469,5 +469,37 @@ RESPOSTA (apenas JSON válido):`;
     }
   });
 
+  router.get("/whitelabel", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { whiteLabelConfig: true, type: true, slug: true, domain: true, limitsUsage: true },
+      });
+      res.json(org || { whiteLabelConfig: null, type: "CLIENT" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch whitelabel config" });
+    }
+  });
+
+  router.patch("/whitelabel", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const { whiteLabelConfig } = req.body;
+      const org = await prisma.organization.update({
+        where: { id: orgId },
+        data: { whiteLabelConfig: whiteLabelConfig || undefined },
+        select: { whiteLabelConfig: true },
+      });
+      res.json({ success: true, whiteLabelConfig: org.whiteLabelConfig });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update whitelabel config" });
+    }
+  });
+
   return router;
 }

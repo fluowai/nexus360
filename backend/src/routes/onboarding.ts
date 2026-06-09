@@ -38,6 +38,10 @@ export function onboardingRoutes(prisma: PrismaClient) {
   router.get("/status", async (req: AuthRequest, res, next) => {
     try {
       const orgId = req.user!.orgId;
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { type: true, whiteLabelConfig: true, settings: true },
+      });
       const response = await prisma.onboardingResponse.findUnique({
         where: { organizationId: orgId },
         select: { id: true, appliedAt: true, recommendedTemplate: true, aiDiagnosis: true, createdAt: true },
@@ -46,6 +50,15 @@ export function onboardingRoutes(prisma: PrismaClient) {
         completed: !!response?.appliedAt,
         started: !!response,
         response,
+        orgType: org?.type || "CLIENT",
+        isWhitelabel: org?.type === "WHITELABEL",
+        whiteLabelConfig: org?.whiteLabelConfig || null,
+        whitelabelOnboarding: org?.type === "WHITELABEL"
+          ? {
+              step: (org?.settings as any)?.whitelabelOnboardingStep || 1,
+              complete: (org?.settings as any)?.whitelabelOnboardingComplete || false,
+            }
+          : null,
       });
     } catch (error) {
       next(error);

@@ -57,6 +57,7 @@ import { proposalRoutes } from "./routes/proposals.js";
 import { privacyRoutes } from "./routes/privacy.js";
 import { prospectRoutes } from "./routes/prospect.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
+import { onboardingWhitelabelRoutes } from "./routes/onboardingWhitelabel.js";
 import { omnichannelRoutes } from "./routes/omnichannel.js";
 import { whatsappRoutes, whatsappInternalRoutes } from "./routes/whatsapp.js";
 import { storageRoutes, adminStorageRoutes } from "./routes/storage.js";
@@ -324,6 +325,7 @@ const protectedRoutes = [
   { path: "/api/privacy", router: privacyRoutes },
   { path: "/api/nexus-prospect", router: prospectRoutes },
   { path: "/api/onboarding", router: onboardingRoutes },
+  { path: "/api/onboarding/whitelabel", router: onboardingWhitelabelRoutes },
   { path: "/api/omnichannel", router: omnichannelRoutes },
   { path: "/api/whatsapp", router: whatsappRoutes },
   { path: "/api/acp", router: acpRoutes },

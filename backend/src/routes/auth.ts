@@ -216,6 +216,8 @@ export function authRoutes(prisma: PrismaClient) {
         userAgent: getClientUA(req),
       });
 
+      const orgType = user.organization?.type || "CLIENT";
+
       return res.json({
         success: true,
         token: accessToken,
@@ -232,6 +234,7 @@ export function authRoutes(prisma: PrismaClient) {
           orgId,
           orgName,
           orgSlug,
+          orgType,
           agencyId: user.agencyId,
           subscriptionStatus:
             user.organization?.subscriptionStatus || "TRIAL",
@@ -387,6 +390,8 @@ export function authRoutes(prisma: PrismaClient) {
           role: user.role,
           orgId,
           orgName,
+          orgType: user.organization?.type || "CLIENT",
+          whiteLabelConfig: user.organization?.whiteLabelConfig || null,
           plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
           usage: {
             leads: user.organization?._count?.leads || 0,
@@ -421,6 +426,130 @@ export function authRoutes(prisma: PrismaClient) {
     } catch (error) {
       console.error("[LOGOUT_ERROR]", error);
       return res.json({ success: true, message: "Logout realizado." });
+    }
+  });
+
+  // ==================== REGISTER WHITELABEL ====================
+  router.post("/register/whitelabel", async (req, res) => {
+    const { name, email, password, organizationName, brandName, logoUrl, primaryColor, secondaryColor } = req.body;
+
+    if (!name || !email || !password || !organizationName) {
+      return res.status(400).json({
+        error: "Todos os campos (nome, email, senha, nome da agência) são obrigatórios.",
+      });
+    }
+
+    const passwordError = assertStrongPassword(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
+    try {
+      const tenantDomain = await findTenantHostContext(
+        prisma,
+        req.headers["x-forwarded-host"] || req.headers.host
+      );
+      if (tenantDomain) {
+        return res.status(403).json({
+          error: "Cadastro indisponivel neste dominio.",
+          code: "CUSTOM_DOMAIN_REGISTRATION_DISABLED",
+        });
+      }
+
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser)
+        return res.status(400).json({ error: "Este email já está em uso." });
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const wlConfig: Record<string, any> = {
+          name: brandName || organizationName,
+        };
+        if (logoUrl) wlConfig.logoUrl = logoUrl;
+        if (primaryColor) wlConfig.primaryColor = primaryColor;
+        if (secondaryColor) wlConfig.secondaryColor = secondaryColor;
+
+        const org = await tx.organization.create({
+          data: {
+            name: organizationName,
+            type: "WHITELABEL",
+            slug: organizationName
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-z0-9]/g, "-"),
+            domain: email.split("@")[1],
+            plan: "Free",
+            whiteLabelConfig: wlConfig,
+            settings: { whitelabelOnboardingStep: 1, whitelabelOnboardingComplete: false },
+          },
+        });
+        const user = await tx.user.create({
+          data: {
+            name,
+            email,
+            password: hashedPassword,
+            role: "ORG_ADMIN",
+            organizationId: org.id,
+          },
+        });
+        return { user, org };
+      });
+
+      const accessToken = generateAccessToken({
+        id: result.user.id,
+        orgId: result.org.id,
+        role: result.user.role,
+      });
+
+      const refreshToken = generateRefreshToken({
+        id: result.user.id,
+        orgId: result.org.id,
+      });
+      setRefreshTokenCookie(res, refreshToken);
+
+      const refreshTokenHash = crypto
+        .createHash("sha256")
+        .update(refreshToken)
+        .digest("hex");
+
+      await prisma.refreshToken.create({
+        data: {
+          token: refreshTokenHash,
+          userId: result.user.id,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          ip: getClientIp(req),
+          userAgent: getClientUA(req),
+        },
+      });
+
+      logAudit({
+        organizationId: result.org.id,
+        userId: result.user.id,
+        action: "CREATE",
+        resource: "Organization",
+        resourceId: result.org.id,
+        ip: getClientIp(req),
+        userAgent: getClientUA(req),
+      });
+
+      res.status(201).json({
+        token: accessToken,
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role,
+          orgId: result.org.id,
+          orgName: result.org.name,
+          orgSlug: result.org.slug,
+          orgType: "WHITELABEL",
+        },
+      });
+    } catch (error) {
+      console.error("[REGISTER_WHITELABEL_ERROR]", error);
+      res.status(500).json({ error: "Falha ao registrar parceiro whitelabel." });
     }
   });
 
@@ -594,6 +723,8 @@ export function authRoutes(prisma: PrismaClient) {
         orgId,
         orgName,
         orgSlug,
+        orgType: user.organization?.type || "CLIENT",
+        whiteLabelConfig: user.organization?.whiteLabelConfig || null,
         agencyId: user.agencyId,
         subscriptionStatus:
           user.organization?.subscriptionStatus || "TRIAL",

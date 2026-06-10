@@ -226,14 +226,18 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
     try {
       const url = initialData ? `/api/clients/${initialData.id}` : '/api/clients';
       const method = initialData ? 'PATCH' : 'POST';
-      await apiFetch(url, {
+      const res = await apiFetch(url, {
         method,
         body: JSON.stringify(formData)
       });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || "Erro ao salvar cliente.");
+      }
       onSuccess();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Erro ao salvar cliente.");
+      alert(err?.message || "Erro ao salvar cliente.");
     } finally {
       setSubmitting(false);
     }

@@ -7,6 +7,12 @@ import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
 import { pickBestDecisionMaker, upsertDecisionMakersFromLead } from "../services/prospectingAutomation.js";
 
+function normalizeDocument(value: unknown) {
+  if (typeof value !== "string") return value;
+  const digits = value.replace(/\D/g, "");
+  return digits || null;
+}
+
 export function leadCaptureRoutes(prisma: PrismaClient) {
   const router = Router();
   const leadService = new LeadCaptureService(prisma);
@@ -256,8 +262,9 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
 
       // 5. Criar cliente e oportunidade para aparecer no Kanban.
       const crmNotes = newLead.notes || "";
-      let crmClient = capturedLead.cnpj
-        ? await prisma.client.findFirst({ where: { organizationId: targetOrgId, cnpj: capturedLead.cnpj } })
+      const normalizedCnpj = normalizeDocument(capturedLead.cnpj) as string | null;
+      let crmClient = normalizedCnpj
+        ? await prisma.client.findFirst({ where: { organizationId: targetOrgId, cnpj: normalizedCnpj } })
         : null;
 
       if (!crmClient && capturedLead.email) {
@@ -271,7 +278,7 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
           data: {
             corporateName: capturedLead.businessName,
             tradeName: capturedLead.businessName,
-            cnpj: capturedLead.cnpj || undefined,
+            cnpj: normalizedCnpj,
             email: capturedLead.email || "",
             phone: capturedLead.phoneNormalized || capturedLead.phone,
             website: capturedLead.website,

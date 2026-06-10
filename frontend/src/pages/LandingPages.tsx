@@ -41,7 +41,9 @@ export default function LandingPages() {
         const data = await readJsonResponse(res);
         setPages(data.pages || []);
       }
-    } catch { } finally { setLoading(false); }
+    } catch (error) {
+      console.error("Failed to load landing pages", error);
+    } finally { setLoading(false); }
   };
 
   const handleDelete = async (id: string) => {
@@ -51,7 +53,9 @@ export default function LandingPages() {
         setPages(prev => prev.filter(p => p.id !== id));
         setShowDeleteConfirm(null);
       }
-    } catch { }
+    } catch (error) {
+      console.error("Failed to delete landing page", error);
+    }
   };
 
   const handleDuplicate = async (id: string) => {
@@ -61,7 +65,9 @@ export default function LandingPages() {
         const dup = await readJsonResponse(res);
         setPages(prev => [{ ...dup, views: 0, submissions: 0, conversionRate: 0 }, ...prev]);
       }
-    } catch { }
+    } catch (error) {
+      console.error("Failed to duplicate landing page", error);
+    }
   };
 
   const handlePublish = async (id: string) => {
@@ -70,7 +76,9 @@ export default function LandingPages() {
       if (res.ok) {
         setPages(prev => prev.map(p => p.id === id ? { ...p, status: "published", publishedAt: new Date().toISOString() } : p));
       }
-    } catch { }
+    } catch (error) {
+      console.error("Failed to publish landing page", error);
+    }
   };
 
   const handleUnpublish = async (id: string) => {
@@ -79,7 +87,9 @@ export default function LandingPages() {
       if (res.ok) {
         setPages(prev => prev.map(p => p.id === id ? { ...p, status: "draft", publishedAt: undefined } : p));
       }
-    } catch { }
+    } catch (error) {
+      console.error("Failed to unpublish landing page", error);
+    }
   };
 
   const filtered = pages.filter(p =>

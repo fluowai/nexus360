@@ -227,7 +227,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
       </div>
     </section>`;
           case 'features':
-          case 'benefits':
+          case 'benefits': {
             const items = section.content.split('\n').filter((l: string) => l.trim());
             return `
     <section class="section ${bgClass}">
@@ -242,6 +242,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         </div>
       </div>
     </section>`;
+          }
           case 'social_proof':
             return `
     <section class="section bg-gray-50">
@@ -255,7 +256,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         </div>
       </div>
     </section>`;
-          case 'faq':
+          case 'faq': {
             const faqs = section.content.split('\n').filter((l: string) => l.trim());
             return `
     <section class="section ${bgClass}">
@@ -269,6 +270,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         </div>
       </div>
     </section>`;
+          }
           case 'cta':
             return `
     <section class="cta-section" id="contato" style="background: linear-gradient(135deg, ${primaryColor}, ${secondaryColor});">

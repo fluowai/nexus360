@@ -42,7 +42,8 @@ export function teamRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    let { name, email, password, role, permissions, accessProfileId } = req.body;
+    const { name, email, role, permissions, accessProfileId } = req.body;
+    let { password } = req.body;
     password = typeof password === "string" ? password.trim() : password;
     const passwordError = assertStrongPassword(password);
     if (passwordError) return res.status(400).json({ error: passwordError });
@@ -84,7 +85,8 @@ export function teamRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    let { name, email, password, permissions, accessProfileId, role, status } = req.body;
+    const { name, email, permissions, accessProfileId, role, status } = req.body;
+    let { password } = req.body;
     password = typeof password === "string" ? password.trim() : password;
 
     if (password) {

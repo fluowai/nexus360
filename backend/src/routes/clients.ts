@@ -4,6 +4,32 @@ import { AuthRequest } from "../middleware/auth.js";
 import { sanitizeBody } from "../utils/sanitizer.js";
 import { ensureClientAgentContext, upsertClientAgentContext } from "../services/clientAgentContext.js";
 
+function normalizeDocument(value: unknown) {
+  if (typeof value !== "string") return value;
+  const digits = value.replace(/\D/g, "");
+  return digits || null;
+}
+
+function normalizeOptionalString(value: unknown) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+export function normalizeClientPayload(body: Record<string, any>) {
+  const data = sanitizeBody(body, "client") as any;
+
+  if ("cnpj" in data) data.cnpj = normalizeDocument(data.cnpj);
+  if ("cpf" in data) data.cpf = normalizeDocument(data.cpf);
+  if ("responsibleCpf" in data) data.responsibleCpf = normalizeDocument(data.responsibleCpf);
+
+  for (const field of ["email", "phone", "website", "responsibleEmail", "responsiblePhone"]) {
+    if (field in data) data[field] = normalizeOptionalString(data[field]);
+  }
+
+  return data;
+}
+
 export function clientRoutes(prisma: PrismaClient) {
   const router = Router();
 
@@ -50,7 +76,7 @@ export function clientRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
-      const data = sanitizeBody(req.body, "client") as any;
+      const data = normalizeClientPayload(req.body);
       const client = await prisma.client.create({
         data: {
           ...data,
@@ -83,7 +109,7 @@ export function clientRoutes(prisma: PrismaClient) {
 
       const client = await prisma.client.update({
         where: { id: req.params.id },
-        data: sanitizeBody(req.body, "client")
+        data: normalizeClientPayload(req.body)
       });
       await upsertClientAgentContext(prisma, {
         organizationId: orgId,

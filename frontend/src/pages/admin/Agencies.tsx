@@ -31,6 +31,7 @@ export default function AdminAgencies() {
     domain: '', 
     slug: '',
     plan: 'Pro', 
+    planId: null as string | null,
     adminEmail: '', 
     adminPassword: '', 
     adminName: '',
@@ -118,7 +119,7 @@ export default function AdminAgencies() {
       });
       if (res.ok) {
         setShowModal(false);
-        setNewOrg({ name: '', domain: '', slug: '', plan: 'Pro', adminEmail: '', adminPassword: '', adminName: '', isTestAccount: false, betaAccess: false });
+        setNewOrg({ name: '', domain: '', slug: '', plan: 'Pro', planId: null, adminEmail: '', adminPassword: '', adminName: '', isTestAccount: false, betaAccess: false });
         fetchAgencies();
       } else {
         const data = await res.json();
@@ -435,7 +436,6 @@ export default function AdminAgencies() {
                     setNewOrg({
                       ...newOrg, 
                       plan: selectedPlan?.name || e.target.value,
-                      //@ts-ignore
                       planId: selectedPlan?.id || null
                     });
                   }}

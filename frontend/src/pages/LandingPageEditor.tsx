@@ -172,7 +172,9 @@ export default function LandingPageEditor() {
         const dup = await readJsonResponse(res);
         navigate(`/landing-pages/${dup.id}/edit`);
       }
-    } catch { }
+    } catch (error) {
+      console.error("Failed to duplicate landing page", error);
+    }
   };
 
   if (loading) {

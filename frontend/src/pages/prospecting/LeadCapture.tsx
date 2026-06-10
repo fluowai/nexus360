@@ -455,16 +455,21 @@ export default function LeadCapture() {
 
   const handleSendToCrm = async (leadId: string) => {
     try {
+      setSearchError(null);
       const res = await apiFetch(`/api/lead-capture/leads/${leadId}/send-to-crm`, { 
         method: 'POST',
         body: JSON.stringify({ boardId: selectedBoardId })
       });
-      if (res.ok) {
-        const updatedLead = await res.json();
-        setLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l));
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message = data?.message || data?.error || `Erro ${res.status}: falha ao enviar lead para o CRM`;
+        setSearchError(message);
+        return;
       }
+      setLeads(prev => prev.map(l => l.id === leadId ? data : l));
     } catch (err) {
       console.error(err);
+      setSearchError('Erro de conexao ao enviar lead para o CRM.');
     }
   };
 

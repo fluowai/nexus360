@@ -10,7 +10,7 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
 
   // Get Agency Profile
   router.get("/profile", async (req: AuthRequest, res) => {
-    let orgId = req.user?.orgId;
+    const orgId = req.user?.orgId;
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
@@ -416,7 +416,7 @@ RESPOSTA (apenas JSON válido):`;
       });
 
       // 2. Gerar pipelines com IA
-      let pipelines = await generatePipelinesWithAI(businessType || "Outro", businessDescription, orgId);
+      const pipelines = await generatePipelinesWithAI(businessType || "Outro", businessDescription, orgId);
 
       // 3. Se IA falhou ou não retornou nada, criar pipelines padrão
       if (pipelines.length === 0) {

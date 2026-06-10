@@ -274,8 +274,15 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
       return;
     }
 
-    if (!onboardingDone && !isSuperAdmin && pathname !== '/onboarding' && pathname !== '/onboarding/whitelabel' && !isCustomWorkspaceHost()) {
-      const orgType = localStorage.getItem('nexus_org_type');
+    const orgType = localStorage.getItem('nexus_org_type');
+    const shouldEnforceOnboarding =
+      !onboardingDone &&
+      !isSuperAdmin &&
+      pathname !== '/onboarding' &&
+      pathname !== '/onboarding/whitelabel' &&
+      (orgType === 'WHITELABEL' || !isCustomWorkspaceHost());
+
+    if (shouldEnforceOnboarding) {
       if (orgType === 'WHITELABEL') {
         navigate('/onboarding/whitelabel', { replace: true });
       } else {

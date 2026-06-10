@@ -67,6 +67,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
       localStorage.setItem("nexus_org_type", data.user.orgType || "CLIENT");
       localStorage.setItem("nexus_beta_access", String(data.user.betaAccess || false));
       localStorage.setItem("nexus_is_test", String(data.user.isTestAccount || false));
+      const whitelabelOnboardingComplete = Boolean(data.user.whitelabelOnboarding?.complete);
       
       if (isRegister) {
         localStorage.removeItem("nexus_onboarding_done");
@@ -76,12 +77,17 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
           navigate("/onboarding");
         }
       } else {
-        localStorage.setItem("nexus_onboarding_done", "true");
         if (data.user.role === 'SUPER_ADMIN') {
+          localStorage.setItem("nexus_onboarding_done", "true");
           navigate("/admin", { replace: true });
+        } else if (data.user.orgType === "WHITELABEL" && !whitelabelOnboardingComplete) {
+          localStorage.removeItem("nexus_onboarding_done");
+          navigate("/onboarding/whitelabel", { replace: true });
         } else if (data.user.orgSlug) {
+          localStorage.setItem("nexus_onboarding_done", "true");
           navigate(workspacePath("/dashboard", data.user.orgSlug), { replace: true });
         } else {
+          localStorage.setItem("nexus_onboarding_done", "true");
           navigate("/dashboard", { replace: true });
         }
       }

@@ -43,6 +43,19 @@ const serializePlan = (plan: any) => {
   };
 };
 
+const serializeWhitelabelOnboarding = (organization: any) => {
+  if (!organization || organization.type !== "WHITELABEL") return null;
+  const settings = organization.settings && typeof organization.settings === "object"
+    ? organization.settings
+    : {};
+
+  return {
+    step: Number(settings.whitelabelOnboardingStep) || 1,
+    complete: Boolean(settings.whitelabelOnboardingComplete),
+    provisioningStatus: settings.whitelabelOnboardingComplete ? "active" : "onboarding",
+  };
+};
+
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
 
@@ -235,6 +248,7 @@ export function authRoutes(prisma: PrismaClient) {
           orgName,
           orgSlug,
           orgType,
+          whitelabelOnboarding: serializeWhitelabelOnboarding(user.organization),
           agencyId: user.agencyId,
           subscriptionStatus:
             user.organization?.subscriptionStatus || "TRIAL",
@@ -392,6 +406,7 @@ export function authRoutes(prisma: PrismaClient) {
           orgName,
           orgType: user.organization?.type || "CLIENT",
           whiteLabelConfig: user.organization?.whiteLabelConfig || null,
+          whitelabelOnboarding: serializeWhitelabelOnboarding(user.organization),
           plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
           usage: {
             leads: user.organization?._count?.leads || 0,
@@ -725,6 +740,7 @@ export function authRoutes(prisma: PrismaClient) {
         orgSlug,
         orgType: user.organization?.type || "CLIENT",
         whiteLabelConfig: user.organization?.whiteLabelConfig || null,
+        whitelabelOnboarding: serializeWhitelabelOnboarding(user.organization),
         agencyId: user.agencyId,
         subscriptionStatus:
           user.organization?.subscriptionStatus || "TRIAL",

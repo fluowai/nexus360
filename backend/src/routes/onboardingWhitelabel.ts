@@ -1,8 +1,63 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { AuthRequest } from "../middleware/auth.js";
 import { normalizeDomain, DOMAIN_REGEX, verifyDomainDns, getDnsInstructions } from "../utils/domainConfig.js";
 import { syncTraefikDomainConfig, removeTraefikDomainConfig } from "../services/traefikDomainConfig.js";
+
+const MAX_ONBOARDING_STEP = 5;
+
+function asRecord(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
+}
+
+function nextStep(settings: Record<string, any>, step: number) {
+  return Math.max(Number(settings.whitelabelOnboardingStep) || 1, step);
+}
+
+function getPrimaryDomain(org: { domain?: string | null; domains?: Array<{ name: string; status: string }> }) {
+  if (!org.domains?.length) return null;
+  return org.domains.find(domain => domain.name === org.domain) || org.domains[0] || null;
+}
+
+function buildWhitelabelStatus(org: any) {
+  const settings = asRecord(org.settings);
+  const brand = asRecord(org.whiteLabelConfig);
+  const primaryDomain = getPrimaryDomain(org);
+  const domainStatus = primaryDomain?.status || (org.domain ? "pending" : "not_configured");
+  const step = Math.min(Number(settings.whitelabelOnboardingStep) || 1, MAX_ONBOARDING_STEP);
+  const complete = Boolean(settings.whitelabelOnboardingComplete);
+
+  const checklist = {
+    brand: Boolean(brand.name),
+    domainConfigured: Boolean(org.domain || primaryDomain?.name),
+    domainVerified: domainStatus === "verified",
+    teamInvited: Boolean(settings.whitelabelTeamInvited),
+    aiConfigured: Boolean(org.groqKey || org.geminiKey),
+  };
+
+  const provisioningStatus = complete
+    ? "active"
+    : checklist.domainConfigured && !checklist.domainVerified
+      ? "pending_dns"
+      : "onboarding";
+
+  return {
+    whitelabel: true,
+    step,
+    complete,
+    provisioningStatus,
+    checklist,
+    brand,
+    domain: org.domain || primaryDomain?.name || null,
+    domainStatus,
+    domainRecord: primaryDomain,
+    domainDns: org.domain ? getDnsInstructions(org.domain, org.slug) : null,
+    slug: org.slug,
+    pendingInvites: settings.whitelabelPendingInvites || [],
+  };
+}
 
 export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -18,6 +73,9 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
           settings: true,
           domain: true,
           slug: true,
+          groqKey: true,
+          geminiKey: true,
+          domains: { orderBy: { createdAt: "desc" } },
         },
       });
 
@@ -25,18 +83,7 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
         return res.json({ whitelabel: false });
       }
 
-      const settings = (org.settings as any) || {};
-      const step = settings.whitelabelOnboardingStep || 1;
-      const complete = settings.whitelabelOnboardingComplete || false;
-
-      res.json({
-        whitelabel: true,
-        step,
-        complete,
-        brand: org.whiteLabelConfig || {},
-        domain: org.domain,
-        slug: org.slug,
-      });
+      res.json(buildWhitelabelStatus(org));
     } catch (error) {
       next(error);
     }
@@ -52,10 +99,10 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
         select: { whiteLabelConfig: true, settings: true },
       });
 
-      if (!org) return res.status(404).json({ error: "Organização não encontrada" });
+      if (!org) return res.status(404).json({ error: "Organizacao nao encontrada" });
 
-      const currentConfig = (org.whiteLabelConfig as Record<string, any>) || {};
-      const currentSettings = (org.settings as Record<string, any>) || {};
+      const currentConfig = asRecord(org.whiteLabelConfig);
+      const currentSettings = asRecord(org.settings);
 
       const updated = await prisma.organization.update({
         where: { id: orgId },
@@ -70,7 +117,8 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
           },
           settings: {
             ...currentSettings,
-            whitelabelOnboardingStep: Math.max(currentSettings.whitelabelOnboardingStep || 1, 2),
+            whitelabelOnboardingStep: nextStep(currentSettings, 2),
+            whitelabelProvisioningMode: currentSettings.whitelabelProvisioningMode || "guided",
           },
         },
         select: { whiteLabelConfig: true },
@@ -89,7 +137,7 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
 
       const normalizedDomain = normalizeDomain(domain);
       if (!normalizedDomain || !DOMAIN_REGEX.test(normalizedDomain)) {
-        return res.status(400).json({ error: "Informe um domínio válido, ex: crm.seudominio.com.br" });
+        return res.status(400).json({ error: "Informe um dominio valido, ex: crm.seudominio.com.br" });
       }
 
       const org = await prisma.organization.findUnique({
@@ -97,16 +145,16 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
         select: { slug: true, domain: true, settings: true },
       });
 
-      if (!org) return res.status(404).json({ error: "Organização não encontrada" });
+      if (!org) return res.status(404).json({ error: "Organizacao nao encontrada" });
 
       const existing = await prisma.domain.findUnique({ where: { name: normalizedDomain } });
       if (existing && existing.organizationId !== orgId) {
-        return res.status(409).json({ error: "Este domínio já está vinculado a outra organização." });
+        return res.status(409).json({ error: "Este dominio ja esta vinculado a outra organizacao." });
       }
 
       const previousDomain = org.domain !== normalizedDomain ? org.domain : null;
       const verification = await verifyDomainDns(normalizedDomain, org.slug);
-      const currentSettings = (org.settings as Record<string, any>) || {};
+      const currentSettings = asRecord(org.settings);
 
       await prisma.$transaction(async (tx) => {
         if (previousDomain) {
@@ -123,7 +171,12 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
           where: { id: orgId },
           data: {
             domain: normalizedDomain,
-            settings: { ...currentSettings, whitelabelOnboardingStep: Math.max(currentSettings.whitelabelOnboardingStep || 1, 3) },
+            settings: {
+              ...currentSettings,
+              whitelabelOnboardingStep: nextStep(currentSettings, 3),
+              whitelabelDomainStatus: verification.verified ? "verified" : "pending",
+              whitelabelProvisioningMode: currentSettings.whitelabelProvisioningMode || "guided",
+            },
           },
         });
       });
@@ -139,9 +192,13 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
       res.json({
         success: true,
         message: verification.verified
-          ? "Domínio cadastrado e DNS verificado com sucesso!"
-          : "Domínio cadastrado. Configure o DNS para apontar ao servidor Nexus360.",
-        domain: { name: normalizedDomain, status: verification.verified ? "verified" : "pending", dns: getDnsInstructions(normalizedDomain, org.slug) },
+          ? "Dominio cadastrado e DNS verificado com sucesso!"
+          : "Dominio cadastrado. Configure o DNS para apontar ao servidor Nexus360.",
+        domain: {
+          name: normalizedDomain,
+          status: verification.verified ? "verified" : "pending",
+          dns: getDnsInstructions(normalizedDomain, org.slug),
+        },
         verified: verification.verified,
         traefik,
       });
@@ -160,7 +217,10 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
         select: { settings: true },
       });
 
-      const currentSettings = (org?.settings as Record<string, any>) || {};
+      const currentSettings = asRecord(org?.settings);
+      const pendingInvites = Array.isArray(currentSettings.whitelabelPendingInvites)
+        ? currentSettings.whitelabelPendingInvites
+        : [];
 
       if (Array.isArray(teamMembers) && teamMembers.length > 0) {
         const adminUser = await prisma.user.findFirst({
@@ -169,20 +229,35 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
 
         if (adminUser) {
           for (const member of teamMembers) {
-            const hashedPassword = await (await import("bcryptjs")).hash("senha123", 10);
+            const email = String(member.email || "").trim().toLowerCase();
+            const name = String(member.name || "").trim();
+            if (!email || !name) continue;
+
+            const temporaryPassword = crypto.randomBytes(24).toString("base64url");
+            const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
             await prisma.user.upsert({
-              where: { email: member.email },
-              update: { name: member.name, organizationId: orgId, role: "USER", department: member.role || "GERAL" },
+              where: { email },
+              update: { name, organizationId: orgId, role: "USER", department: member.role || "GERAL" },
               create: {
-                name: member.name,
-                email: member.email,
+                name,
+                email,
                 password: hashedPassword,
                 role: "USER",
                 organizationId: orgId,
                 department: member.role || "GERAL",
-                status: "ACTIVE",
+                status: "INACTIVE",
               },
             });
+
+            if (!pendingInvites.some((invite: any) => invite.email === email)) {
+              pendingInvites.push({
+                email,
+                name,
+                role: member.role || "GERAL",
+                status: "pending",
+                createdAt: new Date().toISOString(),
+              });
+            }
           }
         }
       }
@@ -190,11 +265,16 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
       await prisma.organization.update({
         where: { id: orgId },
         data: {
-          settings: { ...currentSettings, whitelabelOnboardingStep: Math.max(currentSettings.whitelabelOnboardingStep || 1, 4) },
+          settings: {
+            ...currentSettings,
+            whitelabelOnboardingStep: nextStep(currentSettings, 4),
+            whitelabelTeamInvited: Array.isArray(teamMembers) && teamMembers.length > 0 ? true : currentSettings.whitelabelTeamInvited || false,
+            whitelabelPendingInvites: pendingInvites,
+          },
         },
       });
 
-      res.json({ success: true });
+      res.json({ success: true, pendingInvites });
     } catch (error) {
       next(error);
     }
@@ -210,14 +290,14 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
         select: { settings: true },
       });
 
-      const currentSettings = (org?.settings as Record<string, any>) || {};
+      const currentSettings = asRecord(org?.settings);
 
       const data: Record<string, any> = {};
       if (groqKey !== undefined) data.groqKey = groqKey;
       if (geminiKey !== undefined) data.geminiKey = geminiKey;
       if (groqKey) data.aiProvider = "groq";
       else if (geminiKey) data.aiProvider = "gemini";
-      data.settings = { ...currentSettings, whitelabelOnboardingStep: 5 };
+      data.settings = { ...currentSettings, whitelabelOnboardingStep: MAX_ONBOARDING_STEP };
 
       await prisma.organization.update({
         where: { id: orgId },
@@ -239,16 +319,21 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
         select: { settings: true },
       });
 
-      const currentSettings = (org?.settings as Record<string, any>) || {};
+      const currentSettings = asRecord(org?.settings);
 
       await prisma.organization.update({
         where: { id: orgId },
         data: {
-          settings: { ...currentSettings, whitelabelOnboardingComplete: true, whitelabelOnboardingStep: 5 },
+          settings: {
+            ...currentSettings,
+            whitelabelOnboardingComplete: true,
+            whitelabelOnboardingStep: MAX_ONBOARDING_STEP,
+            whitelabelActivatedAt: currentSettings.whitelabelActivatedAt || new Date().toISOString(),
+          },
         },
       });
 
-      res.json({ success: true, message: "Onboarding whitelabel concluído!" });
+      res.json({ success: true, message: "Onboarding whitelabel concluido!" });
     } catch (error) {
       next(error);
     }

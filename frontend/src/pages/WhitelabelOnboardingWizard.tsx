@@ -33,6 +33,7 @@ export default function WhitelabelOnboardingWizard() {
   const [domain, setDomain] = useState("");
   const [domainStatus, setDomainStatus] = useState<string | null>(null);
   const [domainDns, setDomainDns] = useState<string | null>(null);
+  const [checklist, setChecklist] = useState<Record<string, boolean>>({});
 
   const [teamMembers, setTeamMembers] = useState<{ name: string; email: string; role: string }[]>([]);
   const [tempMember, setTempMember] = useState({ name: "", email: "", role: "Comercial" });
@@ -51,6 +52,9 @@ export default function WhitelabelOnboardingWizard() {
         setCurrentStep(data.step || 1);
         if (data.brand) setBrand(prev => ({ ...prev, ...data.brand }));
         if (data.domain) setDomain(data.domain);
+        if (data.domainStatus) setDomainStatus(data.domainStatus);
+        if (data.domainDns) setDomainDns(JSON.stringify(data.domainDns, null, 2));
+        if (data.checklist) setChecklist(data.checklist);
         if (data.complete) navigate("/onboarding/whitelabel/preview", { replace: true });
       }
     } catch (err) {
@@ -100,7 +104,7 @@ export default function WhitelabelOnboardingWizard() {
       });
       const data = await readJsonResponse(res, "Erro ao configurar domínio");
       setDomainStatus(data.verified ? "verified" : "pending");
-      setDomainDns(data.domain?.dns || null);
+      setDomainDns(data.domain?.dns ? JSON.stringify(data.domain.dns, null, 2) : null);
       setCurrentStep(3);
     } catch (err: any) {
       console.error(err);
@@ -545,7 +549,7 @@ export default function WhitelabelOnboardingWizard() {
                   <div className="bg-white/5 rounded-3xl border border-white/10 p-6 max-w-md mx-auto text-left space-y-3">
                     <div className="flex items-center gap-3">
                       <Palette size={16} className="text-primary" />
-                      <span className="text-sm text-gray-400">Marca personalizada</span>
+                      <span className="text-sm text-gray-400">{checklist.brand ? "Marca personalizada" : "Marca pendente"}</span>
                     </div>
                     {domain && (
                       <div className="flex items-center gap-3">

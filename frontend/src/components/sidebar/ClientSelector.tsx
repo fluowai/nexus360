@@ -69,33 +69,33 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
   return (
     <div className="relative px-2 mb-6">
       <div className="flex items-center gap-2 mb-2 px-1">
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+        <span className="text-[12px] font-extrabold text-gray-400 uppercase tracking-[0.08em]">
           {user?.role === 'SUPER_ADMIN' ? 'Selecionar Imobiliária' : 'Contexto de Operação'}
         </span>
       </div>
       
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between gap-3 p-3 rounded-2xl border transition-all ${
+        className={`w-full flex items-center justify-between gap-3 p-3.5 rounded-2xl border transition-all ${
           selectedClient 
             ? 'bg-blue-50/50 border-blue-100 text-blue-900 shadow-sm' 
             : 'bg-gray-50 border-gray-100 text-gray-500 hover:bg-gray-100'
         }`}
       >
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
             selectedClient ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'
           }`}>
-            <Users size={16} />
+            <Users size={18} />
           </div>
           <div className="text-left overflow-hidden">
-            <p className="text-xs font-bold truncate">
+            <p className="text-[14px] font-bold truncate">
               {selectedClient ? (selectedClient.corporateName) : 'Escolher Cliente'}
             </p>
-            {selectedClient && <p className="text-[10px] opacity-70 truncate">Acesso Administrativo</p>}
+            {selectedClient && <p className="text-[12px] font-medium opacity-70 truncate">Acesso Administrativo</p>}
           </div>
         </div>
-        <ChevronDown size={14} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -110,7 +110,7 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
                 onSelectClient(null);
                 setIsOpen(false);
               }}
-              className={`flex items-center justify-between px-4 py-2 text-xs font-medium cursor-pointer hover:bg-gray-50 ${!selectedClientId ? 'text-blue-600' : 'text-gray-500'}`}
+              className={`flex items-center justify-between px-4 py-2.5 text-[13px] font-semibold cursor-pointer hover:bg-gray-50 ${!selectedClientId ? 'text-blue-600' : 'text-gray-500'}`}
             >
               <span>Visão Global</span>
               {!selectedClientId && <Check size={14} />}
@@ -125,7 +125,7 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
                   onSelectClient(client.id);
                   setIsOpen(false);
                 }}
-                className={`flex items-center justify-between px-4 py-2.5 text-xs font-medium cursor-pointer hover:bg-gray-50 ${selectedClientId === client.id ? 'text-blue-600 bg-blue-50/30' : 'text-gray-700'}`}
+                className={`flex items-center justify-between px-4 py-3 text-[13px] font-semibold cursor-pointer hover:bg-gray-50 ${selectedClientId === client.id ? 'text-blue-600 bg-blue-50/30' : 'text-gray-700'}`}
               >
                 <span className="truncate">{client.corporateName}</span>
                 {selectedClientId === client.id && <Check size={14} />}
@@ -135,7 +135,7 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
             {user?.role === 'SUPER_ADMIN' && (
               <>
                 <div className="h-[1px] bg-gray-50 my-1" />
-                <button className="w-full flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors">
+                <button className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] font-bold text-blue-600 hover:bg-blue-50 transition-colors">
                   <Plus size={14} />
                   Cadastrar Cliente
                 </button>

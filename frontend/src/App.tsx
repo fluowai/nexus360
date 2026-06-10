@@ -152,7 +152,7 @@ const Layout = ({
         whiteLabel={whiteLabel}
       />
       
-      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[300px]'}`}>
+      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[324px]'}`}>
         <header className="hidden md:flex sticky top-0 z-40 h-[80px] items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-8 backdrop-blur-xl">
           <div className="flex items-center gap-3 min-w-[240px]">
             {whiteLabel?.logoUrl ? (

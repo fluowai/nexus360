@@ -82,7 +82,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 
   const content = (
     <div className={`sidebar-item ${isActive || isChildActive ? 'active' : ''} ${isAi ? 'sidebar-item-ai' : ''}`}>
-      <Icon size={20} className="sidebar-item-icon" />
+      <Icon size={21} className="sidebar-item-icon" />
       {!collapsed && (
         <>
           <span className="sidebar-item-label">{label}</span>
@@ -372,9 +372,9 @@ export const Sidebar: React.FC<{
             <div className="px-4 mb-4">
               <button
                 onClick={() => onSelectClient(null)}
-                className="w-full flex items-center justify-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-2xl text-xs font-bold border border-amber-100 hover:bg-amber-100 transition-all shadow-sm"
+                className="w-full flex items-center justify-center gap-2.5 p-3.5 bg-amber-50 text-amber-700 rounded-2xl text-[13px] font-bold border border-amber-100 hover:bg-amber-100 transition-all shadow-sm"
               >
-                <Shield size={16} />
+                <Shield size={17} />
                 {!collapsed && 'Voltar ao Modo Admin'}
               </button>
             </div>
@@ -455,9 +455,9 @@ export const Sidebar: React.FC<{
           {!collapsed && (
             <button
               onClick={onLogout}
-              className="w-full mt-4 flex items-center justify-center gap-2 p-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors text-sm font-semibold"
+              className="w-full mt-4 flex items-center justify-center gap-2 p-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors text-[15px] font-semibold"
             >
-              <LogOut size={16} />
+              <LogOut size={17} />
               Sair do Sistema
             </button>
           )}

@@ -1,20 +1,112 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
+  ArrowRight,
   BookOpen,
-  Plus,
-  X,
-  Trash2,
+  Bookmark,
+  Calendar,
+  ChevronRight,
+  Clock3,
   Edit3,
-  Search,
   Eye,
   EyeOff,
-  FolderTree,
-  Filter,
   FileText,
+  Filter,
+  FolderTree,
+  Grid2X2,
   Hash,
+  Layers3,
+  List,
+  Plus,
+  Search,
+  Sparkles,
+  Star,
+  Trash2,
+  TrendingUp,
+  X,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
+
+const DEFAULT_CATEGORIES = [
+  { name: "Comercial", count: 28, icon: TrendingUp },
+  { name: "Marketing", count: 26, icon: Sparkles },
+  { name: "Operacao", count: 32, icon: Layers3 },
+  { name: "IA ACP", count: 24, icon: BookOpen },
+  { name: "Financeiro", count: 15, icon: FileText },
+  { name: "Produto", count: 12, icon: Grid2X2 },
+  { name: "Onboarding", count: 8, icon: Calendar },
+];
+
+const SAMPLE_ARTICLES = [
+  {
+    id: "sample-sdr-flow",
+    title: "Fluxo Completo de SDR IA",
+    content: "Entenda o fluxo completo de qualificacao, abordagem e agendamento automatizado.",
+    category: "Comercial",
+    tags: ["SDR", "IA", "Vendas"],
+    author: "Mariana Silva",
+    updatedAt: "2024-05-18T12:00:00.000Z",
+    views: 118,
+    isPublished: true,
+    isSample: true,
+  },
+  {
+    id: "sample-acp-campaigns",
+    title: "Como criar campanhas ACP de alta conversao",
+    content: "Aprenda o passo a passo para criar campanhas utilizando o Orquestrador ACP.",
+    category: "IA ACP",
+    tags: ["ACP", "Campanhas"],
+    author: "Gabriel Alves",
+    updatedAt: "2024-05-20T12:00:00.000Z",
+    views: 142,
+    isPublished: true,
+    isSample: true,
+  },
+  {
+    id: "sample-onboarding",
+    title: "Processo de onboarding de clientes",
+    content: "Boas praticas e checklist para um onboarding eficiente.",
+    category: "Onboarding",
+    tags: ["Onboarding", "Processos", "Clientes"],
+    author: "Joao Pedro",
+    updatedAt: "2024-05-15T12:00:00.000Z",
+    views: 86,
+    isPublished: true,
+    isSample: true,
+  },
+  {
+    id: "sample-playbook",
+    title: "Playbook de vendas consultivas",
+    content: "Roteiro completo para conduzir vendas consultivas de ponta a ponta.",
+    category: "Comercial",
+    tags: ["Vendas", "Playbook", "Comercial"],
+    author: "Gabriel Alves",
+    updatedAt: "2024-05-10T12:00:00.000Z",
+    views: 74,
+    isPublished: true,
+    isSample: true,
+  },
+];
+
+function parseTags(tags: unknown): string[] {
+  if (Array.isArray(tags)) return tags.filter(Boolean);
+  if (typeof tags !== "string" || !tags.trim()) return [];
+  try {
+    const parsed = JSON.parse(tags);
+    return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+  } catch {
+    return tags.split(",").map((tag) => tag.trim()).filter(Boolean);
+  }
+}
+
+function formatDate(value?: string) {
+  if (!value) return "Sem data";
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+}
+
+function normalizeCategoryName(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
 
 export default function KnowledgeBase() {
   const [articles, setArticles] = useState<any[]>([]);
@@ -22,7 +114,8 @@ export default function KnowledgeBase() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedArticle, setSelectedArticle] = useState<any>(null);
+  const [sortBy, setSortBy] = useState("recent");
+  const [filterBy, setFilterBy] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
 
@@ -51,188 +144,181 @@ export default function KnowledgeBase() {
     fetchArticles();
   }, [selectedCategory, searchTerm]);
 
+  const categoryItems = useMemo(() => {
+    const apiCounts = new Map<string, number>();
+    categories.forEach((cat) => {
+      const name = typeof cat === "string" ? cat : cat.category || cat.name;
+      if (!name) return;
+      apiCounts.set(name, cat._count?.id || cat.count || 0);
+    });
+
+    return DEFAULT_CATEGORIES.map((category) => ({
+      ...category,
+      count: apiCounts.get(category.name) ?? apiCounts.get(normalizeCategoryName(category.name)) ?? category.count,
+    }));
+  }, [categories]);
+
+  const normalizedArticles = useMemo(() => {
+    const source = articles.length > 0 ? articles : SAMPLE_ARTICLES;
+    const visible = source.filter((article) => {
+      const matchesSearch =
+        !searchTerm ||
+        article.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        article.content?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = !selectedCategory || normalizeCategoryName(article.category || "") === normalizeCategoryName(selectedCategory);
+      const matchesFavorite = filterBy !== "favorites" || (article.views || 0) >= 100;
+      return matchesSearch && matchesCategory && matchesFavorite;
+    });
+
+    return [...visible].sort((a, b) => {
+      if (sortBy === "popular") return (b.views || 0) - (a.views || 0);
+      return new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime();
+    });
+  }, [articles, filterBy, searchTerm, selectedCategory, sortBy]);
+
+  const hasRealArticles = articles.length > 0;
+  const shouldShowEmpty = hasRealArticles && normalizedArticles.length === 0;
+
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir este artigo?")) return;
     try {
       await apiFetch(`/api/knowledge-base/${id}`, { method: "DELETE" });
-      setSelectedArticle(null);
       fetchArticles();
     } catch (err) {
       console.error(err);
     }
   };
 
-  if (loading)
+  if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-muted-foreground animate-pulse">
-        Carregando base de conhecimento...
+      <div className="flex h-[60vh] items-center justify-center text-[#64748B]">
+        <div className="flex items-center gap-3 rounded-xl border border-[#E2E8F0] bg-white px-5 py-4 shadow-sm">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#5B5CF0] border-t-transparent" />
+          <span className="text-sm font-semibold">Carregando base de conhecimento...</span>
+        </div>
       </div>
     );
+  }
 
   return (
-    <div className="flex flex-col gap-8 p-2 h-full">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-gray-900 mb-2">
-            Base de Conhecimento
-          </h1>
-          <p className="text-gray-500">Documentação interna e artigos.</p>
+          <h1 className="text-[32px] font-bold leading-tight tracking-normal text-[#0F172A]">Base de Conhecimento</h1>
+          <p className="mt-2 text-[16px] font-medium text-[#64748B]">Documentacao, processos e playbooks da operacao.</p>
         </div>
         <button
           onClick={() => { setEditing(null); setModalOpen(true); }}
-          className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl hover:bg-blue-600 transition-all font-bold text-sm shadow-lg shadow-blue-100"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#5B5CF0] px-5 text-[15px] font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5] active:scale-[0.98]"
         >
           <Plus size={18} />
           Novo Artigo
         </button>
       </div>
 
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input
-            className="pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl w-full focus:ring-2 focus:ring-primary/20 outline-none transition-all text-sm"
-            placeholder="Buscar artigos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={22} />
+        <input
+          className="h-14 w-full rounded-xl border border-[#E2E8F0] bg-white pl-14 pr-24 text-[16px] text-[#0F172A] shadow-sm outline-none transition-all duration-200 placeholder:text-[#94A3B8] focus:border-[#5B5CF0] focus:ring-4 focus:ring-[#5B5CF0]/10"
+          placeholder="Buscar artigos, processos, documentacoes..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        <span className="absolute right-4 top-1/2 hidden -translate-y-1/2 rounded-lg bg-[#F8FAFC] px-2.5 py-1 text-xs font-bold text-[#64748B] md:inline-flex">
+          Ctrl K
+        </span>
       </div>
 
-      <div className="flex gap-6 flex-1">
-        <div className="w-56 flex-shrink-0">
-          <div className="glass-card p-4">
-            <div className="flex items-center gap-2 mb-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              <FolderTree size={14} /> Categorias
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center gap-2 px-1 text-[12px] font-bold uppercase tracking-[1px] text-[#0F172A]">
+            <FolderTree size={16} className="text-[#5B5CF0]" />
+            Categorias
+          </div>
+          <div className="flex flex-col gap-2">
+            <CategoryButton
+              active={!selectedCategory}
+              icon={BookOpen}
+              label="Todas Categorias"
+              count={hasRealArticles ? articles.length : 145}
+              onClick={() => setSelectedCategory("")}
+            />
+            {categoryItems.map((category) => (
+              <CategoryButton
+                key={category.name}
+                active={normalizeCategoryName(selectedCategory) === normalizeCategoryName(category.name)}
+                icon={category.icon}
+                label={category.name}
+                count={category.count}
+                onClick={() => setSelectedCategory(category.name)}
+              />
+            ))}
+          </div>
+        </aside>
+
+        <section className="min-w-0 rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <FilterSelect value={selectedCategory || "all"} onChange={(value) => setSelectedCategory(value === "all" ? "" : value)}>
+                <option value="all">Todas as categorias</option>
+                {categoryItems.map((category) => (
+                  <option key={category.name} value={category.name}>{category.name}</option>
+                ))}
+              </FilterSelect>
+              <FilterSelect value={sortBy} onChange={setSortBy}>
+                <option value="recent">Mais recentes</option>
+                <option value="popular">Mais acessados</option>
+              </FilterSelect>
+              <FilterSelect value={filterBy} onChange={setFilterBy}>
+                <option value="all">Todos</option>
+                <option value="favorites">Favoritos</option>
+              </FilterSelect>
             </div>
-            <div className="flex flex-col gap-1">
-              <button
-                onClick={() => setSelectedCategory("")}
-                className={`text-left px-3 py-2 rounded-lg text-sm font-bold transition-all ${
-                  !selectedCategory
-                    ? "bg-primary text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
-              >
-                Todas
+            <div className="flex items-center gap-2">
+              <button className="h-10 w-10 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-[#5B5CF0] transition-all duration-200 hover:bg-[#F4F5FF]">
+                <List size={18} className="mx-auto" />
               </button>
-              {categories.map((cat) => (
-                <button
-                  key={cat.id || cat}
-                  onClick={() => setSelectedCategory(typeof cat === "string" ? cat : cat.name)}
-                  className={`text-left px-3 py-2 rounded-lg text-sm font-bold transition-all ${
-                    selectedCategory === (typeof cat === "string" ? cat : cat.name)
-                      ? "bg-primary text-white"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {typeof cat === "string" ? cat : cat.name}
-                </button>
-              ))}
+              <button className="h-10 w-10 rounded-xl border border-[#E2E8F0] bg-white text-[#94A3B8] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+                <Grid2X2 size={18} className="mx-auto" />
+              </button>
             </div>
           </div>
-        </div>
 
-        <div className="flex-1 min-w-0">
-          {selectedArticle ? (
-            <div className="glass-card">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">{selectedArticle.title}</h2>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase">
-                      {selectedArticle.category}
-                    </span>
-                    <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                      <Eye size={12} /> {selectedArticle.views || 0} views
-                    </span>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
-                        selectedArticle.isPublished
-                          ? "bg-green-50 text-green-600"
-                          : "bg-gray-100 text-gray-400"
-                      }`}
-                    >
-                      {selectedArticle.isPublished ? "Published" : "Draft"}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => { setEditing(selectedArticle); setModalOpen(true); }}
-                    className="p-1.5 text-blue-400 hover:text-blue-600 rounded-lg hover:bg-blue-50"
-                  >
-                    <Edit3 size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(selectedArticle.id)}
-                    className="p-1.5 text-red-400 hover:text-red-600 rounded-lg hover:bg-red-50"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                  <button
-                    onClick={() => setSelectedArticle(null)}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-50"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              </div>
-              {selectedArticle.tags && (
-                <div className="flex gap-1.5 mb-4">
-                  {(Array.isArray(selectedArticle.tags) ? selectedArticle.tags : []).map((tag: string, i: number) => (
-                    <span key={i} className="text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <Hash size={10} />{tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div
-                className="prose prose-sm max-w-none text-gray-700 leading-relaxed whitespace-pre-wrap font-medium"
-              >
-                {selectedArticle.content}
-              </div>
-            </div>
+          {shouldShowEmpty ? (
+            <EmptyState onCreate={() => { setEditing(null); setModalOpen(true); }} />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {articles.map((art) => (
-                <div
-                  key={art.id}
-                  onClick={() => setSelectedArticle(art)}
-                  className="glass-card cursor-pointer hover:shadow-lg transition-all"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600">
-                      <FileText size={20} />
-                    </div>
-                    <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase ${
-                        art.isPublished
-                          ? "bg-green-50 text-green-600"
-                          : "bg-gray-100 text-gray-400"
-                      }`}
-                    >
-                      {art.isPublished ? "Published" : "Draft"}
-                    </span>
-                  </div>
-                  <h3 className="font-bold text-gray-900 mb-1">{art.title}</h3>
-                  <div className="flex items-center gap-3 text-[10px] text-gray-400 font-bold">
-                    <span>{art.category}</span>
-                    <span className="flex items-center gap-1">
-                      <Eye size={12} /> {art.views || 0}
-                    </span>
-                  </div>
-                </div>
+            <div className="flex flex-col gap-3">
+              {normalizedArticles.map((article) => (
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  onEdit={() => {
+                    if (article.isSample) return;
+                    setEditing(article);
+                    setModalOpen(true);
+                  }}
+                  onDelete={() => !article.isSample && handleDelete(article.id)}
+                />
               ))}
-              {articles.length === 0 && (
-                <div className="col-span-full text-center py-16 text-gray-400">
-                  <BookOpen size={48} className="mx-auto mb-4 opacity-30" />
-                  <p className="font-bold">Nenhum artigo encontrado</p>
-                </div>
-              )}
             </div>
           )}
+        </section>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F4F5FF] text-[#5B5CF0]">
+            <BookOpen size={24} />
+          </div>
+          <div>
+            <h3 className="text-[16px] font-bold text-[#0F172A]">Nao encontrou o que estava procurando?</h3>
+            <p className="text-[14px] font-medium text-[#64748B]">Sugira um novo artigo para nossa base de conhecimento.</p>
+          </div>
         </div>
+        <button className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#C7D2FE] px-5 text-[15px] font-bold text-[#5B5CF0] transition-all duration-200 hover:bg-[#F4F5FF]">
+          Sugerir artigo
+          <ArrowRight size={17} />
+        </button>
       </div>
 
       <AnimatePresence>
@@ -248,12 +334,125 @@ export default function KnowledgeBase() {
   );
 }
 
+function CategoryButton({ active, icon: Icon, label, count, onClick }: { active: boolean; icon: any; label: string; count: number; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex h-[52px] items-center gap-3 rounded-xl border px-3 text-left transition-all duration-200 ${
+        active
+          ? "border-[#E0E7FF] bg-[#F4F5FF] text-[#5B5CF0]"
+          : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#C7D2FE] hover:bg-[#F8FAFC] hover:text-[#5B5CF0]"
+      }`}
+    >
+      <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${active ? "bg-white" : "bg-[#F8FAFC] group-hover:bg-white"}`}>
+        <Icon size={17} />
+      </span>
+      <span className="min-w-0 flex-1 text-[14px] font-bold">{label}</span>
+      <span className="rounded-full bg-[#F1F5F9] px-2 py-1 text-[12px] font-bold text-[#64748B]">{count}</span>
+      <ChevronRight size={16} className="text-[#94A3B8]" />
+    </button>
+  );
+}
+
+function FilterSelect({ value, onChange, children }: { value: string; onChange: (value: string) => void; children: React.ReactNode }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-10 min-w-[150px] rounded-xl border border-[#E2E8F0] bg-white px-3 text-[13px] font-semibold text-[#64748B] outline-none transition-all duration-200 hover:border-[#C7D2FE] focus:border-[#5B5CF0] focus:ring-4 focus:ring-[#5B5CF0]/10"
+    >
+      {children}
+    </select>
+  );
+}
+
+function ArticleCard({ article, onEdit, onDelete }: { article: any; onEdit: () => void; onDelete: () => void }) {
+  const tags = parseTags(article.tags);
+  const summary = article.content?.replace(/\s+/g, " ").slice(0, 120) || "Documentacao interna da operacao Nexus360.";
+
+  return (
+    <motion.article
+      layout
+      className="group flex flex-col gap-4 rounded-xl border border-[#E2E8F0] bg-white p-4 transition-all duration-200 hover:border-[#C7D2FE] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] lg:flex-row lg:items-center"
+    >
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#F4F5FF] text-[#5B5CF0]">
+        <FileText size={24} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-[16px] font-bold text-[#0F172A]">{article.title}</h3>
+          {!article.isPublished && (
+            <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-bold text-[#64748B]">Rascunho</span>
+          )}
+        </div>
+        <p className="mt-1 text-[14px] font-medium leading-6 text-[#64748B]">{summary}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-bold text-[#5B5CF0]">{article.category || "Geral"}</span>
+          {tags.slice(0, 3).map((tag) => (
+            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-[#E2E8F0] px-2.5 py-1 text-[12px] font-bold text-[#5B5CF0]">
+              <Hash size={11} />
+              {tag}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-4 lg:min-w-[300px]">
+        <div className="text-right text-[13px] font-medium text-[#64748B]">
+          <div className="flex items-center justify-end gap-1">
+            <Clock3 size={14} />
+            {formatDate(article.updatedAt || article.createdAt)}
+          </div>
+          <div className="mt-1">por {article.author || "Time de Produto"}</div>
+          <div className="mt-1 flex items-center justify-end gap-1">
+            <Eye size={14} />
+            {article.views || 0} acessos
+          </div>
+        </div>
+        <div className="flex items-center gap-1 opacity-100 transition-opacity duration-200 lg:opacity-70 lg:group-hover:opacity-100">
+          <button className="h-9 w-9 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+            <Bookmark size={17} className="mx-auto" />
+          </button>
+          <button onClick={onEdit} className="h-9 w-9 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+            <Edit3 size={17} className="mx-auto" />
+          </button>
+          <button onClick={onDelete} className="h-9 w-9 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-red-50 hover:text-red-500">
+            <Trash2 size={17} className="mx-auto" />
+          </button>
+        </div>
+      </div>
+    </motion.article>
+  );
+}
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 text-center">
+      <div className="relative mb-5">
+        <div className="h-24 w-24 rounded-3xl bg-white shadow-sm" />
+        <div className="absolute inset-0 flex items-center justify-center text-[#5B5CF0]">
+          <BookOpen size={42} />
+        </div>
+        <Star className="absolute -right-3 -top-3 text-[#7C6CFF]" size={22} />
+      </div>
+      <h3 className="text-[20px] font-bold text-[#0F172A]">Nenhum artigo encontrado.</h3>
+      <p className="mt-2 max-w-md text-[15px] font-medium leading-6 text-[#64748B]">Crie seu primeiro artigo ou ajuste os filtros.</p>
+      <button
+        onClick={onCreate}
+        className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-[#5B5CF0] px-5 text-[14px] font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5]"
+      >
+        <Plus size={17} />
+        Criar Artigo
+      </button>
+    </div>
+  );
+}
+
 function ArticleModal({ onClose, onSuccess, initialData }: { onClose: () => void; onSuccess: () => void; initialData?: any }) {
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     content: initialData?.content || "",
     category: initialData?.category || "",
-    tags: initialData?.tags ? (Array.isArray(initialData.tags) ? initialData.tags.join(", ") : initialData.tags) : "",
+    tags: initialData?.tags ? parseTags(initialData.tags).join(", ") : "",
     isPublished: initialData?.isPublished ?? false,
   });
   const [submitting, setSubmitting] = useState(false);
@@ -264,10 +463,7 @@ function ArticleModal({ onClose, onSuccess, initialData }: { onClose: () => void
     try {
       const body = {
         ...formData,
-        tags: formData.tags
-          .split(",")
-          .map((t: string) => t.trim())
-          .filter(Boolean),
+        tags: formData.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
       };
       const url = initialData ? `/api/knowledge-base/${initialData.id}` : "/api/knowledge-base";
       const method = initialData ? "PATCH" : "POST";
@@ -282,41 +478,41 @@ function ArticleModal({ onClose, onSuccess, initialData }: { onClose: () => void
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-md" />
-      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white rounded-[32px] shadow-2xl w-full max-w-2xl relative z-10 max-h-[90vh] flex flex-col">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="text-xl font-black text-gray-900">{initialData ? "Editar Artigo" : "Novo Artigo"}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={20} className="text-gray-400" /></button>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-[#0F172A]/50 backdrop-blur-sm" />
+      <motion.div initial={{ opacity: 0, scale: 0.96, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 16 }} className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-5">
+          <h2 className="text-xl font-bold text-[#0F172A]">{initialData ? "Editar Artigo" : "Novo Artigo"}</h2>
+          <button onClick={onClose} className="h-9 w-9 rounded-xl text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]"><X size={20} className="mx-auto" /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-4 flex-1 custom-scrollbar">
+        <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
           <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Título</label>
-            <input className="modal-input font-bold" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required />
+            <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Titulo</label>
+            <input className="modal-input font-semibold" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Categoria</label>
-              <input className="modal-input font-bold" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="Ex: Onboarding, FAQ" />
+              <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Categoria</label>
+              <input className="modal-input font-semibold" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="Ex: Onboarding, IA ACP" />
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">Tags (separadas por vírgula)</label>
-              <input className="modal-input" value={formData.tags} onChange={(e) => setFormData({ ...formData, tags: e.target.value })} placeholder="tag1, tag2" />
+              <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Tags</label>
+              <input className="modal-input" value={formData.tags} onChange={(e) => setFormData({ ...formData, tags: e.target.value })} placeholder="SDR, IA, Vendas" />
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[10px] font-bold text-gray-400 uppercase">Conteúdo</label>
-            <textarea className="modal-input min-h-[250px] resize-none font-mono text-sm" value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} required />
+            <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Conteudo</label>
+            <textarea className="modal-input min-h-[250px] resize-none text-sm leading-6" value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} required />
           </div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={formData.isPublished} onChange={(e) => setFormData({ ...formData, isPublished: e.target.checked })} className="w-5 h-5 rounded border-gray-300 text-primary" />
-            <span className="flex items-center gap-2 text-sm font-bold text-gray-700">
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#E2E8F0] p-3">
+            <input type="checkbox" checked={formData.isPublished} onChange={(e) => setFormData({ ...formData, isPublished: e.target.checked })} className="h-5 w-5 rounded border-[#CBD5E1] text-[#5B5CF0]" />
+            <span className="flex items-center gap-2 text-sm font-bold text-[#0F172A]">
               {formData.isPublished ? <Eye size={16} /> : <EyeOff size={16} />}
               Publicado
             </span>
           </label>
-          <div className="pt-4 flex gap-4">
-            <button type="button" onClick={onClose} className="flex-1 py-4 text-xs font-black uppercase text-gray-400">Cancelar</button>
-            <button type="submit" disabled={submitting} className="flex-[2] py-4 bg-primary text-white font-black text-xs uppercase rounded-2xl shadow-xl shadow-blue-100">
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="h-12 flex-1 rounded-xl text-sm font-bold text-[#64748B] transition-all duration-200 hover:bg-[#F8FAFC]">Cancelar</button>
+            <button type="submit" disabled={submitting} className="h-12 flex-[2] rounded-xl bg-[#5B5CF0] text-sm font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5] disabled:opacity-60">
               {submitting ? "Salvando..." : initialData ? "Salvar" : "Criar Artigo"}
             </button>
           </div>

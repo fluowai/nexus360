@@ -36,7 +36,12 @@ import {
   MessageCircle,
   Brain,
   Palette,
-  PlugZap
+  PlugZap,
+  Target,
+  Megaphone,
+  Bot,
+  LockKeyhole,
+  KeyRound
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
@@ -123,11 +128,13 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 
 const SidebarGroup: React.FC<{
   label: string;
+  icon?: any;
+  count?: number;
   children: React.ReactNode;
   collapsed?: boolean;
   collapsible?: boolean;
   defaultOpen?: boolean;
-}> = ({ label, children, collapsed, collapsible, defaultOpen = true }) => {
+}> = ({ label, icon: Icon, count, children, collapsed, collapsible, defaultOpen = true }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   useEffect(() => {
@@ -144,10 +151,16 @@ const SidebarGroup: React.FC<{
           className={`sidebar-group-label ${collapsible ? 'sidebar-group-trigger' : ''}`}
           onClick={() => collapsible && setIsOpen((open) => !open)}
         >
-          <span>{label}</span>
-          {collapsible && (
-            <ChevronDown size={15} className={`sidebar-group-chevron ${isOpen ? 'open' : ''}`} />
-          )}
+          <span className="sidebar-group-title">
+            {Icon && <Icon size={16} />}
+            <span>{label}</span>
+          </span>
+          <span className="sidebar-group-meta">
+            {typeof count === 'number' && <span className="sidebar-group-count">{count}</span>}
+            {collapsible && (
+              <ChevronDown size={15} className={`sidebar-group-chevron ${isOpen ? 'open' : ''}`} />
+            )}
+          </span>
         </button>
       )}
       {visibleChildren && children}
@@ -198,104 +211,91 @@ export const Sidebar: React.FC<{
   const canSeeModule = (moduleKey: string) => isSuper || access.hasModule(moduleKey);
   const canSeeAny = (moduleKeys: string[]) => isSuper || access.hasAnyModule(moduleKeys);
 
-  const workspaceItems = [
-    { module: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', active: (path: string) => path === getPath('/dashboard') || path === '/' },
-  ];
-
-  const shortcutItems = [
-    { module: 'ai', icon: Sparkles, label: 'Agentes de IA', path: '/agents-hub', isAi: true, badge: 'AI' },
-    { module: 'whatsapp', icon: MessageCircle, label: 'Mensagens', path: '/whatsapp?tab=messages' },
-    { module: 'crm', icon: KanbanSquare, label: 'Kanban', path: '/crm?tab=funil' },
-    { module: 'whatsapp', icon: PlugZap, label: 'Conexoes WhatsApp', path: '/whatsapp?tab=instances' },
-  ];
-
-  const menuGroups = [
+  const menuGroups: any[] = [
     {
-      label: 'Comercial',
-      modules: ['prospecting', 'whatsapp_funnels', 'whatsapp', 'crm', 'sales', 'proposals'],
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      modules: ['dashboard'],
       items: [
-        { module: 'prospecting', icon: Search, label: 'Captacao de Leads', path: '/prospecting/capture' },
+        { module: 'dashboard', icon: LayoutDashboard, label: 'Dashboard Executivo', path: '/dashboard', active: (path: string) => path === getPath('/dashboard') || path === '/' },
+      ],
+    },
+    {
+      label: 'Prospeccao',
+      icon: Target,
+      modules: ['prospecting', 'whatsapp_funnels', 'sales'],
+      items: [
+        { module: 'prospecting', icon: Target, label: 'Captacao de Leads', path: '/prospecting/capture' },
         { module: 'prospecting', icon: CalendarDays, label: 'Missoes Agendadas', path: '/prospecting/missions' },
-        { module: 'whatsapp_funnels', icon: MessageCircle, label: 'Funis IA WhatsApp', path: '/prospecting/funnels' },
-        { module: 'crm', icon: Users, label: 'CRM & Pipelines', path: '/crm', startsWith: true },
         { module: 'sales', icon: Zap, label: 'Sales Machine', path: '/sales-machine' },
+        { module: 'whatsapp_funnels', icon: BarChart3, label: 'Funis IA WhatsApp', path: '/prospecting/funnels' },
+      ],
+    },
+    {
+      label: 'CRM',
+      icon: UsersRound,
+      modules: ['crm', 'whatsapp'],
+      items: [
+        { module: 'crm', icon: Users, label: 'CRM & Pipelines', path: '/crm', startsWith: true },
+        { module: 'whatsapp', icon: MessageCircle, label: 'Mensagens', path: '/whatsapp?tab=messages' },
+        { module: 'whatsapp', icon: PlugZap, label: 'Conexoes WhatsApp', path: '/whatsapp?tab=instances' },
+        { module: 'crm', icon: KanbanSquare, label: 'Kanban', path: '/crm?tab=funil' },
+      ],
+    },
+    {
+      label: 'Marketing',
+      icon: Megaphone,
+      modules: ['ads', 'landing_pages', 'assets', 'proposals'],
+      items: [
+        { module: 'ads', icon: Megaphone, label: 'Trafego Pago', path: '/ad-accounts' },
+        { module: 'assets', icon: Palette, label: 'Criativos & Assets', path: '/assets' },
+        { module: 'landing_pages', icon: Globe, label: 'Landing Pages', path: '/landing-pages' },
         { module: 'proposals', icon: FileText, label: 'Propostas', path: '/proposals' },
       ],
     },
     {
       label: 'Operacao',
-      modules: ['projects', 'delivery', 'service_catalog', 'time_tracking'],
+      icon: FolderKanban,
+      modules: ['projects', 'delivery', 'time_tracking', 'service_catalog'],
       items: [
-        { module: 'projects', icon: KanbanSquare, label: 'Projetos & Demandas', path: '/projects', startsWith: true },
-        { module: 'delivery', icon: Truck, label: 'Entregas & Aprovacoes', path: '/delivery' },
-        { module: 'service_catalog', icon: Package, label: 'Catalogo de Servicos', path: '/service-catalog' },
+        { module: 'projects', icon: FolderKanban, label: 'Projetos', path: '/projects', startsWith: true },
+        { module: 'delivery', icon: Truck, label: 'Entregas', path: '/delivery' },
         { module: 'time_tracking', icon: Clock, label: 'Apontamento de Horas', path: '/time-tracking' },
+        { module: 'service_catalog', icon: Package, label: 'Catalogo de Servicos', path: '/service-catalog' },
       ],
     },
     {
-      label: 'Marketing',
-      modules: ['ads', 'landing_pages', 'assets'],
+      label: 'IA ACP',
+      icon: Bot,
+      modules: ['ai', 'prompt_architect', 'knowledge_base'],
       items: [
-        { module: 'ads', icon: Monitor, label: 'Trafego (Ads)', path: '/ad-accounts' },
-        { module: 'landing_pages', icon: Globe, label: 'Landing Pages', path: '/landing-pages' },
-        { module: 'assets', icon: FolderKanban, label: 'Criativos & Assets', path: '/assets' },
-      ],
-    },
-    {
-      label: 'Automacao',
-      modules: ['automations', 'notifications', 'knowledge_base'],
-      items: [
-        { module: 'automations', icon: GitBranch, label: 'Automacoes', path: '/automations' },
-        { module: 'notifications', icon: Bell, label: 'Notificacoes', path: '/notifications' },
+        { module: 'ai', icon: Bot, label: 'Agentes de IA', path: '/agents-hub', isAi: true },
+        { module: 'prompt_architect', icon: Brain, label: 'Arquiteto de Prompts', path: '/prompt-architect', isAi: true },
+        { module: 'ai', icon: Zap, label: 'Orquestrador ACP', path: '/acp', isAi: true, badge: 'v2' },
         { module: 'knowledge_base', icon: BookOpen, label: 'Base de Conhecimento', path: '/knowledge-base' },
       ],
     },
     {
-      label: 'Inteligencia Artificial',
-      modules: ['ai', 'prompt_architect'],
-      items: [
-        { module: 'prompt_architect', icon: Zap, label: 'Arquiteto de Prompts', path: '/prompt-architect', isAi: true },
-        { module: 'ai', icon: Brain, label: 'Orquestrador ACP', path: '/acp', isAi: true, badge: 'v2' },
-      ],
-    },
-    {
       label: 'Gestao',
-      modules: ['reports', 'finance', 'health_score', 'agenda'],
+      icon: BarChart3,
+      modules: ['reports', 'finance', 'health_score', 'agenda', 'notifications'],
       items: [
         { module: 'reports', icon: BarChart3, label: 'Relatorios', path: '/reports' },
         { module: 'finance', icon: Wallet, label: 'Financeiro', path: '/finance' },
         { module: 'health_score', icon: Activity, label: 'Health Score', path: '/client-health' },
-      ],
-      children: [
-        {
-          module: 'agenda',
-          icon: CalendarDays,
-          label: 'Agenda',
-          items: [
-            { label: 'Calendario', path: '/calendar' },
-            { label: 'Tarefas', path: '/tasks' },
-          ],
-        },
+        { module: 'agenda', icon: CalendarDays, label: 'Agenda', path: '/calendar' },
+        { module: 'notifications', icon: Bell, label: 'Notificacoes', path: '/notifications' },
       ],
     },
     {
-      label: 'Administracao',
-      modules: ['team', 'clients', 'billing', 'settings'],
+      label: 'Configuracoes',
+      icon: Settings,
+      modules: ['settings', 'team', 'integrations'],
       items: [
-        { module: 'clients', icon: UsersRound, label: 'Meus Clientes', path: '/clients', startsWith: true },
-        { module: 'team', icon: UsersRound, label: 'Equipe e Acessos', path: '/team' },
-        { module: 'billing', icon: CreditCard, label: 'Assinatura e Uso', path: '/billing' },
-      ],
-      children: [
-        {
-          module: 'settings',
-          icon: Settings,
-          label: 'Configuracoes',
-          items: [
-            { label: 'Dados Gerais', path: '/settings' },
-            { label: 'Configuracoes de IA', path: '/ai-settings' },
-          ],
-        },
+        { module: 'settings', icon: Settings, label: 'Administracao', path: '/settings' },
+        { module: 'team', icon: UsersRound, label: 'Usuarios', path: '/team' },
+        { module: 'team', icon: LockKeyhole, label: 'Permissoes', path: '/team?tab=permissions' },
+        { module: 'settings', icon: KeyRound, label: 'Integracoes', path: '/settings?tab=integrations' },
       ],
     },
   ];
@@ -398,27 +398,25 @@ export const Sidebar: React.FC<{
             </SidebarGroup>
           ) : (
             <>
-              <SidebarGroup label="Workspace" collapsed={collapsed}>
-                {workspaceItems.map(renderMenuItem)}
-              </SidebarGroup>
-
-              <SidebarGroup label="Atalhos" collapsed={collapsed}>
-                {shortcutItems.map(renderMenuItem)}
-              </SidebarGroup>
-
               {menuGroups.map((group) => {
                 if (!canSeeAny(group.modules)) return null;
                 const groupHasActiveItem = group.items.some((item) => location.pathname.startsWith(getPath(item.path).split('?')[0]));
                 const groupHasActiveChild = group.children?.some((child: any) =>
                   child.items.some((subItem: any) => location.pathname === getPath(subItem.path))
                 );
+                const visibleItemsCount = group.items.filter((item) => canSeeModule(item.module)).length +
+                  (group.children || []).reduce((total: number, child: any) => (
+                    canSeeModule(child.module) ? total + child.items.length : total
+                  ), 0);
                 return (
                   <SidebarGroup
                     key={group.label}
                     label={group.label}
+                    icon={group.icon}
+                    count={visibleItemsCount}
                     collapsed={collapsed}
                     collapsible
-                    defaultOpen={Boolean(groupHasActiveItem || groupHasActiveChild)}
+                    defaultOpen={group.label === 'Dashboard' || Boolean(groupHasActiveItem || groupHasActiveChild)}
                   >
                     {group.items.map(renderMenuItem)}
                     {group.children?.map((child: any) => {

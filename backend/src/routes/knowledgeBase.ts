@@ -33,6 +33,20 @@ export function knowledgeBaseRoutes(prisma: PrismaClient) {
     }
   });
 
+  router.get("/categories/list", async (req: AuthRequest, res) => {
+    try {
+      const categories = await prisma.knowledgeBase.groupBy({
+        by: ["category"],
+        where: { organizationId: req.user!.orgId, category: { not: null } },
+        _count: { id: true },
+      });
+      res.json(categories);
+    } catch (error) {
+      console.error("[KNOWLEDGE_BASE_CATEGORIES_ERROR]", error);
+      res.status(500).json({ error: "Erro ao listar categorias" });
+    }
+  });
+
   router.get("/:id", async (req: AuthRequest, res) => {
     try {
       const article = await prisma.knowledgeBase.findFirst({
@@ -79,20 +93,6 @@ export function knowledgeBaseRoutes(prisma: PrismaClient) {
     } catch (error) {
       console.error("[KNOWLEDGE_BASE_DELETE_ERROR]", error);
       res.status(500).json({ error: "Erro ao deletar artigo" });
-    }
-  });
-
-  router.get("/categories/list", async (req: AuthRequest, res) => {
-    try {
-      const categories = await prisma.knowledgeBase.groupBy({
-        by: ["category"],
-        where: { organizationId: req.user!.orgId, category: { not: null } },
-        _count: { id: true },
-      });
-      res.json(categories);
-    } catch (error) {
-      console.error("[KNOWLEDGE_BASE_CATEGORIES_ERROR]", error);
-      res.status(500).json({ error: "Erro ao listar categorias" });
     }
   });
 

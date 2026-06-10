@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Bot,
   CheckCircle2,
@@ -277,6 +278,7 @@ function MessageBody({ message }: { message: Message }) {
 }
 
 export default function WhatsApp() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<MainTab>("instances");
   const [messageTab, setMessageTab] = useState<MessageTab>("direct");
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -298,6 +300,13 @@ export default function WhatsApp() {
     () => connections.find((conn) => conn.config?.status === "connected" && conn.isActive) || connections.find((conn) => conn.isActive),
     [connections]
   );
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "instances" || tab === "llms" || tab === "messages") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   const loadConnections = async () => {
     const res = await apiFetch("/api/whatsapp/connections");
@@ -476,7 +485,13 @@ export default function WhatsApp() {
   };
 
   const renderTabButton = (id: MainTab, label: string, Icon: any) => (
-    <button onClick={() => setActiveTab(id)} className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black ${activeTab === id ? "bg-emerald-600 text-white" : "text-gray-500 hover:bg-gray-50"}`}>
+    <button
+      onClick={() => {
+        setActiveTab(id);
+        setSearchParams({ tab: id });
+      }}
+      className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black ${activeTab === id ? "bg-emerald-600 text-white" : "text-gray-500 hover:bg-gray-50"}`}
+    >
       <Icon size={15} />
       {label}
     </button>

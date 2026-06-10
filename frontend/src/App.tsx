@@ -145,7 +145,7 @@ const Layout = ({
         whiteLabel={whiteLabel}
       />
       
-      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[280px]'}`}>
+      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[304px]'}`}>
         <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-100 sticky top-0 z-40">
           <div className="flex items-center gap-2">
             {whiteLabel?.logoUrl ? (

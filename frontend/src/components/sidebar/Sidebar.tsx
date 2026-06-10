@@ -35,7 +35,8 @@ import {
   GitBranch,
   MessageCircle,
   Brain,
-  Palette
+  Palette,
+  PlugZap
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
@@ -120,12 +121,39 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   );
 };
 
-const SidebarGroup: React.FC<{ label: string; children: React.ReactNode; collapsed?: boolean }> = ({ label, children, collapsed }) => (
-  <div className="sidebar-group">
-    {!collapsed && <div className="sidebar-group-label">{label}</div>}
-    {children}
-  </div>
-);
+const SidebarGroup: React.FC<{
+  label: string;
+  children: React.ReactNode;
+  collapsed?: boolean;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+}> = ({ label, children, collapsed, collapsible, defaultOpen = true }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  useEffect(() => {
+    setIsOpen(defaultOpen);
+  }, [defaultOpen]);
+
+  const visibleChildren = !collapsible || collapsed || isOpen;
+
+  return (
+    <div className="sidebar-group">
+      {!collapsed && (
+        <button
+          type="button"
+          className={`sidebar-group-label ${collapsible ? 'sidebar-group-trigger' : ''}`}
+          onClick={() => collapsible && setIsOpen((open) => !open)}
+        >
+          <span>{label}</span>
+          {collapsible && (
+            <ChevronDown size={15} className={`sidebar-group-chevron ${isOpen ? 'open' : ''}`} />
+          )}
+        </button>
+      )}
+      {visibleChildren && children}
+    </div>
+  );
+};
 
 export const Sidebar: React.FC<{
   onLogout: () => void;
@@ -174,6 +202,13 @@ export const Sidebar: React.FC<{
     { module: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', active: (path: string) => path === getPath('/dashboard') || path === '/' },
   ];
 
+  const shortcutItems = [
+    { module: 'ai', icon: Sparkles, label: 'Agentes de IA', path: '/agents-hub', isAi: true, badge: 'AI' },
+    { module: 'whatsapp', icon: MessageCircle, label: 'Mensagens', path: '/whatsapp?tab=messages' },
+    { module: 'crm', icon: KanbanSquare, label: 'Kanban', path: '/crm?tab=funil' },
+    { module: 'whatsapp', icon: PlugZap, label: 'Conexoes WhatsApp', path: '/whatsapp?tab=instances' },
+  ];
+
   const menuGroups = [
     {
       label: 'Comercial',
@@ -182,7 +217,6 @@ export const Sidebar: React.FC<{
         { module: 'prospecting', icon: Search, label: 'Captacao de Leads', path: '/prospecting/capture' },
         { module: 'prospecting', icon: CalendarDays, label: 'Missoes Agendadas', path: '/prospecting/missions' },
         { module: 'whatsapp_funnels', icon: MessageCircle, label: 'Funis IA WhatsApp', path: '/prospecting/funnels' },
-        { module: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', path: '/whatsapp' },
         { module: 'crm', icon: Users, label: 'CRM & Pipelines', path: '/crm', startsWith: true },
         { module: 'sales', icon: Zap, label: 'Sales Machine', path: '/sales-machine' },
         { module: 'proposals', icon: FileText, label: 'Propostas', path: '/proposals' },
@@ -220,7 +254,6 @@ export const Sidebar: React.FC<{
       label: 'Inteligencia Artificial',
       modules: ['ai', 'prompt_architect'],
       items: [
-        { module: 'ai', icon: Sparkles, label: 'Central de Agentes', path: '/agents-hub', isAi: true, badge: 'AI' },
         { module: 'prompt_architect', icon: Zap, label: 'Arquiteto de Prompts', path: '/prompt-architect', isAi: true },
         { module: 'ai', icon: Brain, label: 'Orquestrador ACP', path: '/acp', isAi: true, badge: 'v2' },
       ],
@@ -270,7 +303,14 @@ export const Sidebar: React.FC<{
   const renderMenuItem = (item: any) => {
     if (!canSeeModule(item.module)) return null;
     const path = getPath(item.path);
-    const active = item.active ? item.active(location.pathname) : item.startsWith ? location.pathname.startsWith(path) : location.pathname === path;
+    const comparablePath = path.split('?')[0];
+    const active = item.active
+      ? item.active(location.pathname)
+      : item.path.includes('?')
+        ? `${location.pathname}${location.search}` === path
+        : item.startsWith
+          ? location.pathname.startsWith(comparablePath)
+          : location.pathname === comparablePath;
     return (
       <SidebarItem
         key={`${item.module}-${item.path}`}
@@ -362,10 +402,24 @@ export const Sidebar: React.FC<{
                 {workspaceItems.map(renderMenuItem)}
               </SidebarGroup>
 
+              <SidebarGroup label="Atalhos" collapsed={collapsed}>
+                {shortcutItems.map(renderMenuItem)}
+              </SidebarGroup>
+
               {menuGroups.map((group) => {
                 if (!canSeeAny(group.modules)) return null;
+                const groupHasActiveItem = group.items.some((item) => location.pathname.startsWith(getPath(item.path).split('?')[0]));
+                const groupHasActiveChild = group.children?.some((child: any) =>
+                  child.items.some((subItem: any) => location.pathname === getPath(subItem.path))
+                );
                 return (
-                  <SidebarGroup key={group.label} label={group.label} collapsed={collapsed}>
+                  <SidebarGroup
+                    key={group.label}
+                    label={group.label}
+                    collapsed={collapsed}
+                    collapsible
+                    defaultOpen={Boolean(groupHasActiveItem || groupHasActiveChild)}
+                  >
                     {group.items.map(renderMenuItem)}
                     {group.children?.map((child: any) => {
                       if (!canSeeModule(child.module)) return null;

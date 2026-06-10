@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Search, Plus, Loader2, Sparkles, Target, TrendingUp,
   LayoutGrid, List, BarChart3, Trophy, MessageSquare, Send,
@@ -14,6 +15,7 @@ import NewOpportunityModal from "../components/crm/NewOpportunityModal";
 import Pagination from "../components/Pagination";
 
 export default function CRM() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [pipelines, setPipelines] = useState<any[]>([]);
   const [opportunities, setOpportunities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +29,18 @@ export default function CRM() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [growthIntel, setGrowthIntel] = useState<any>(null);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab")?.toLowerCase();
+    const tabMap: Record<string, string> = {
+      funil: "FUNIL",
+      listagem: "LISTAGEM",
+      relatorios: "RELATÃ“RIOS",
+      metas: "METAS",
+      inteligencia: "INTELIGENCIA",
+    };
+    if (tab && tabMap[tab]) setActiveTab(tabMap[tab]);
+  }, [searchParams]);
 
   const fetchData = async (p = page) => {
     try {
@@ -147,7 +161,10 @@ export default function CRM() {
                 ].map((tab) => (
                   <button 
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setSearchParams({ tab: String(tab.id).toLowerCase() });
+                    }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
                       activeTab === tab.id 
                         ? 'bg-white/10 text-white shadow-inner' 

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Rocket, Target, Users, Zap, ChevronRight, ArrowLeft,
   CheckCircle2, Sparkles, BrainCircuit, Building2, DollarSign,
   Phone, Calendar, Clock, AlertCircle, Package, RefreshCw,
   BarChart3, UserPlus, MessageSquare, Globe, FileText, Truck,
-  Loader2
+  Loader2, Briefcase, Plus, Trash2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
@@ -15,7 +15,8 @@ const steps = [
   { id: 2, title: "Seu Negócio", icon: Building2 },
   { id: 3, title: "Processo Comercial", icon: BarChart3 },
   { id: 4, title: "Time & Dores", icon: Users },
-  { id: 5, title: "Entrega", icon: Package },
+  { id: 5, title: "Experiências", icon: Briefcase },
+  { id: 6, title: "Entrega", icon: Package },
 ];
 
 interface StepData {
@@ -40,6 +41,27 @@ interface StepData {
   hasChecklist: boolean;
   hasRenewal: boolean;
   hasUpsell: boolean;
+}
+
+interface ProfessionalExperienceForm {
+  companyName: string;
+  role: string;
+  description: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+}
+
+interface SavedExperience {
+  id: string;
+  companyName: string;
+  role: string;
+  description: string | null;
+  location: string | null;
+  startDate: string;
+  endDate: string | null;
+  isCurrent: boolean;
 }
 
 const initialData: StepData = {
@@ -71,14 +93,25 @@ export default function OnboardingWizard() {
   const [formData, setFormData] = useState<StepData>(initialData);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [experiences, setExperiences] = useState<SavedExperience[]>([]);
+  const [loadingExperiences, setLoadingExperiences] = useState(false);
+  const [savingExperience, setSavingExperience] = useState(false);
+  const [expForm, setExpForm] = useState<ProfessionalExperienceForm>({
+    companyName: "", role: "", description: "", location: "",
+    startDate: "", endDate: "", isCurrent: false,
+  });
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (currentStep === 5) loadExperiences();
+  }, [currentStep]);
 
   const nextStep = () => {
     if (currentStep === 2 && !saved) {
       saveStep2();
       return;
     }
-    if (currentStep === 5) {
+    if (currentStep === 6) {
       saveAll();
       return;
     }
@@ -117,6 +150,60 @@ export default function OnboardingWizard() {
   };
 
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
+
+  const prevStepWithLoad = () => {
+    const prev = Math.max(currentStep - 1, 1);
+    if (prev === 5) loadExperiences();
+    setCurrentStep(prev);
+  };
+
+  const goToStep = (step: number) => {
+    if (step === 5) loadExperiences();
+    setCurrentStep(step);
+  };
+
+  const loadExperiences = async () => {
+    setLoadingExperiences(true);
+    try {
+      const res = await apiFetch("/api/onboarding/professional-experiences");
+      const data = await res.json();
+      if (data.success) setExperiences(data.experiences);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingExperiences(false);
+    }
+  };
+
+  const addExperience = async () => {
+    if (!expForm.companyName || !expForm.role || !expForm.startDate) return;
+    setSavingExperience(true);
+    try {
+      const res = await apiFetch("/api/onboarding/professional-experiences", {
+        method: "POST",
+        body: JSON.stringify(expForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setExperiences(prev => [...prev, data.experience]);
+        setExpForm({ companyName: "", role: "", description: "", location: "", startDate: "", endDate: "", isCurrent: false });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingExperience(false);
+    }
+  };
+
+  const removeExperience = async (id: string) => {
+    try {
+      const res = await apiFetch(`/api/onboarding/professional-experiences/${id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) setExperiences(prev => prev.filter(e => e.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const toggleChannel = (channel: string) => {
     setFormData(prev => ({
@@ -481,6 +568,149 @@ export default function OnboardingWizard() {
               {currentStep === 5 && (
                 <motion.div
                   key="step5"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-8"
+                >
+                  <div>
+                    <h2 className="text-4xl font-black">Experiências Profissionais</h2>
+                    <p className="text-gray-500 mt-2">Conte sua trajetória profissional para criar credibilidade.</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-slate-50 p-6 rounded-lg border border-gray-200 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Empresa</label>
+                          <input
+                            placeholder="Ex: Nexus360"
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg outline-none focus:border-primary text-sm"
+                            value={expForm.companyName}
+                            onChange={e => setExpForm({...expForm, companyName: e.target.value})}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Cargo</label>
+                          <input
+                            placeholder="Ex: CEO"
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg outline-none focus:border-primary text-sm"
+                            value={expForm.role}
+                            onChange={e => setExpForm({...expForm, role: e.target.value})}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Descrição</label>
+                        <textarea
+                          placeholder="Ex: Responsável por liderar a equipe e definir estratégias..."
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg outline-none focus:border-primary text-sm min-h-[60px] resize-none"
+                          value={expForm.description}
+                          onChange={e => setExpForm({...expForm, description: e.target.value})}
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Local</label>
+                          <input
+                            placeholder="Ex: São Paulo, SP"
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg outline-none focus:border-primary text-sm"
+                            value={expForm.location}
+                            onChange={e => setExpForm({...expForm, location: e.target.value})}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Data Início</label>
+                          <input
+                            type="month"
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg outline-none focus:border-primary text-sm"
+                            value={expForm.startDate}
+                            onChange={e => setExpForm({...expForm, startDate: e.target.value})}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Data Término</label>
+                          <div className="space-y-2">
+                            <input
+                              type="month"
+                              disabled={expForm.isCurrent}
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg outline-none focus:border-primary text-sm disabled:opacity-50"
+                              value={expForm.endDate}
+                              onChange={e => setExpForm({...expForm, endDate: e.target.value})}
+                            />
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-300 text-primary"
+                                checked={expForm.isCurrent}
+                                onChange={e => setExpForm({...expForm, isCurrent: e.target.checked, endDate: e.target.checked ? "" : expForm.endDate})}
+                              />
+                              <span className="text-xs text-gray-500">Trabalho atual</span>
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={addExperience}
+                        disabled={savingExperience || !expForm.companyName || !expForm.role || !expForm.startDate}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg font-bold text-sm hover:bg-primary-hover transition-all disabled:opacity-50"
+                      >
+                        {savingExperience ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                        Adicionar Experiência
+                      </button>
+                    </div>
+
+                    {loadingExperiences ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 size={24} className="animate-spin text-primary" />
+                      </div>
+                    ) : experiences.length > 0 ? (
+                      <div className="space-y-3">
+                        {experiences.map(exp => (
+                          <div key={exp.id} className="flex items-start gap-4 bg-white p-4 rounded-lg border border-gray-200">
+                            <div className="w-10 h-10 bg-primary/10 text-primary rounded-lg flex items-center justify-center shrink-0">
+                              <Briefcase size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-bold text-sm">{exp.role}</h4>
+                              <p className="text-xs text-gray-500">{exp.companyName}{exp.location ? ` • ${exp.location}` : ""}</p>
+                              {exp.description && <p className="text-xs text-gray-400 mt-1">{exp.description}</p>}
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                {new Date(exp.startDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                                {exp.isCurrent ? " - Presente" : exp.endDate ? ` - ${new Date(exp.endDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}` : ""}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => removeExperience(exp.id)}
+                              className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500 transition-all"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 bg-slate-50 rounded-lg border border-dashed border-gray-300">
+                        <Briefcase className="mx-auto text-gray-300" size={32} />
+                        <p className="text-sm text-gray-400 mt-2">Nenhuma experiência cadastrada ainda</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-4">
+                    <button onClick={prevStep} className="p-5 rounded-lg bg-white text-gray-500 border border-gray-200">
+                      <ArrowLeft size={24} />
+                    </button>
+                    <button onClick={nextStep} className="flex-1 bg-primary text-white py-5 rounded-lg font-bold text-lg hover:bg-primary-hover transition-all">
+                      Continuar
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {currentStep === 6 && (
+                <motion.div
+                  key="step6"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}

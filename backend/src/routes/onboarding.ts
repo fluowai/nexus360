@@ -215,5 +215,105 @@ export function onboardingRoutes(prisma: PrismaClient) {
     }
   });
 
+  // ==================== EXPERIÊNCIA PROFISSIONAL ====================
+
+  router.get("/professional-experiences", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const experiences = await prisma.professionalExperience.findMany({
+        where: { organizationId: orgId },
+        orderBy: { order: "asc" },
+      });
+      res.json({ success: true, experiences });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/professional-experiences", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const userId = req.user?.id;
+      const { companyName, role, description, location, startDate, endDate, isCurrent, order } = req.body;
+
+      if (!companyName || !role || !startDate) {
+        return res.status(400).json({ error: "companyName, role e startDate são obrigatórios" });
+      }
+
+      const maxOrder = await prisma.professionalExperience.aggregate({
+        where: { organizationId: orgId },
+        _max: { order: true },
+      });
+
+      const experience = await prisma.professionalExperience.create({
+        data: {
+          organizationId: orgId,
+          userId: userId || null,
+          companyName,
+          role,
+          description: description || null,
+          location: location || null,
+          startDate: new Date(startDate),
+          endDate: endDate ? new Date(endDate) : null,
+          isCurrent: !!isCurrent,
+          order: order ?? (maxOrder._max.order ?? -1) + 1,
+        },
+      });
+
+      res.status(201).json({ success: true, experience });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.put("/professional-experiences/:id", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { id } = req.params;
+      const { companyName, role, description, location, startDate, endDate, isCurrent, order } = req.body;
+
+      const existing = await prisma.professionalExperience.findFirst({
+        where: { id, organizationId: orgId },
+      });
+      if (!existing) return res.status(404).json({ error: "Experiência não encontrada" });
+
+      const experience = await prisma.professionalExperience.update({
+        where: { id },
+        data: {
+          ...(companyName !== undefined && { companyName }),
+          ...(role !== undefined && { role }),
+          ...(description !== undefined && { description }),
+          ...(location !== undefined && { location }),
+          ...(startDate !== undefined && { startDate: new Date(startDate) }),
+          ...(endDate !== undefined && { endDate: endDate ? new Date(endDate) : null }),
+          ...(isCurrent !== undefined && { isCurrent: !!isCurrent }),
+          ...(order !== undefined && { order }),
+        },
+      });
+
+      res.json({ success: true, experience });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/professional-experiences/:id", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { id } = req.params;
+
+      const existing = await prisma.professionalExperience.findFirst({
+        where: { id, organizationId: orgId },
+      });
+      if (!existing) return res.status(404).json({ error: "Experiência não encontrada" });
+
+      await prisma.professionalExperience.delete({ where: { id } });
+
+      res.json({ success: true, message: "Experiência removida" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   return router;
 }

@@ -69,6 +69,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
       localStorage.setItem("nexus_is_test", String(data.user.isTestAccount || false));
       
       if (isRegister) {
+        localStorage.removeItem("nexus_onboarding_done");
         if (isWhitelabel) {
           navigate("/onboarding/whitelabel");
         } else {

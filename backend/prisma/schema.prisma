@@ -171,6 +171,9 @@ model Organization {
   acpQuarterlyPlans     AcpQuarterlyPlan[]
   acpChurnSignals       AcpChurnSignal[]
   agentQueueItems        AgentQueueItem[]
+
+  // Onboarding: Experiências Profissionais
+  professionalExperiences ProfessionalExperience[]
 }
 
 model Workspace {
@@ -463,6 +466,8 @@ model User {
   prospectMissions       ProspectMission[]
   prospectMissionsOwned  ProspectMission[] @relation("MissionSalesOwner")
   
+  professionalExperiences ProfessionalExperience[]
+
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -3312,4 +3317,29 @@ model AcpChurnSignal {
   @@index([organizationId])
   @@index([clientId])
   @@index([severity])
+}
+
+// ==================== ONBOARDING: EXPERIÊNCIAS PROFISSIONAIS ====================
+
+model ProfessionalExperience {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation(fields: [userId], references: [id])
+
+  companyName    String
+  role           String
+  description    String?      @db.Text
+  location       String?
+  startDate      DateTime
+  endDate        DateTime?
+  isCurrent      Boolean      @default(false)
+  order          Int          @default(0)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([userId])
 }

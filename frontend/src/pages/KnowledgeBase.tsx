@@ -201,38 +201,38 @@ export default function KnowledgeBase() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-7">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-[32px] font-bold leading-tight tracking-normal text-[#0F172A]">Base de Conhecimento</h1>
-          <p className="mt-2 text-[16px] font-medium text-[#64748B]">Documentacao, processos e playbooks da operacao.</p>
+          <h1 className="text-[40px] font-bold leading-tight tracking-normal text-[#0F172A]">Base de Conhecimento</h1>
+          <p className="mt-2 text-[18px] font-medium text-[#64748B]">Documentacao, processos e playbooks da operacao.</p>
         </div>
         <button
           onClick={() => { setEditing(null); setModalOpen(true); }}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#5B5CF0] px-5 text-[15px] font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5] active:scale-[0.98]"
+          className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-[#5B5CF0] px-6 text-[16px] font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5] active:scale-[0.98]"
         >
-          <Plus size={18} />
+          <Plus size={20} />
           Novo Artigo
         </button>
       </div>
 
       <div className="relative">
-        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={22} />
+        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={24} />
         <input
-          className="h-14 w-full rounded-xl border border-[#E2E8F0] bg-white pl-14 pr-24 text-[16px] text-[#0F172A] shadow-sm outline-none transition-all duration-200 placeholder:text-[#94A3B8] focus:border-[#5B5CF0] focus:ring-4 focus:ring-[#5B5CF0]/10"
+          className="h-16 w-full rounded-xl border border-[#E2E8F0] bg-white pl-16 pr-24 text-[18px] text-[#0F172A] shadow-sm outline-none transition-all duration-200 placeholder:text-[#94A3B8] focus:border-[#5B5CF0] focus:ring-4 focus:ring-[#5B5CF0]/10"
           placeholder="Buscar artigos, processos, documentacoes..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
-        <span className="absolute right-4 top-1/2 hidden -translate-y-1/2 rounded-lg bg-[#F8FAFC] px-2.5 py-1 text-xs font-bold text-[#64748B] md:inline-flex">
+        <span className="absolute right-4 top-1/2 hidden -translate-y-1/2 rounded-lg bg-[#F8FAFC] px-3 py-1.5 text-[13px] font-bold text-[#64748B] md:inline-flex">
           Ctrl K
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
-          <div className="mb-4 flex items-center gap-2 px-1 text-[12px] font-bold uppercase tracking-[1px] text-[#0F172A]">
-            <FolderTree size={16} className="text-[#5B5CF0]" />
+      <div className="grid grid-cols-1 gap-7 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+          <div className="mb-5 flex items-center gap-2 px-1 text-[14px] font-bold uppercase tracking-[1px] text-[#0F172A]">
+            <FolderTree size={18} className="text-[#5B5CF0]" />
             Categorias
           </div>
           <div className="flex flex-col gap-2">
@@ -256,8 +256,8 @@ export default function KnowledgeBase() {
           </div>
         </aside>
 
-        <section className="min-w-0 rounded-xl border border-[#E2E8F0] bg-white p-4 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <section className="min-w-0 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm">
+          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-3">
               <FilterSelect value={selectedCategory || "all"} onChange={(value) => setSelectedCategory(value === "all" ? "" : value)}>
                 <option value="all">Todas as categorias</option>
@@ -275,11 +275,11 @@ export default function KnowledgeBase() {
               </FilterSelect>
             </div>
             <div className="flex items-center gap-2">
-              <button className="h-10 w-10 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-[#5B5CF0] transition-all duration-200 hover:bg-[#F4F5FF]">
-                <List size={18} className="mx-auto" />
+              <button className="h-12 w-12 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-[#5B5CF0] transition-all duration-200 hover:bg-[#F4F5FF]">
+                <List size={20} className="mx-auto" />
               </button>
-              <button className="h-10 w-10 rounded-xl border border-[#E2E8F0] bg-white text-[#94A3B8] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
-                <Grid2X2 size={18} className="mx-auto" />
+              <button className="h-12 w-12 rounded-xl border border-[#E2E8F0] bg-white text-[#94A3B8] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+                <Grid2X2 size={20} className="mx-auto" />
               </button>
             </div>
           </div>
@@ -287,7 +287,7 @@ export default function KnowledgeBase() {
           {shouldShowEmpty ? (
             <EmptyState onCreate={() => { setEditing(null); setModalOpen(true); }} />
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {normalizedArticles.map((article) => (
                 <ArticleCard
                   key={article.id}
@@ -305,17 +305,17 @@ export default function KnowledgeBase() {
         </section>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-xl border border-[#E2E8F0] bg-white p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 rounded-xl border border-[#E2E8F0] bg-white p-6 shadow-sm md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#F4F5FF] text-[#5B5CF0]">
-            <BookOpen size={24} />
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#F4F5FF] text-[#5B5CF0]">
+            <BookOpen size={27} />
           </div>
           <div>
-            <h3 className="text-[16px] font-bold text-[#0F172A]">Nao encontrou o que estava procurando?</h3>
-            <p className="text-[14px] font-medium text-[#64748B]">Sugira um novo artigo para nossa base de conhecimento.</p>
+            <h3 className="text-[18px] font-bold text-[#0F172A]">Nao encontrou o que estava procurando?</h3>
+            <p className="text-[16px] font-medium text-[#64748B]">Sugira um novo artigo para nossa base de conhecimento.</p>
           </div>
         </div>
-        <button className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#C7D2FE] px-5 text-[15px] font-bold text-[#5B5CF0] transition-all duration-200 hover:bg-[#F4F5FF]">
+        <button className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#C7D2FE] px-6 text-[16px] font-bold text-[#5B5CF0] transition-all duration-200 hover:bg-[#F4F5FF]">
           Sugerir artigo
           <ArrowRight size={17} />
         </button>
@@ -338,18 +338,18 @@ function CategoryButton({ active, icon: Icon, label, count, onClick }: { active:
   return (
     <button
       onClick={onClick}
-      className={`group flex h-[52px] items-center gap-3 rounded-xl border px-3 text-left transition-all duration-200 ${
+      className={`group flex h-[60px] items-center gap-3 rounded-xl border px-4 text-left transition-all duration-200 ${
         active
           ? "border-[#E0E7FF] bg-[#F4F5FF] text-[#5B5CF0]"
           : "border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#C7D2FE] hover:bg-[#F8FAFC] hover:text-[#5B5CF0]"
       }`}
     >
-      <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${active ? "bg-white" : "bg-[#F8FAFC] group-hover:bg-white"}`}>
-        <Icon size={17} />
+      <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${active ? "bg-white" : "bg-[#F8FAFC] group-hover:bg-white"}`}>
+        <Icon size={19} />
       </span>
-      <span className="min-w-0 flex-1 text-[14px] font-bold">{label}</span>
-      <span className="rounded-full bg-[#F1F5F9] px-2 py-1 text-[12px] font-bold text-[#64748B]">{count}</span>
-      <ChevronRight size={16} className="text-[#94A3B8]" />
+      <span className="min-w-0 flex-1 text-[16px] font-bold">{label}</span>
+      <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[13px] font-bold text-[#64748B]">{count}</span>
+      <ChevronRight size={18} className="text-[#94A3B8]" />
     </button>
   );
 }
@@ -359,7 +359,7 @@ function FilterSelect({ value, onChange, children }: { value: string; onChange: 
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-10 min-w-[150px] rounded-xl border border-[#E2E8F0] bg-white px-3 text-[13px] font-semibold text-[#64748B] outline-none transition-all duration-200 hover:border-[#C7D2FE] focus:border-[#5B5CF0] focus:ring-4 focus:ring-[#5B5CF0]/10"
+      className="h-12 min-w-[180px] rounded-xl border border-[#E2E8F0] bg-white px-4 text-[15px] font-semibold text-[#64748B] outline-none transition-all duration-200 hover:border-[#C7D2FE] focus:border-[#5B5CF0] focus:ring-4 focus:ring-[#5B5CF0]/10"
     >
       {children}
     </select>
@@ -373,50 +373,50 @@ function ArticleCard({ article, onEdit, onDelete }: { article: any; onEdit: () =
   return (
     <motion.article
       layout
-      className="group flex flex-col gap-4 rounded-xl border border-[#E2E8F0] bg-white p-4 transition-all duration-200 hover:border-[#C7D2FE] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] lg:flex-row lg:items-center"
+      className="group flex flex-col gap-5 rounded-xl border border-[#E2E8F0] bg-white p-5 transition-all duration-200 hover:border-[#C7D2FE] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] lg:flex-row lg:items-center"
     >
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-[#F4F5FF] text-[#5B5CF0]">
-        <FileText size={24} />
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[#F4F5FF] text-[#5B5CF0]">
+        <FileText size={28} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-[16px] font-bold text-[#0F172A]">{article.title}</h3>
+          <h3 className="text-[19px] font-bold text-[#0F172A]">{article.title}</h3>
           {!article.isPublished && (
-            <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-bold text-[#64748B]">Rascunho</span>
+            <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[12px] font-bold text-[#64748B]">Rascunho</span>
           )}
         </div>
-        <p className="mt-1 text-[14px] font-medium leading-6 text-[#64748B]">{summary}</p>
+        <p className="mt-2 text-[16px] font-medium leading-7 text-[#64748B]">{summary}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-[#F8FAFC] px-2.5 py-1 text-[12px] font-bold text-[#5B5CF0]">{article.category || "Geral"}</span>
+          <span className="rounded-full bg-[#F8FAFC] px-3 py-1.5 text-[13px] font-bold text-[#5B5CF0]">{article.category || "Geral"}</span>
           {tags.slice(0, 3).map((tag) => (
-            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-[#E2E8F0] px-2.5 py-1 text-[12px] font-bold text-[#5B5CF0]">
-              <Hash size={11} />
+            <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-[#E2E8F0] px-3 py-1.5 text-[13px] font-bold text-[#5B5CF0]">
+              <Hash size={12} />
               {tag}
             </span>
           ))}
         </div>
       </div>
-      <div className="flex items-center justify-between gap-4 lg:min-w-[300px]">
-        <div className="text-right text-[13px] font-medium text-[#64748B]">
+      <div className="flex items-center justify-between gap-4 lg:min-w-[340px]">
+        <div className="text-right text-[15px] font-medium text-[#64748B]">
           <div className="flex items-center justify-end gap-1">
-            <Clock3 size={14} />
+            <Clock3 size={16} />
             {formatDate(article.updatedAt || article.createdAt)}
           </div>
           <div className="mt-1">por {article.author || "Time de Produto"}</div>
           <div className="mt-1 flex items-center justify-end gap-1">
-            <Eye size={14} />
+            <Eye size={16} />
             {article.views || 0} acessos
           </div>
         </div>
         <div className="flex items-center gap-1 opacity-100 transition-opacity duration-200 lg:opacity-70 lg:group-hover:opacity-100">
-          <button className="h-9 w-9 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
-            <Bookmark size={17} className="mx-auto" />
+          <button className="h-11 w-11 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+            <Bookmark size={19} className="mx-auto" />
           </button>
-          <button onClick={onEdit} className="h-9 w-9 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
-            <Edit3 size={17} className="mx-auto" />
+          <button onClick={onEdit} className="h-11 w-11 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+            <Edit3 size={19} className="mx-auto" />
           </button>
-          <button onClick={onDelete} className="h-9 w-9 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-red-50 hover:text-red-500">
-            <Trash2 size={17} className="mx-auto" />
+          <button onClick={onDelete} className="h-11 w-11 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-red-50 hover:text-red-500">
+            <Trash2 size={19} className="mx-auto" />
           </button>
         </div>
       </div>

@@ -150,49 +150,49 @@ const Layout = ({
         whiteLabel={whiteLabel}
       />
       
-      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[280px]'}`}>
-        <header className="hidden md:flex sticky top-0 z-40 h-[72px] items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-8 backdrop-blur-xl">
-          <div className="flex items-center gap-3 min-w-[220px]">
+      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[300px]'}`}>
+        <header className="hidden md:flex sticky top-0 z-40 h-[80px] items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-8 backdrop-blur-xl">
+          <div className="flex items-center gap-3 min-w-[240px]">
             {whiteLabel?.logoUrl ? (
-              <img src={whiteLabel.logoUrl} alt={whiteLabel?.name || "Logo"} className="h-9 w-9 rounded-xl object-contain" />
+              <img src={whiteLabel.logoUrl} alt={whiteLabel?.name || "Logo"} className="h-10 w-10 rounded-xl object-contain" />
             ) : (
-              <div className="h-9 w-9 rounded-xl bg-[#5B5CF0] text-white flex items-center justify-center shadow-sm">
-                <Monitor size={19} />
+              <div className="h-10 w-10 rounded-xl bg-[#5B5CF0] text-white flex items-center justify-center shadow-sm">
+                <Monitor size={21} />
               </div>
             )}
             <div>
-              <div className="text-[17px] font-bold leading-tight">{whiteLabel?.name || "Nexus360"}</div>
-              <div className="text-[12px] font-medium text-[#64748B]">SaaS Performance Hub</div>
+              <div className="text-[19px] font-bold leading-tight">{whiteLabel?.name || "Nexus360"}</div>
+              <div className="text-[13px] font-medium text-[#64748B]">SaaS Performance Hub</div>
             </div>
           </div>
 
-          <div className="relative w-full max-w-[520px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={18} />
+          <div className="relative w-full max-w-[620px]">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={20} />
             <input
-              className="h-12 w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-12 pr-4 text-[15px] text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] focus:border-[#5B5CF0] focus:bg-white focus:ring-4 focus:ring-[#5B5CF0]/10"
+              className="h-[52px] w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-12 pr-4 text-[16px] text-[#0F172A] outline-none transition-all duration-200 placeholder:text-[#94A3B8] focus:border-[#5B5CF0] focus:bg-white focus:ring-4 focus:ring-[#5B5CF0]/10"
               placeholder="Buscar leads, clientes, projetos, artigos..."
             />
           </div>
 
-          <div className="flex min-w-[280px] items-center justify-end gap-3">
-            <button className="relative h-10 w-10 rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
-              <Bell size={18} className="mx-auto" />
+          <div className="flex min-w-[330px] items-center justify-end gap-3">
+            <button className="relative h-11 w-11 rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+              <Bell size={20} className="mx-auto" />
               <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
             </button>
-            <button className="h-10 w-10 rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
-              <HelpCircle size={18} className="mx-auto" />
+            <button className="h-11 w-11 rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+              <HelpCircle size={20} className="mx-auto" />
             </button>
-            <button className="flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold text-[#0F172A] transition-all duration-200 hover:bg-[#F4F5FF]">
-              <Building2 size={16} className="text-[#5B5CF0]" />
-              <span className="max-w-[120px] truncate">{whiteLabel?.name || "Empresa Atual"}</span>
+            <button className="flex h-11 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[15px] font-semibold text-[#0F172A] transition-all duration-200 hover:bg-[#F4F5FF]">
+              <Building2 size={18} className="text-[#5B5CF0]" />
+              <span className="max-w-[145px] truncate">{whiteLabel?.name || "Empresa Atual"}</span>
             </button>
-            <button className="flex h-11 items-center gap-3 rounded-xl px-2 transition-all duration-200 hover:bg-[#F4F5FF]">
-              <div className="h-9 w-9 rounded-full bg-[#0F172A] text-white flex items-center justify-center text-sm font-bold">
+            <button className="flex h-12 items-center gap-3 rounded-xl px-2 transition-all duration-200 hover:bg-[#F4F5FF]">
+              <div className="h-10 w-10 rounded-full bg-[#0F172A] text-white flex items-center justify-center text-[15px] font-bold">
                 {user?.name?.substring(0, 1) || "U"}
               </div>
               <div className="text-left">
-                <div className="max-w-[120px] truncate text-sm font-bold">{user?.name || "Usuario"}</div>
-                <div className="text-[11px] font-medium text-[#64748B]">{user?.role || "Acesso"}</div>
+                <div className="max-w-[140px] truncate text-[15px] font-bold">{user?.name || "Usuario"}</div>
+                <div className="text-[12px] font-medium text-[#64748B]">{user?.role || "Acesso"}</div>
               </div>
               <ChevronDown size={15} className="text-[#94A3B8]" />
             </button>
@@ -218,7 +218,7 @@ const Layout = ({
           </button>
         </div>
 
-        <div className="p-4 md:p-8 max-w-[1600px] mx-auto">
+        <div className="p-4 md:p-8 max-w-[1800px] mx-auto">
           <ErrorBoundary>
             <Suspense fallback={
             <div className="flex items-center justify-center h-[60vh]">

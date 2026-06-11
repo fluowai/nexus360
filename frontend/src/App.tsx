@@ -254,10 +254,25 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
 
   useEffect(() => {
     if (isPublicPath(pathname)) return;
+    if (!user) return;
+
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+    const orgType = user?.orgType || localStorage.getItem('nexus_org_type');
+    const whitelabelOnboardingComplete = user?.whitelabelOnboarding?.complete === true;
+
+    if (orgType === 'WHITELABEL' && !whitelabelOnboardingComplete && !isSuperAdmin) {
+      localStorage.removeItem('nexus_onboarding_done');
+      navigate('/onboarding/whitelabel', { replace: true });
+      return;
+    }
+
+    if (orgType === 'WHITELABEL' && whitelabelOnboardingComplete) {
+      localStorage.setItem('nexus_onboarding_done', 'true');
+    }
+
     if (hasUrlSlug(pathname)) return;
 
     const onboardingDone = localStorage.getItem('nexus_onboarding_done') === 'true';
-    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
     if (pathname === '/') {
       if (isSuperAdmin && !selectedClientId) {
@@ -274,7 +289,6 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
       return;
     }
 
-    const orgType = localStorage.getItem('nexus_org_type');
     const shouldEnforceOnboarding =
       !onboardingDone &&
       !isSuperAdmin &&
@@ -289,7 +303,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
         navigate('/onboarding', { replace: true });
       }
     }
-  }, [navigate, pathname, selectedClientId, user?.role]);
+  }, [navigate, pathname, selectedClientId, user?.role, user?.orgType, user?.whitelabelOnboarding?.complete]);
 }
 
 export default function App() {

@@ -19,7 +19,8 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=consultio1"
-        - "traefik.http.routers.nexus360_frontend.rule=Host(`nexus360.consultio.com.br`)"
+        - "traefik.http.routers.nexus360_frontend.rule=HostRegexp(`.+`)"
+        - "traefik.http.routers.nexus360_frontend.ruleSyntax=v3"
         - "traefik.http.routers.nexus360_frontend.entrypoints=websecure"
         - "traefik.http.routers.nexus360_frontend.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_frontend.priority=1"
@@ -105,7 +106,8 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=consultio1"
-        - "traefik.http.routers.nexus360_api.rule=Host(`nexus360.consultio.com.br`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
+        - "traefik.http.routers.nexus360_api.rule=HostRegexp(`.+`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
+        - "traefik.http.routers.nexus360_api.ruleSyntax=v3"
         - "traefik.http.routers.nexus360_api.entrypoints=websecure"
         - "traefik.http.routers.nexus360_api.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_api.priority=10"

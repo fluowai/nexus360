@@ -253,7 +253,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
   const { pathname } = location;
 
   useEffect(() => {
-    if (isPublicPath(pathname)) return;
+    if (isPublicPath(pathname) && !(pathname === '/login' && user)) return;
     if (!user) return;
 
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
@@ -268,6 +268,18 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
 
     if (orgType === 'WHITELABEL' && whitelabelOnboardingComplete) {
       localStorage.setItem('nexus_onboarding_done', 'true');
+    }
+
+    if (pathname === '/login') {
+      if (isSuperAdmin && !selectedClientId) {
+        navigate('/admin', { replace: true });
+      } else {
+        const targetPath = orgType === 'WHITELABEL'
+          ? '/dashboard'
+          : workspacePath('/dashboard', user?.orgSlug || localStorage.getItem('nexus_org_slug'));
+        navigate(targetPath, { replace: true });
+      }
+      return;
     }
 
     if (hasUrlSlug(pathname)) return;

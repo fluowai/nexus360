@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { apiFetch, clearAuthSession, hasAccessToken } from "./api";
+import { apiFetch, clearAuthSession, hasAccessToken, publicApiFetch, readJsonResponse } from "./api";
 import { redirectToLogin } from "./navigation";
 import type { User } from "../types";
 
@@ -8,8 +8,19 @@ export function useAuth() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    const getUnauthenticatedTarget = async () => {
+      try {
+        const res = await publicApiFetch("/api/domain/context");
+        if (!res.ok) return "/login";
+        const data = await readJsonResponse(res, "Contexto white label indisponivel.");
+        return data.customDomain ? "/onboarding" : "/login";
+      } catch {
+        return "/login";
+      }
+    };
+
     const fetchUser = async () => {
-      const publicPaths = ['/login', '/onboarding', '/site', '/vendas'];
+      const publicPaths = ['/login', '/onboarding', '/onboarding/whitelabel', '/onboarding/whitelabel/preview', '/site', '/vendas'];
       const isPublicPath =
         publicPaths.includes(window.location.pathname) ||
         window.location.pathname.startsWith('/meet') ||
@@ -30,7 +41,7 @@ export function useAuth() {
         setUser(null);
         clearAuthSession();
         if (!isPublicPath && window.location.pathname !== '/login') {
-          redirectToLogin();
+          redirectToLogin(await getUnauthenticatedTarget());
         }
       } finally {
         setAuthLoading(false);

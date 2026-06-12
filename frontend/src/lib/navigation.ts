@@ -10,6 +10,6 @@ export function navigateWithinApp(path: string, replace = false) {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-export function redirectToLogin() {
-  navigateWithinApp("/login", true);
+export function redirectToLogin(path = "/login") {
+  navigateWithinApp(path, true);
 }

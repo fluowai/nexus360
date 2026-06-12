@@ -17,7 +17,7 @@ function getDynamicDir() {
 }
 
 function getSyncMode() {
-  return String(process.env.TRAEFIK_SYNC_MODE || "file").trim().toLowerCase();
+  return String(process.env.TRAEFIK_SYNC_MODE || "docker-service").trim().toLowerCase();
 }
 
 function getServiceUrl(envName: string, fallbackUrl: string) {

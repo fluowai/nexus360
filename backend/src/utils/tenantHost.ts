@@ -63,7 +63,7 @@ export async function findVerifiedTenantDomain(prisma: PrismaClient, hostValue: 
     where: { name: host, status: "verified" },
     include: {
       organization: {
-        select: { id: true, name: true, slug: true, whiteLabelConfig: true },
+        select: { id: true, name: true, slug: true, type: true, settings: true, whiteLabelConfig: true },
       },
     },
   });
@@ -108,7 +108,7 @@ export async function findTenantSlugContext(prisma: PrismaClient, slugValue: unk
 
   const organization = await prisma.organization.findUnique({
     where: { slug },
-    select: { id: true, name: true, slug: true, whiteLabelConfig: true },
+    select: { id: true, name: true, slug: true, type: true, settings: true, whiteLabelConfig: true },
   });
 
   if (!organization) return null;

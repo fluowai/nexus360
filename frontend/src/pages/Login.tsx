@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, hasAccessToken, readJsonResponse, setAccessToken } from "../lib/api";
+import { apiFetch, readJsonResponse, setAccessToken } from "../lib/api";
 import { workspacePath } from "../lib/workspaceRoute";
 import { useWhitelabel } from "../lib/useWhitelabel";
 import { Mail, Lock, ArrowRight, Zap, Palette, Monitor, ChevronDown } from "lucide-react";
@@ -27,12 +27,6 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
   useEffect(() => {
     if (customDomain) setIsRegister(false);
   }, [customDomain]);
-
-  useEffect(() => {
-    if (customDomain && !hasAccessToken()) {
-      navigate("/onboarding", { replace: true });
-    }
-  }, [customDomain, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

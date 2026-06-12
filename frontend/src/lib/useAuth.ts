@@ -13,7 +13,8 @@ export function useAuth() {
         const res = await publicApiFetch("/api/domain/context");
         if (!res.ok) return "/login";
         const data = await readJsonResponse(res, "Contexto white label indisponivel.");
-        return data.customDomain ? "/onboarding" : "/login";
+        if (!data.customDomain) return "/login";
+        return data.whitelabelOnboarding?.complete ? "/login" : "/onboarding";
       } catch {
         return "/login";
       }

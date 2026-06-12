@@ -191,6 +191,22 @@ app.get("/api/domain/context", async (req, res, next) => {
   try {
     const host = normalizeRequestHost(req.headers["x-forwarded-host"] as string || req.headers.host);
     const slugContext = await findTenantSlugContext(prisma, req.query.slug);
+    const serializeContextOnboarding = (organization: any) => {
+      const settings = organization?.settings && typeof organization.settings === "object"
+        ? organization.settings
+        : {};
+      return organization?.type === "WHITELABEL"
+        ? {
+            complete: Boolean(settings.whitelabelOnboardingComplete),
+            step: Number(settings.whitelabelOnboardingStep) || 1,
+          }
+        : null;
+    };
+    const serializeContextOrganization = (organization: any) => {
+      if (!organization) return null;
+      const { settings: _settings, ...safeOrganization } = organization;
+      return safeOrganization;
+    };
 
     if (slugContext) {
       return res.json({
@@ -198,7 +214,8 @@ app.get("/api/domain/context", async (req, res, next) => {
         domain: null,
         status: slugContext.status,
         internalUrl: slugContext.internalUrl,
-        organization: slugContext.organization,
+        organization: serializeContextOrganization(slugContext.organization),
+        whitelabelOnboarding: serializeContextOnboarding(slugContext.organization),
       });
     }
 
@@ -212,7 +229,8 @@ app.get("/api/domain/context", async (req, res, next) => {
         domain: tenantDomain.domain,
         status: tenantDomain.status,
         internalUrl: tenantDomain.internalUrl,
-        organization: tenantDomain.organization,
+        organization: serializeContextOrganization(tenantDomain.organization),
+        whitelabelOnboarding: serializeContextOnboarding(tenantDomain.organization),
       });
     }
 

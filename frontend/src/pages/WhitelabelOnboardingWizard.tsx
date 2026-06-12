@@ -6,7 +6,7 @@ import {
   X, Monitor, AlertCircle, ShieldCheck, UserPlus
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, readJsonResponse } from "../lib/api";
+import { apiFetch, clearAuthSession, readJsonResponse } from "../lib/api";
 
 const steps = [
   { id: 1, title: "Identidade da Marca", icon: Palette },
@@ -55,7 +55,7 @@ export default function WhitelabelOnboardingWizard() {
         if (data.domainStatus) setDomainStatus(data.domainStatus);
         if (data.domainDns) setDomainDns(JSON.stringify(data.domainDns, null, 2));
         if (data.checklist) setChecklist(data.checklist);
-        if (data.complete) navigate("/onboarding/whitelabel/preview", { replace: true });
+        if (data.complete) finishAndGoToLogin();
       }
     } catch (err) {
       console.error(err);
@@ -147,13 +147,25 @@ export default function WhitelabelOnboardingWizard() {
   const completeOnboarding = async () => {
     setSaving(true);
     try {
-      await apiFetch("/api/onboarding/whitelabel/complete", { method: "POST" });
-      navigate("/onboarding/whitelabel/preview");
-    } catch (err) {
+      const res = await apiFetch("/api/onboarding/whitelabel/complete", { method: "POST" });
+      if (!res.ok) {
+        const data = await readJsonResponse(res, "Erro ao finalizar onboarding");
+        throw new Error(data.error || data.details || "Erro ao finalizar onboarding");
+      }
+      await finishAndGoToLogin();
+    } catch (err: any) {
       console.error(err);
+      alert(err.message || "Erro ao finalizar onboarding");
     } finally {
       setSaving(false);
     }
+  };
+
+  const finishAndGoToLogin = async () => {
+    await apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    clearAuthSession();
+    localStorage.removeItem("nexus_onboarding_done");
+    navigate("/login", { replace: true });
   };
 
   const applyBrandColors = (primary: string, secondary: string) => {

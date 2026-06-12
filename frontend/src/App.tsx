@@ -35,6 +35,7 @@ const SoldServicesPage = lazy(() => import("./pages/SoldServices"));
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
 const Onboarding = lazy(() => import("./pages/OnboardingWizard"));
 const OnboardingPreview = lazy(() => import("./pages/OnboardingPreview"));
+const WhitelabelDomainOnboarding = lazy(() => import("./pages/WhitelabelDomainOnboarding"));
 const WhitelabelOnboarding = lazy(() => import("./pages/WhitelabelOnboardingWizard"));
 const WhitelabelOnboardingPreview = lazy(() => import("./pages/WhitelabelOnboardingPreview"));
 const AgentsHub = lazy(() => import("./pages/AgentsHub"));
@@ -319,7 +320,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
 }
 
 export default function App() {
-  const { config: whiteLabel } = useWhitelabel();
+  const { config: whiteLabel, customDomain, loading: whiteLabelLoading } = useWhitelabel();
   const { user, setUser, authLoading, handleLogout } = useAuth();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(
     localStorage.getItem('nexus_selected_client')
@@ -334,7 +335,7 @@ export default function App() {
     }
   };
 
-  if (authLoading) {
+  if (authLoading || whiteLabelLoading) {
     return (
       <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -393,7 +394,10 @@ export default function App() {
           <Route path="/site" element={<LandingPage />} />
           <Route path="/vendas" element={<CRMSalesPage />} />
           <Route path="/login" element={<Login onAuthenticated={setUser} />} />
-          <Route path="/onboarding" element={<Onboarding />} />
+          <Route
+            path="/onboarding"
+            element={customDomain ? <WhitelabelDomainOnboarding onAuthenticated={setUser} /> : <Onboarding />}
+          />
           <Route path="/onboarding/preview" element={<OnboardingPreview />} />
           <Route path="/onboarding/whitelabel" element={<WhitelabelOnboarding />} />
           <Route path="/onboarding/whitelabel/preview" element={<WhitelabelOnboardingPreview />} />

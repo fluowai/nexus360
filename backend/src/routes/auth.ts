@@ -444,6 +444,181 @@ export function authRoutes(prisma: PrismaClient) {
     }
   });
 
+  // ==================== REGISTER CUSTOM DOMAIN OWNER ====================
+  router.post("/register/custom-domain-admin", async (req, res) => {
+    const { name, email, password } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        error: "Nome, e-mail e senha sao obrigatorios.",
+      });
+    }
+
+    const passwordError = assertStrongPassword(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
+    try {
+      const tenantDomain = await findTenantHostContext(
+        prisma,
+        req.headers["x-forwarded-host"] || req.headers.host
+      );
+
+      if (!tenantDomain) {
+        return res.status(403).json({
+          error: "Este onboarding so esta disponivel em dominios white-label verificados.",
+          code: "CUSTOM_DOMAIN_REQUIRED",
+        });
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: { id: tenantDomain.organization.id },
+        include: {
+          planObj: planWithFeatures,
+          _count: { select: { leads: true } },
+        },
+      });
+
+      if (!organization || organization.type !== "WHITELABEL" || !organization.isActive) {
+        return res.status(403).json({
+          error: "Dominio white-label indisponivel para onboarding.",
+          code: "WHITELABEL_DOMAIN_UNAVAILABLE",
+        });
+      }
+
+      const settings = organization.settings && typeof organization.settings === "object"
+        ? organization.settings as Record<string, any>
+        : {};
+      const onboardingComplete = Boolean(settings.whitelabelOnboardingComplete);
+
+      const existingOwnerCount = await prisma.user.count({
+        where: {
+          organizationId: organization.id,
+          role: "ORG_ADMIN",
+          status: "ACTIVE",
+        },
+      });
+
+      if (onboardingComplete && existingOwnerCount > 0) {
+        return res.status(409).json({
+          error: "Este white-label ja possui um administrador ativo. Acesse pelo login.",
+          code: "ADMIN_ALREADY_EXISTS",
+        });
+      }
+
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        return res.status(400).json({
+          error: "Este email ja esta em uso.",
+          code: "EMAIL_ALREADY_EXISTS",
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      const result = await prisma.$transaction(async (tx) => {
+        const updatedOrg = await tx.organization.update({
+          where: { id: organization.id },
+          data: {
+            settings: {
+              ...settings,
+              whitelabelOnboardingStep: Number(settings.whitelabelOnboardingStep) || 1,
+              whitelabelOnboardingComplete: false,
+            },
+          },
+          include: {
+            planObj: planWithFeatures,
+            _count: { select: { leads: true } },
+          },
+        });
+
+        const user = await tx.user.create({
+          data: {
+            name,
+            email,
+            password: hashedPassword,
+            role: "ORG_ADMIN",
+            status: "ACTIVE",
+            organizationId: updatedOrg.id,
+          },
+        });
+
+        return { user, org: updatedOrg };
+      });
+
+      const accessToken = generateAccessToken({
+        id: result.user.id,
+        email: result.user.email,
+        orgId: result.org.id,
+        role: result.user.role,
+      });
+
+      const refreshToken = generateRefreshToken({
+        id: result.user.id,
+        orgId: result.org.id,
+      });
+      setRefreshTokenCookie(res, refreshToken);
+
+      const refreshTokenHash = crypto
+        .createHash("sha256")
+        .update(refreshToken)
+        .digest("hex");
+
+      await prisma.refreshToken.create({
+        data: {
+          token: refreshTokenHash,
+          userId: result.user.id,
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          ip: getClientIp(req),
+          userAgent: getClientUA(req),
+        },
+      });
+
+      logAudit({
+        organizationId: result.org.id,
+        userId: result.user.id,
+        action: "CREATE",
+        resource: "User",
+        resourceId: result.user.id,
+        metadata: {
+          source: "custom-domain-onboarding",
+          domain: tenantDomain.domain,
+        },
+        ip: getClientIp(req),
+        userAgent: getClientUA(req),
+      });
+
+      return res.status(201).json({
+        success: true,
+        token: accessToken,
+        user: {
+          id: result.user.id,
+          name: result.user.name,
+          email: result.user.email,
+          role: result.user.role,
+          status: result.user.status,
+          orgId: result.org.id,
+          orgName: result.org.name,
+          orgSlug: result.org.slug,
+          orgType: "WHITELABEL",
+          whiteLabelConfig: result.org.whiteLabelConfig || null,
+          whitelabelOnboarding: serializeWhitelabelOnboarding(result.org),
+          subscriptionStatus: result.org.subscriptionStatus || "TRIAL",
+          betaAccess: result.org.betaAccess || false,
+          isTestAccount: result.org.isTestAccount || false,
+          plan: serializePlan(result.org.planObj || { name: result.org.plan || "Free" }),
+          usage: {
+            leads: result.org._count?.leads || 0,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("[REGISTER_CUSTOM_DOMAIN_ADMIN_ERROR]", error);
+      return res.status(500).json({ error: "Falha ao criar usuario do white-label." });
+    }
+  });
+
   // ==================== REGISTER WHITELABEL ====================
   router.post("/register/whitelabel", async (req, res) => {
     const { name, email, password, organizationName, brandName, logoUrl, primaryColor, secondaryColor } = req.body;

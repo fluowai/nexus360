@@ -237,6 +237,7 @@ export const Sidebar: React.FC<{
       modules: ['crm', 'whatsapp'],
       items: [
         { module: 'crm', icon: Users, label: 'CRM & Pipelines', path: '/crm', startsWith: true },
+        { module: 'crm', icon: Building2, label: 'Clientes', path: '/clients', startsWith: true },
         { module: 'whatsapp', icon: MessageCircle, label: 'Mensagens', path: '/whatsapp?tab=messages' },
         { module: 'whatsapp', icon: PlugZap, label: 'Conexoes WhatsApp', path: '/whatsapp?tab=instances' },
         { module: 'crm', icon: KanbanSquare, label: 'Kanban', path: '/crm?tab=funil' },

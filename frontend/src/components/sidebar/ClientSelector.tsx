@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Users, ChevronDown, Check, Plus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../lib/api';
+import { workspacePath } from '../../lib/workspaceRoute';
 
 interface Client {
   id: string;
@@ -21,6 +23,7 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
   onSelectClient,
   collapsed 
 }) => {
+  const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,17 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
   }, [user]);
 
   const selectedClient = clients.find(c => c.id === selectedClientId);
+  const canManageClients = ['SUPER_ADMIN', 'ORG_ADMIN', 'AGENCY_ADMIN'].includes(user?.role);
+
+  const handleManageClients = () => {
+    setIsOpen(false);
+    if (user?.role === 'SUPER_ADMIN') {
+      navigate('/admin/agencies');
+      return;
+    }
+
+    navigate(workspacePath('/clients', user?.orgSlug || localStorage.getItem('nexus_org_slug')));
+  };
 
   if (collapsed) {
     return (
@@ -132,10 +146,14 @@ export const ClientSelector: React.FC<ClientSelectorProps> = ({
               </div>
             ))}
 
-            {user?.role === 'SUPER_ADMIN' && (
+            {canManageClients && (
               <>
                 <div className="h-[1px] bg-gray-50 my-1" />
-                <button className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] font-bold text-blue-600 hover:bg-blue-50 transition-colors">
+                <button
+                  type="button"
+                  onClick={handleManageClients}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                >
                   <Plus size={14} />
                   Cadastrar Cliente
                 </button>

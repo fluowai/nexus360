@@ -298,8 +298,8 @@ function ClientModal({ onClose, onSuccess, initialData }: { onClose: () => void,
                       <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all font-mono" placeholder="00.000.000/0001-00" value={formData.cnpj} onChange={e => setFormData({...formData, cnpj: e.target.value})} />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">E-mail Corporativo</label>
-                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" type="email" placeholder="contato@empresa.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                      <label className="block text-xs font-semibold text-gray-500 mb-1.5">E-mail Corporativo (opcional)</label>
+                      <input className="w-full bg-white border border-gray-200 rounded-xl py-3.5 px-4 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" type="email" placeholder="contato@empresa.com" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 mb-1.5">Telefone / WhatsApp</label>

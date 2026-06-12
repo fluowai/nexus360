@@ -31,4 +31,13 @@ describe("normalizeClientPayload", () => {
     expect(payload.cnpj).toBe("12345678000190");
     expect(payload.cpf).toBe("12345678909");
   });
+
+  it("keeps an empty client email compatible with the required database column", () => {
+    const payload = normalizeClientPayload({
+      corporateName: "Cliente sem e-mail",
+      email: "   ",
+    });
+
+    expect(payload.email).toBe("");
+  });
 });

@@ -16,6 +16,11 @@ function normalizeOptionalString(value: unknown) {
   return trimmed || null;
 }
 
+function normalizeRequiredString(value: unknown) {
+  if (typeof value !== "string") return value;
+  return value.trim();
+}
+
 export function normalizeClientPayload(body: Record<string, any>) {
   const data = sanitizeBody(body, "client") as any;
 
@@ -23,7 +28,9 @@ export function normalizeClientPayload(body: Record<string, any>) {
   if ("cpf" in data) data.cpf = normalizeDocument(data.cpf);
   if ("responsibleCpf" in data) data.responsibleCpf = normalizeDocument(data.responsibleCpf);
 
-  for (const field of ["email", "phone", "website", "responsibleEmail", "responsiblePhone"]) {
+  if ("email" in data) data.email = normalizeRequiredString(data.email);
+
+  for (const field of ["phone", "website", "responsibleEmail", "responsiblePhone"]) {
     if (field in data) data[field] = normalizeOptionalString(data[field]);
   }
 
@@ -80,7 +87,8 @@ export function clientRoutes(prisma: PrismaClient) {
       const client = await prisma.client.create({
         data: {
           ...data,
-          organizationId: orgId,
+          email: data.email || "",
+          organization: { connect: { id: orgId } },
           status: data.status || 'prospect'
         }
       });

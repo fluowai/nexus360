@@ -151,7 +151,7 @@ export default function AdminWhiteLabel() {
         fetchOrgs();
       } else {
         const data = await res.json();
-        alert(data.error || "Erro ao criar white-label");
+        alert(data.details || data.error || "Erro ao criar white-label");
       }
     } catch (err) {
       console.error(err);
@@ -627,9 +627,8 @@ export default function AdminWhiteLabel() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">E-mail do Admin</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">E-mail do Admin (opcional)</label>
                     <input
-                      required
                       type="email"
                       className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
                       value={form.adminEmail}
@@ -638,10 +637,9 @@ export default function AdminWhiteLabel() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Senha</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Senha do Admin (opcional)</label>
                     <div className="relative">
                       <input
-                        required
                         className="w-full px-4 pr-12 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono"
                         value={form.adminPassword}
                         onChange={e => setForm({...form, adminPassword: e.target.value})}

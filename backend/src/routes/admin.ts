@@ -6,6 +6,17 @@ import { assertStrongPassword } from "../utils/security.js";
 import { DOMAIN_REGEX, getDnsInstructions, normalizeDomain, verifyDomainDns } from "../utils/domainConfig.js";
 import { removeTraefikDomainConfig, syncTraefikDomainConfig, writeTraefikDomainConfig } from "../services/traefikDomainConfig.js";
 
+function buildOrgSlug(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63);
+}
+
 export function adminRoutes(prisma: PrismaClient) {
   const router = Router();
 
@@ -120,22 +131,54 @@ export function adminRoutes(prisma: PrismaClient) {
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { name, type, domain, plan, planId, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess, whiteLabelConfig } = req.body;
-    const adminPasswordError = assertStrongPassword(adminPassword);
-    if (adminPasswordError) return res.status(400).json({ error: adminPasswordError });
+    const validType = type && ['CLIENT', 'WHITELABEL'].includes(type) ? type : 'CLIENT';
+    const shouldCreateAdmin = Boolean(adminEmail || adminPassword || validType !== 'WHITELABEL');
 
-    if (!adminEmail || !adminPassword) {
+    if (!name) {
+      return res.status(400).json({ error: "Nome da organizacao e obrigatorio." });
+    }
+
+    if (shouldCreateAdmin && (!adminEmail || !adminPassword)) {
       return res.status(400).json({ error: "E-mail e Senha do administrador são obrigatórios" });
     }
 
     // Gerar um slug padrão se não for enviado
-    const finalSlug = slug || name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-');
+    const finalSlug = buildOrgSlug(slug || name);
+    if (!finalSlug) {
+      return res.status(400).json({ error: "Informe um slug valido para a organizacao." });
+    }
     const normalizedDomain = normalizeDomain(domain);
     if (normalizedDomain && !DOMAIN_REGEX.test(normalizedDomain)) {
       return res.status(400).json({ error: "Informe um dominio valido, ex: crm.seudominio.com.br" });
     }
 
+    if (shouldCreateAdmin) {
+      const adminPasswordError = assertStrongPassword(adminPassword);
+      if (adminPasswordError) return res.status(400).json({ error: adminPasswordError });
+    }
+
     try {
+      const [slugConflict, emailConflict, domainConflict] = await Promise.all([
+        prisma.organization.findUnique({ where: { slug: finalSlug }, select: { id: true } }),
+        shouldCreateAdmin ? prisma.user.findUnique({ where: { email: adminEmail }, select: { id: true } }) : Promise.resolve(null),
+        normalizedDomain ? prisma.domain.findUnique({ where: { name: normalizedDomain }, select: { id: true } }) : Promise.resolve(null),
+      ]);
+
+      if (slugConflict) {
+        return res.status(409).json({ error: "Este slug ja esta em uso. Escolha outro slug." });
+      }
+      if (emailConflict) {
+        return res.status(409).json({ error: "Este e-mail de administrador ja esta em uso." });
+      }
+      if (domainConflict) {
+        return res.status(409).json({ error: "Este dominio ja esta vinculado a outra organizacao." });
+      }
+
       let domainSync: any = null;
+      const verification = normalizedDomain
+        ? await verifyDomainDns(normalizedDomain, finalSlug)
+        : null;
+
       const result = await prisma.$transaction(async (tx) => {
         const selectedPlan = planId
           ? await tx.plan.findUnique({ where: { id: planId } })
@@ -144,7 +187,6 @@ export function adminRoutes(prisma: PrismaClient) {
             : null;
 
         // 1. Criar Organização
-        const validType = type && ['CLIENT', 'WHITELABEL'].includes(type) ? type : 'CLIENT';
         const org = await tx.organization.create({
           data: {
             name,
@@ -155,31 +197,33 @@ export function adminRoutes(prisma: PrismaClient) {
             slug: finalSlug,
             isTestAccount: isTestAccount || false,
             betaAccess: betaAccess || false,
+            ...(validType === "WHITELABEL" && {
+              settings: { whitelabelOnboardingStep: 1, whitelabelOnboardingComplete: false },
+            }),
             ...(whiteLabelConfig !== undefined && { whiteLabelConfig })
           }
         });
 
         // 2. Criar Usuário Admin para esta organização
-        const hashedPassword = await bcrypt.hash(adminPassword, 10);
-        await tx.user.create({
-          data: {
-            email: adminEmail,
-            password: hashedPassword,
-            name: adminName || name,
-            role: 'ORG_ADMIN',
-            organizationId: org.id,
-            status: 'ACTIVE'
-          }
-        });
+        if (shouldCreateAdmin) {
+          const hashedPassword = await bcrypt.hash(adminPassword, 10);
+          await tx.user.create({
+            data: {
+              email: adminEmail,
+              password: hashedPassword,
+              name: adminName || name,
+              role: 'ORG_ADMIN',
+              organizationId: org.id,
+              status: 'ACTIVE'
+            }
+          });
+        }
 
         // If a custom domain was provided, register it in the Domain table too
-        if (normalizedDomain) {
-          const verification = await verifyDomainDns(normalizedDomain, org.slug);
+        if (normalizedDomain && verification) {
           domainSync = { name: normalizedDomain, verified: verification.verified };
-          await tx.domain.upsert({
-            where: { name: normalizedDomain },
-            update: { organizationId: org.id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
-            create: {
+          await tx.domain.create({
+            data: {
               name: normalizedDomain,
               provider: 'docker',
               status: verification.verified ? "verified" : "pending",
@@ -190,7 +234,7 @@ export function adminRoutes(prisma: PrismaClient) {
 
         return tx.organization.findUnique({
           where: { id: org.id },
-          include: { planObj: true, _count: { select: { users: true } } }
+          include: { domains: true, planObj: true, _count: { select: { users: true } } }
         });
       });
 
@@ -201,6 +245,12 @@ export function adminRoutes(prisma: PrismaClient) {
       res.json(traefik ? { ...result, traefik } : result);
     } catch (error: any) {
       console.error("[ADMIN_ORGS_POST]", error);
+      if (error?.code === "P2002") {
+        return res.status(409).json({
+          error: "Ja existe um registro com estes dados. Verifique slug, dominio ou e-mail.",
+          details: Array.isArray(error.meta?.target) ? error.meta.target.join(", ") : error.message,
+        });
+      }
       res.status(500).json({
         error: "Falha ao criar cliente e usuário administrador",
         details: error.message

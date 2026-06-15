@@ -47,7 +47,7 @@ function normalizeDomains(domains: string[]) {
 function buildHostRule(domains: string[]) {
   const safeDomains = normalizeDomains(domains);
   if (!safeDomains.length) return "Host(`nexus360-disabled.localhost`)";
-  return `Host(${safeDomains.map(domain => `\`${domain}\``).join(",")})`;
+  return safeDomains.map(domain => `Host(\`${domain}\`)`).join(" || ");
 }
 
 function parseHostRule(rule?: string) {

@@ -201,6 +201,10 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
 
       if (!capturedLead) return res.status(404).json({ error: "Lead não encontrado" });
 
+      if (capturedLead.sentToCrm && capturedLead.crmLeadId) {
+        return res.json(capturedLead);
+      }
+
       if (capturedLead.cnpjStatus !== "validated") {
         return res.status(409).json({
           error: "CNPJ_NOT_VALIDATED",

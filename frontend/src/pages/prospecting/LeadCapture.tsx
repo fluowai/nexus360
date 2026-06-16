@@ -41,6 +41,7 @@ interface Lead {
   scoreOpportunity: number;
   opportunityLevel: string;
   sentToCrm: boolean;
+  cnpjStatus?: 'unverified' | 'validated' | 'rejected' | 'needs_review' | string;
   aiDiagnosis?: string;
   notes?: string;
   cnpj?: string;
@@ -52,6 +53,12 @@ const toneTemplates: Record<string, string> = {
   consultive: "Oi, tudo bem? Aqui e o Paulo. Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?",
   direct: "Oi, tudo bem? Aqui e o Paulo. Consegue me ajudar a falar com o socio, proprietario ou responsavel comercial da {businessName}?",
   friendly: "Oi, tudo bem? Aqui e o Paulo. Quem e a melhor pessoa para eu falar sobre a area comercial da {businessName}?"
+};
+
+type SendToCrmResult = {
+  ok: boolean;
+  skipped?: boolean;
+  reason?: string;
 };
 
 export default function LeadCapture() {
@@ -98,7 +105,11 @@ export default function LeadCapture() {
   };
 
   const handleOpenProspectingModal = () => {
-    const chosen = leads.filter(l => selectedLeads.includes(l.id));
+    const chosen = leads.filter(l => selectedLeads.includes(l.id) && !l.sentToCrm && l.cnpjStatus === 'validated');
+    const blockedCount = selectedLeads.length - chosen.length;
+    if (blockedCount > 0) {
+      setSearchError(`${blockedCount} lead(s) nao foram incluidos porque ja estao no CRM ou ainda precisam de CNPJ validado.`);
+    }
     setProspectingLeads(chosen);
     setProspectingSuccess(false);
     fetchCalendar();
@@ -108,7 +119,14 @@ export default function LeadCapture() {
   const handleProspectingSubmit = async () => {
     setLoading(true);
     try {
-      for (const lead of prospectingLeads) {
+      const readyLeads = prospectingLeads.filter(lead => !lead.sentToCrm && lead.cnpjStatus === 'validated');
+
+      if (readyLeads.length === 0) {
+        setSearchError('Nenhum lead pronto para prospeccao. Valide o CNPJ antes de enviar para o CRM.');
+        return;
+      }
+
+      for (const lead of readyLeads) {
         if (!lead.phone) continue;
 
         const slotsStr = selectedSlots.join(", ");
@@ -128,16 +146,17 @@ export default function LeadCapture() {
         });
 
         // 2. Enviar para o CRM Kanban
-        await apiFetch(`/api/lead-capture/leads/${lead.id}/send-to-crm`, {
-          method: 'POST',
-          body: JSON.stringify({ boardId: selectedBoardId })
-        });
+        const sent = await handleSendToCrm(lead.id, { silent: true });
+        if (!sent.ok && !sent.skipped) {
+          setSearchError(sent.reason || `Nao foi possivel enviar ${lead.businessName} para o CRM.`);
+          return;
+        }
       }
 
       // 3. Enviar todos para o Funil de Prospecção Ativa (inicia WhatsApp SDR)
       await apiFetch('/api/prospecting-funnels/funnels/default/enroll', {
         method: 'POST',
-        body: JSON.stringify({ leadIds: selectedLeads })
+        body: JSON.stringify({ leadIds: readyLeads.map(lead => lead.id) })
       });
 
       setProspectingSuccess(true);
@@ -339,10 +358,11 @@ export default function LeadCapture() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedLeads.length === leads.length) {
+    const selectableIds = leads.filter(l => !l.sentToCrm).map(l => l.id);
+    if (selectableIds.every(id => selectedLeads.includes(id))) {
       setSelectedLeads([]);
     } else {
-      setSelectedLeads(leads.map(l => l.id));
+      setSelectedLeads(selectableIds);
     }
   };
 
@@ -384,8 +404,33 @@ export default function LeadCapture() {
     if (selectedLeads.length === 0) return;
     setLoading(true);
     try {
-      for (const id of selectedLeads) {
-        await handleSendToCrm(id);
+      const selected = leads.filter(lead => selectedLeads.includes(lead.id));
+      const ready = selected.filter(lead => !lead.sentToCrm && lead.cnpjStatus === 'validated');
+      const blockedCount = selected.length - ready.length;
+
+      if (ready.length === 0) {
+        setSearchError('Nenhum lead selecionado esta pronto para envio. Valide o CNPJ antes de enviar para o CRM.');
+        return;
+      }
+
+      let sentCount = 0;
+      const errors: string[] = [];
+
+      for (const lead of ready) {
+        const result = await handleSendToCrm(lead.id, { silent: true });
+        if (result.ok || result.skipped) {
+          sentCount++;
+        } else if (result.reason) {
+          errors.push(`${lead.businessName}: ${result.reason}`);
+        }
+      }
+
+      if (errors.length > 0) {
+        setSearchError(errors[0]);
+      } else if (blockedCount > 0) {
+        setSearchError(`${sentCount} lead(s) enviados. ${blockedCount} ignorado(s) por ja estarem no CRM ou sem CNPJ validado.`);
+      } else {
+        setSearchError(null);
       }
     } finally {
       setLoading(false);
@@ -453,9 +498,21 @@ export default function LeadCapture() {
     }
   };
 
-  const handleSendToCrm = async (leadId: string) => {
+  const handleSendToCrm = async (leadId: string, options: { silent?: boolean } = {}): Promise<SendToCrmResult> => {
+    const lead = leads.find(item => item.id === leadId);
+    if (lead?.sentToCrm) {
+      if (!options.silent) setSearchError('Este lead ja foi enviado para o CRM.');
+      return { ok: true, skipped: true, reason: 'Lead ja enviado para o CRM.' };
+    }
+
+    if (lead && lead.cnpjStatus !== 'validated') {
+      const message = 'Valide o CNPJ correto da empresa antes de enviar para o CRM.';
+      if (!options.silent) setSearchError(message);
+      return { ok: false, skipped: true, reason: message };
+    }
+
     try {
-      setSearchError(null);
+      if (!options.silent) setSearchError(null);
       const res = await apiFetch(`/api/lead-capture/leads/${leadId}/send-to-crm`, { 
         method: 'POST',
         body: JSON.stringify({ boardId: selectedBoardId })
@@ -463,13 +520,16 @@ export default function LeadCapture() {
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         const message = data?.message || data?.error || `Erro ${res.status}: falha ao enviar lead para o CRM`;
-        setSearchError(message);
-        return;
+        if (!options.silent) setSearchError(message);
+        return { ok: false, reason: message };
       }
       setLeads(prev => prev.map(l => l.id === leadId ? data : l));
+      return { ok: true };
     } catch (err) {
       console.error(err);
-      setSearchError('Erro de conexao ao enviar lead para o CRM.');
+      const message = 'Erro de conexao ao enviar lead para o CRM.';
+      if (!options.silent) setSearchError(message);
+      return { ok: false, reason: message };
     }
   };
 
@@ -938,9 +998,10 @@ export default function LeadCapture() {
                             Scripts
                           </button>
                           <button 
-                            disabled={lead.sentToCrm}
+                            disabled={lead.sentToCrm || lead.cnpjStatus !== 'validated'}
                             onClick={() => handleSendToCrm(lead.id)}
                             className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-all disabled:opacity-30"
+                            title={lead.sentToCrm ? 'Lead ja enviado para o CRM' : lead.cnpjStatus === 'validated' ? 'Enviar para o CRM' : 'Valide o CNPJ antes de enviar para o CRM'}
                           >
                             <Send size={16} />
                           </button>

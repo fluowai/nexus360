@@ -24,6 +24,12 @@ export function crmRoutes(prisma: PrismaClient) {
     catch (error: any) { console.error(`[CRM_GROWTH_${label}_ERROR]`, error?.message || error); return fallback; }
   };
 
+  const getCustomFieldString = (customFields: unknown, key: string) => {
+    if (!customFields || typeof customFields !== "object" || Array.isArray(customFields)) return null;
+    const value = (customFields as Record<string, unknown>)[key];
+    return typeof value === "string" && value.trim() ? value : null;
+  };
+
   router.get("/ping-crm", (req, res) => res.json({ message: "crm router is active", timestamp: new Date().toISOString() }));
 
   // ==================== PIPELINES ====================
@@ -96,7 +102,19 @@ export function crmRoutes(prisma: PrismaClient) {
         },
       });
       if (!opportunity) return res.status(404).json({ error: "Oportunidade não encontrada" });
-      res.json(opportunity);
+      const crmLeadId = getCustomFieldString(opportunity.customFields, "crmLeadId");
+      const activities = await prisma.activity.findMany({
+        where: {
+          organizationId: orgId,
+          OR: [
+            { dealId: opportunity.id },
+            ...(crmLeadId ? [{ contactId: crmLeadId }] : []),
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+      res.json({ ...opportunity, activities });
     } catch (error) { next(error); }
   });
 
@@ -419,7 +437,12 @@ export function crmRoutes(prisma: PrismaClient) {
         include: { followUps: { orderBy: { createdAt: 'desc' }, include: { user: { select: { name: true } } } } }
       });
       if (!lead) return res.status(404).json({ error: "Lead não encontrado" });
-      res.json(lead);
+      const activities = await prisma.activity.findMany({
+        where: { organizationId: orgId, contactId: lead.id },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      });
+      res.json({ ...lead, activities });
     } catch (error) { next(error); }
   });
 
@@ -664,6 +687,29 @@ export function crmRoutes(prisma: PrismaClient) {
         take: 50,
       });
       res.json(activities);
+    } catch (error) { next(error); }
+  });
+
+  router.post("/activities", async (req: AuthRequest, res, next) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+    const { type, description, metadata, contactId, companyId, dealId, taskId } = req.body;
+    if (!description) return res.status(400).json({ error: "Descrição é obrigatória" });
+    try {
+      const activity = await prisma.activity.create({
+        data: {
+          organizationId: orgId,
+          type: type || "NOTE",
+          description,
+          metadata,
+          userId: req.user?.id,
+          contactId,
+          companyId,
+          dealId,
+          taskId,
+        },
+      });
+      res.json(activity);
     } catch (error) { next(error); }
   });
 

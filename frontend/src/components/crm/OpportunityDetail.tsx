@@ -125,6 +125,17 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
     { id: "email", label: "E-MAIL", icon: <Mail size={14} /> },
   ];
 
+  const activityLabel = (type?: string) => ({
+    CALL: "Ligação",
+    EMAIL: "E-mail",
+    MEETING: "Reunião",
+    NOTE: "Anotação",
+    TASK: "Tarefa",
+    SYSTEM: "Sistema",
+    STAGE_CHANGE: "Mudança de etapa",
+    WHATSAPP: "WhatsApp",
+  }[String(type || "").toUpperCase()] || "Atividade");
+
   if (loading && !opportunity) return null;
 
   return (
@@ -315,6 +326,29 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
                 </button>
               </div>
             </form>
+            <div className="space-y-3">
+              {(opportunity?.activities || []).map((activity: any) => (
+                <div key={activity.id} className="rounded-xl border border-[var(--nexus-card-border)] bg-[var(--nexus-background-soft)] p-4">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[var(--nexus-text-secondary)]">
+                      {String(activity.type).toUpperCase() === "CALL" ? <Phone size={12} /> : <MessageSquare size={12} />}
+                      {activityLabel(activity.type)}
+                    </span>
+                    <span className="text-[10px] font-bold text-[var(--nexus-text-muted)]">
+                      {activity.createdAt ? new Date(activity.createdAt).toLocaleString("pt-BR") : ""}
+                    </span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm font-medium leading-relaxed text-[var(--nexus-text-secondary)]">
+                    {activity.description}
+                  </p>
+                </div>
+              ))}
+              {(!opportunity?.activities || opportunity.activities.length === 0) && (
+                <p className="rounded-xl bg-[var(--nexus-background-soft)] p-4 text-center text-xs font-bold text-[var(--nexus-text-muted)]">
+                  Nenhuma atividade registrada ainda.
+                </p>
+              )}
+            </div>
           </div>
 
           {opportunity?.client && (

@@ -53,6 +53,7 @@ import { knowledgeBaseRoutes } from "./routes/knowledgeBase.js";
 import { billingRoutes } from "./routes/billing.js";
 import { snapshotRoutes } from "./routes/snapshots.js";
 import { usageRoutes } from "./routes/usage.js";
+import { reportsRoutes } from "./routes/reports.js";
 import { proposalRoutes } from "./routes/proposals.js";
 import { privacyRoutes } from "./routes/privacy.js";
 import { prospectRoutes } from "./routes/prospect.js";
@@ -602,6 +603,7 @@ const protectedRoutes = [
   { path: "/api/knowledge-base", router: knowledgeBaseRoutes },
   { path: "/api/snapshots", router: snapshotRoutes },
   { path: "/api/usage", router: usageRoutes },
+  { path: "/api/reports", router: reportsRoutes },
   { path: "/api/proposals", router: proposalRoutes },
   { path: "/api/privacy", router: privacyRoutes },
   { path: "/api/nexus-prospect", router: prospectRoutes },

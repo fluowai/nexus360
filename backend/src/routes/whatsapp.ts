@@ -35,6 +35,24 @@ function bridgeSecret() {
   return process.env.WHATSAPP_BRIDGE_SECRET || "dev-whatsapp-bridge-secret";
 }
 
+function normalizeInstanceName(value?: string | null) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+}
+
+function instanceIdentifier(name: string) {
+  const slug = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return `instance:${slug || "whatsmeow"}`;
+}
+
 async function callBridge(path: string, body: any) {
   const res = await fetch(`${bridgeBaseUrl()}${path}`, {
     method: "POST",
@@ -671,12 +689,17 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.post("/connections", async (req: AuthRequest, res, next) => {
     try {
       const orgId = req.user!.orgId;
-      const normalized = normalizeWhatsAppPhone(req.body.phone || req.body.identifier);
-      if (!normalized.digits) return res.status(400).json({ error: "Telefone WhatsApp obrigatorio" });
+      const label = normalizeInstanceName(req.body.label || req.body.name || req.body.inboxName);
+      if (!label) return res.status(400).json({ error: "Nome da instancia obrigatorio" });
 
-      const inbox = await ensureWhatsAppInbox(prisma, orgId, req.body.inboxName || "WhatsApp");
+      const normalized = req.body.phone || req.body.identifier
+        ? normalizeWhatsAppPhone(req.body.phone || req.body.identifier)
+        : null;
+      const identifier = normalized?.digits ? normalized.e164 : instanceIdentifier(label);
+
+      const inbox = await ensureWhatsAppInbox(prisma, orgId, req.body.inboxName || label);
       const existing = await prisma.channel.findFirst({
-        where: { provider: WHATSAPP_PROVIDER, identifier: normalized.e164, inbox: { organizationId: orgId } },
+        where: { provider: WHATSAPP_PROVIDER, identifier, inbox: { organizationId: orgId } },
       });
       if (existing) return res.json(existing);
 
@@ -684,19 +707,20 @@ export function whatsappRoutes(prisma: PrismaClient) {
         data: {
           type: "WHATSAPP",
           provider: WHATSAPP_PROVIDER,
-          identifier: normalized.e164,
+          identifier,
           inboxId: inbox.id,
           config: {
             status: "created",
-            phone: normalized.e164,
-            jid: normalized.jid,
+            instanceOnly: !normalized?.digits,
+            phone: normalized?.digits ? normalized.e164 : null,
+            jid: normalized?.digits ? normalized.jid : null,
             qrCode: null,
             pushName: null,
-        profilePictureUrl: null,
-        label: req.body.label || req.body.name || null,
-        bridgeUrl: bridgeBaseUrl(),
-      },
-    },
+            profilePictureUrl: null,
+            label,
+            bridgeUrl: bridgeBaseUrl(),
+          },
+        },
       });
 
       auditFromRequest(req, "CREATE", "WhatsAppConnection", channel.id);
@@ -773,6 +797,23 @@ export function whatsappRoutes(prisma: PrismaClient) {
         where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
+
+      if ((channel.config as any)?.instanceOnly || String(channel.identifier || "").startsWith("instance:")) {
+        const updated = await prisma.channel.update({
+          where: { id: channel.id },
+          data: {
+            isActive: true,
+            config: {
+              ...((channel.config as any) || {}),
+              status: "created",
+              qrCode: null,
+              qrPng: null,
+              lastLocalActivationAt: new Date().toISOString(),
+            },
+          },
+        });
+        return res.json({ ok: true, status: "created", instanceOnly: true, channel: updated });
+      }
 
       const result = await callBridge(`/sessions/${channel.id}/connect`, {
         organizationId: req.user!.orgId,

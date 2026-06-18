@@ -12,7 +12,6 @@ import {
   MessageCircle,
   Phone,
   PlugZap,
-  QrCode,
   RefreshCw,
   Save,
   Send,
@@ -21,8 +20,6 @@ import {
   Trash2,
   UserRound,
   Users,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 import { apiFetch } from "../lib/api";
 
@@ -81,13 +78,6 @@ const blankLlms: LlmSettings = {
   chatgptKey: "",
 };
 
-const normalizePhone = (value?: string) => {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (!digits) return "";
-  const normalized = digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
-  return `+${normalized}`;
-};
-
 const formatWhatsAppPhone = (value?: string) => {
   const raw = String(value || "").trim();
   const digits = raw.includes("@") ? raw.slice(0, raw.indexOf("@")).split(":")[0].replace(/\D/g, "") : raw.replace(/\D/g, "");
@@ -111,10 +101,11 @@ const cleanDisplayText = (...values: Array<string | undefined | null>) => {
 const connectionName = (connection: Connection) =>
   connection.config?.label || connection.config?.pushName || connection.inbox?.name || connection.identifier;
 
-const connectionSubline = (connection: Connection) =>
-  connection.config?.pushName
-    ? `${connection.config.pushName} · ${formatWhatsAppPhone(connection.config.connectedJid || connection.config.jid || connection.identifier)}`
-    : formatWhatsAppPhone(connection.config?.connectedJid || connection.config?.jid || connection.identifier);
+const connectionStatus = (connection: Connection) =>
+  connection.isActive ? connection.config?.status || "created" : "inactive";
+
+const connectionStatusClass = (connection: Connection) =>
+  connection.isActive ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500";
 
 const conversationTitle = (conversation: Conversation) =>
   cleanDisplayText(conversation.metadata?.displayName, conversation.subject, conversation.metadata?.group?.name) ||
@@ -285,7 +276,6 @@ export default function WhatsApp() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [phone, setPhone] = useState("");
   const [instanceName, setInstanceName] = useState("");
   const [editingInstanceId, setEditingInstanceId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState("");
@@ -352,36 +342,15 @@ export default function WhatsApp() {
   }, [messageTab]);
 
   const createConnection = async () => {
-    const normalized = normalizePhone(phone);
-    if (!normalized) return;
+    const name = instanceName.trim();
+    if (!name) return;
     setLoading(true);
     try {
       await apiFetch("/api/whatsapp/connections", {
         method: "POST",
-        body: JSON.stringify({ phone: normalized, label: instanceName || normalized, inboxName: instanceName || "WhatsApp" }),
+        body: JSON.stringify({ label: name, inboxName: name }),
       });
-      setPhone("");
       setInstanceName("");
-      await loadConnections();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const connect = async (id: string) => {
-    setLoading(true);
-    try {
-      await apiFetch(`/api/whatsapp/connections/${id}/connect`, { method: "POST" });
-      await loadConnections();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const disconnect = async (id: string) => {
-    setLoading(true);
-    try {
-      await apiFetch(`/api/whatsapp/connections/${id}/disconnect`, { method: "POST" });
       await loadConnections();
     } finally {
       setLoading(false);
@@ -531,20 +500,13 @@ export default function WhatsApp() {
       {activeTab === "instances" && (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_1fr]">
           <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Criar conexao</h2>
+            <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Criar instancia</h2>
             <div className="mt-4 space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome da conexao</label>
-              <input value={instanceName} onChange={(e) => setInstanceName(e.target.value)} placeholder="Ex: SDR Paulo" className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-sm font-bold outline-none focus:border-emerald-200 focus:ring-2 focus:ring-emerald-100" />
-
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Numero WhatsApp</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome da instancia</label>
               <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+5548988003260" className="w-full rounded-xl border border-gray-100 bg-gray-50 py-3 pl-10 pr-3 text-sm font-bold outline-none focus:border-emerald-200 focus:ring-2 focus:ring-emerald-100" />
-                </div>
-                <button onClick={createConnection} disabled={loading || !phone.trim()} className="rounded-xl bg-emerald-600 px-4 text-xs font-black text-white disabled:opacity-50">Criar</button>
+                <input value={instanceName} onChange={(e) => setInstanceName(e.target.value)} placeholder="Ex: SDR Paulo" className="min-w-0 flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-sm font-bold outline-none focus:border-emerald-200 focus:ring-2 focus:ring-emerald-100" />
+                <button onClick={createConnection} disabled={loading || !instanceName.trim()} className="rounded-xl bg-emerald-600 px-4 text-xs font-black text-white disabled:opacity-50">Criar</button>
               </div>
-              <p className="text-xs font-medium text-gray-500">Aceita +5548988003260 ou 5548988003260. O backend salva no padrao E.164 e envia JID para o whatsmeow.</p>
             </div>
           </section>
 
@@ -560,37 +522,14 @@ export default function WhatsApp() {
                       ) : (
                         <p className="truncate font-black text-gray-950">{connectionName(conn)}</p>
                       )}
-                      <p className="truncate text-xs font-bold text-gray-400">{connectionSubline(conn)}</p>
                     </div>
                   </div>
-                  <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${conn.config?.status === "connected" ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
-                    {conn.config?.status || "created"}
+                  <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${connectionStatusClass(conn)}`}>
+                    {connectionStatus(conn)}
                   </span>
                 </div>
 
-                {conn.config?.qrCode && conn.config?.status !== "connected" && (
-                  <div className="mt-5 rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4">
-                    <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-emerald-700">
-                      <QrCode size={16} />
-                      QR Whatsmeow
-                    </div>
-                    {conn.config.qrPng ? (
-                      <img src={conn.config.qrPng} alt="QR Code WhatsApp" className="mx-auto h-64 w-64 rounded-xl bg-white p-3" />
-                    ) : (
-                      <div className="break-all rounded-xl bg-white p-3 font-mono text-[10px] text-gray-500">{conn.config.qrCode}</div>
-                    )}
-                  </div>
-                )}
-
                 <div className="mt-5 grid grid-cols-2 gap-2">
-                  <button onClick={() => connect(conn.id)} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2 text-xs font-black text-white disabled:opacity-50">
-                    <Wifi size={14} />
-                    Conectar
-                  </button>
-                  <button onClick={() => disconnect(conn.id)} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2 text-xs font-black text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                    <WifiOff size={14} />
-                    Desconectar
-                  </button>
                   {editingInstanceId === conn.id ? (
                     <button onClick={() => saveInstance(conn)} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50">
                       <Save size={14} />

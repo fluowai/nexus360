@@ -64,7 +64,7 @@ export default function GoogleLocal() {
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null);
   const [selectedScan, setSelectedScan] = useState<Scan | null>(null);
   const [showDiscovery, setShowDiscovery] = useState(false);
-  const [discoveryQuery, setDiscoveryQuery] = useState("");
+  const [discoveryForm, setDiscoveryForm] = useState({ name: "", city: "", state: "", url: "" });
   const [candidates, setCandidates] = useState<any[]>([]);
   const [discovering, setDiscovering] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -108,7 +108,7 @@ export default function GoogleLocal() {
     setDiscovering(true); setCandidates([]); setMessage("");
     try {
       const start = await apiFetch("/api/google-local/discover", {
-        method: "POST", body: JSON.stringify({ query: discoveryQuery }),
+        method: "POST", body: JSON.stringify(discoveryForm),
       });
       const startData = await start.json();
       if (!start.ok) throw new Error(startData.error || "Não foi possível iniciar a busca.");
@@ -140,7 +140,7 @@ export default function GoogleLocal() {
       setProfiles((current) => [data.profile, ...current]);
       setSelectedProfile(data.profile);
       setScanForm((current) => ({ ...current, profileId: data.profile.id }));
-      setCandidates([]); setDiscoveryQuery(""); setShowDiscovery(false);
+      setCandidates([]); setDiscoveryForm({ name: "", city: "", state: "", url: "" }); setShowDiscovery(false);
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setSaving(false); }
   };
@@ -188,12 +188,18 @@ export default function GoogleLocal() {
       {showDiscovery && (
         <div className="rounded-[28px] border border-gray-100 bg-white p-6 shadow-sm">
           <h2 className="font-black">Localizar Perfil da Empresa</h2>
-          <p className="mb-4 text-sm text-gray-500">Digite nome + cidade ou cole a URL completa do Google Maps.</p>
-          <form onSubmit={discoverProfiles} className="flex flex-col gap-3 md:flex-row">
-            <input className="modal-input flex-1" required placeholder="Clínica Sorriso São Paulo ou https://maps.google.com/..." value={discoveryQuery} onChange={(e) => setDiscoveryQuery(e.target.value)} />
-            <button disabled={discovering} className="flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3 font-bold text-white disabled:opacity-50">
+          <p className="mb-4 text-sm text-gray-500">Busque pelo nome e localização ou cole diretamente a URL do Google Maps.</p>
+          <form onSubmit={discoverProfiles} className="grid grid-cols-1 gap-3 md:grid-cols-[2fr_1fr_100px_auto]">
+            <input className="modal-input" placeholder="Nome do perfil ou empresa" value={discoveryForm.name} onChange={(e) => setDiscoveryForm({ ...discoveryForm, name: e.target.value })} />
+            <input className="modal-input" placeholder="Cidade" value={discoveryForm.city} onChange={(e) => setDiscoveryForm({ ...discoveryForm, city: e.target.value })} />
+            <input className="modal-input" placeholder="UF" maxLength={2} value={discoveryForm.state} onChange={(e) => setDiscoveryForm({ ...discoveryForm, state: e.target.value.toUpperCase() })} />
+            <button disabled={discovering || (!discoveryForm.name.trim() && !discoveryForm.url.trim())} className="flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3 font-bold text-white disabled:opacity-50">
               {discovering ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}{discovering ? "Buscando..." : "Localizar"}
             </button>
+            <div className="md:col-span-4 flex items-center gap-3">
+              <div className="h-px flex-1 bg-gray-200" /><span className="text-[10px] font-bold uppercase text-gray-400">ou cole o link</span><div className="h-px flex-1 bg-gray-200" />
+            </div>
+            <input className="modal-input md:col-span-4" type="url" placeholder="https://www.google.com/maps/place/..." value={discoveryForm.url} onChange={(e) => setDiscoveryForm({ ...discoveryForm, url: e.target.value })} />
           </form>
           {discovering && <p className="mt-3 text-xs text-gray-500">A coleta própria pode levar alguns minutos na primeira consulta.</p>}
           <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">

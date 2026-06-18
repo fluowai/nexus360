@@ -129,7 +129,7 @@ export async function startProfileDiscovery(query: string) {
       radius: 50000,
       depth: 1,
       email: false,
-      max_time: 180000000000,
+      max_time: 180,
     }),
   });
   const { id } = await created.json() as { id: string };
@@ -242,7 +242,7 @@ async function scrapePoint(keyword: string, latitude: number, longitude: number,
       radius: 50000,
       depth: 1,
       email: false,
-      max_time: 180000000000,
+      max_time: 180,
     }),
   });
   const { id } = await created.json() as { id: string };

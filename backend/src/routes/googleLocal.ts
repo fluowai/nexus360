@@ -39,7 +39,14 @@ export function googleLocalRoutes(prisma: PrismaClient) {
     const access = await accessFor(req);
     if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
     try {
-      const jobId = await startProfileDiscovery(String(req.body?.query || ""));
+      const url = String(req.body?.url || "").trim();
+      const query = url || [
+        String(req.body?.name || req.body?.query || "").trim(),
+        String(req.body?.city || "").trim(),
+        String(req.body?.state || "").trim(),
+      ].filter(Boolean).join(" ");
+      if (!query) return res.status(400).json({ error: "Informe o nome do perfil ou a URL do Google Maps." });
+      const jobId = await startProfileDiscovery(query);
       res.status(202).json({ jobId, status: "RUNNING" });
     } catch (error) {
       res.status(502).json({ error: error instanceof Error ? error.message : String(error) });

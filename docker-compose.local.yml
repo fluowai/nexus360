@@ -15,6 +15,7 @@ services:
       JWT_SECRET: "dev-jwt-secret-nao-use-em-producao"
       DATABASE_URL: "${DATABASE_URL:-postgresql://postgres:postgres@host.docker.internal:5432/nexus360_local?schema=public}"
       DIRECT_URL: "${DIRECT_URL:-postgresql://postgres:postgres@host.docker.internal:5432/nexus360_local?schema=public}"
+      GOOGLE_MAPS_SCRAPER_URL: "http://google-maps-scraper:8080"
     env_file:
       - ./backend/.env
     volumes:
@@ -26,6 +27,20 @@ services:
     command: node dist/server.js
     ports:
       - "10000:10000"
+    networks:
+      - nexus360_local
+
+  google-maps-scraper:
+    build:
+      context: ./integrations/google-maps-scraper
+      dockerfile: Dockerfile
+    container_name: nexus360-google-maps-scraper
+    command: ["-web", "-addr", ":8080", "-data-folder", "/gmapsdata", "-c", "2", "-browser-pool-size", "1"]
+    volumes:
+      - google_maps_scraper_local_data:/gmapsdata
+    expose:
+      - "8080"
+    shm_size: "1gb"
     networks:
       - nexus360_local
 
@@ -43,3 +58,6 @@ services:
 networks:
   nexus360_local:
     driver: bridge
+
+volumes:
+  google_maps_scraper_local_data:

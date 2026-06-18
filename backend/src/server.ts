@@ -63,6 +63,7 @@ import { omnichannelRoutes } from "./routes/omnichannel.js";
 import { whatsappRoutes, whatsappInternalRoutes } from "./routes/whatsapp.js";
 import { storageRoutes, adminStorageRoutes } from "./routes/storage.js";
 import { landingPageRoutes } from "./routes/landingPages.js";
+import { googleLocalRoutes } from "./routes/googleLocal.js";
 
 const app = express();
 
@@ -615,6 +616,7 @@ const protectedRoutes = [
   { path: "/api/agent-queue", router: agentQueueRoutes },
   { path: "/api/storage", router: storageRoutes },
   { path: "/api/landing-pages", router: landingPageRoutes },
+  { path: "/api/google-local", router: googleLocalRoutes },
   { path: "/api/admin/storage", router: adminStorageRoutes },
 ];
 

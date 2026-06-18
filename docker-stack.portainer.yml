@@ -77,6 +77,9 @@ services:
       STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
       WHATSAPP_BRIDGE_URL: "${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:8091}"
       WHATSAPP_BRIDGE_SECRET: "${WHATSAPP_BRIDGE_SECRET}"
+      GOOGLE_MAPS_SCRAPER_URL: "http://google-maps-scraper:8080"
+      GOOGLE_MAPS_SCRAPER_CONCURRENCY: "${GOOGLE_MAPS_SCRAPER_CONCURRENCY:-2}"
+      GOOGLE_MAPS_SCRAPER_JOB_TIMEOUT_MS: "${GOOGLE_MAPS_SCRAPER_JOB_TIMEOUT_MS:-240000}"
     volumes:
       - type: volume
         source: traefik_dynamic
@@ -117,9 +120,36 @@ services:
         - "traefik.http.routers.nexus360_custom_static_api.service=nexus360_api"
         - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
 
+  google-maps-scraper:
+    image: ghcr.io/fluowai/nexus360-google-maps-scraper:latest
+    command:
+      - "-web"
+      - "-addr"
+      - ":8080"
+      - "-data-folder"
+      - "/gmapsdata"
+      - "-c"
+      - "${GOOGLE_MAPS_SCRAPER_WORKERS:-2}"
+      - "-browser-pool-size"
+      - "${GOOGLE_MAPS_SCRAPER_BROWSER_POOL:-1}"
+    volumes:
+      - google_maps_scraper_data:/gmapsdata
+    networks:
+      - nexus360_internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          memory: 2G
+    stop_grace_period: 30s
+
 volumes:
   traefik_dynamic:
     name: traefik_dynamic
+  google_maps_scraper_data:
+    name: nexus360_google_maps_scraper_data
 
 networks:
   consultio1:

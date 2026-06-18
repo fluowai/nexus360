@@ -14,7 +14,8 @@ import {
   Server,
   UserPlus,
   Wallet,
-  LayoutDashboard
+  LayoutDashboard,
+  MapPinned
 } from "lucide-react";
 import { motion } from "motion/react";
 import { apiFetch } from "../lib/api";
@@ -156,6 +157,12 @@ export default function SuperAdmin() {
                     <Server size={20} />
                   </div>
                   <span className="text-sm font-bold text-gray-700">Status do Sistema</span>
+                </Link>
+                <Link to="/admin/google-local" className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl hover:bg-emerald-50 group transition-all">
+                  <div className="p-2 bg-white rounded-xl shadow-sm group-hover:text-emerald-600 transition-colors">
+                    <MapPinned size={20} />
+                  </div>
+                  <span className="text-sm font-bold text-gray-700">Acessos Google Local</span>
                 </Link>
               </div>
             </div>

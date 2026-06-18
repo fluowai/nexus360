@@ -15,6 +15,7 @@ env:
   IMAGE_OWNER: fluowai
   API_IMAGE: nexus360-api
   FRONTEND_IMAGE: nexus360-frontend
+  GOOGLE_MAPS_SCRAPER_IMAGE: nexus360-google-maps-scraper
 
 jobs:
   build:
@@ -60,3 +61,14 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.FRONTEND_IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+
+      - name: Build and push Google Maps scraper
+        uses: docker/build-push-action@v6
+        with:
+          context: ./integrations/google-maps-scraper
+          file: ./integrations/google-maps-scraper/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.GOOGLE_MAPS_SCRAPER_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.GOOGLE_MAPS_SCRAPER_IMAGE }}:${{ github.sha }}

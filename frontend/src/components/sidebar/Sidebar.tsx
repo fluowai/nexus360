@@ -41,10 +41,12 @@ import {
   Megaphone,
   Bot,
   LockKeyhole,
-  KeyRound
+  KeyRound,
+  MapPinned
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
+import { apiFetch } from '../../lib/api';
 import { isCustomWorkspaceHost, workspacePath } from '../../lib/workspaceRoute';
 import './Sidebar.css';
 
@@ -192,6 +194,18 @@ export const Sidebar: React.FC<{
   const location = useLocation();
   const access = useAccess(user);
   const isSuper = user?.role === 'SUPER_ADMIN';
+  const [googleLocalEnabled, setGoogleLocalEnabled] = useState(isSuper);
+
+  useEffect(() => {
+    if (isSuper) {
+      setGoogleLocalEnabled(true);
+      return;
+    }
+    apiFetch('/api/google-local/access')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => setGoogleLocalEnabled(Boolean(data?.enabled)))
+      .catch(() => setGoogleLocalEnabled(false));
+  }, [isSuper, user?.id]);
 
   const getSlugFromPath = () => {
     if (isCustomWorkspaceHost()) return '';
@@ -208,7 +222,9 @@ export const Sidebar: React.FC<{
     return workspacePath(basePath, currentSlug);
   };
 
-  const canSeeModule = (moduleKey: string) => isSuper || access.hasModule(moduleKey);
+  const canSeeModule = (moduleKey: string) => moduleKey === 'google_local'
+    ? googleLocalEnabled
+    : isSuper || access.hasModule(moduleKey);
   const canSeeAny = (moduleKeys: string[]) => isSuper || access.hasAnyModule(moduleKeys);
 
   const menuGroups: any[] = [
@@ -246,12 +262,13 @@ export const Sidebar: React.FC<{
     {
       label: 'Marketing',
       icon: Megaphone,
-      modules: ['ads', 'landing_pages', 'assets', 'proposals'],
+      modules: ['ads', 'landing_pages', 'assets', 'proposals', 'google_local'],
       items: [
         { module: 'ads', icon: Megaphone, label: 'Trafego Pago', path: '/ad-accounts' },
         { module: 'assets', icon: Palette, label: 'Criativos & Assets', path: '/assets' },
         { module: 'landing_pages', icon: Globe, label: 'Landing Pages', path: '/landing-pages' },
         { module: 'proposals', icon: FileText, label: 'Propostas', path: '/proposals' },
+        { module: 'google_local', icon: MapPinned, label: 'Google Local', path: '/google-local' },
       ],
     },
     {

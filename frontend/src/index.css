@@ -155,6 +155,19 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 25%, transparent);
 }
 
+.google-local-rank-label {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: white !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+.google-local-rank-label::before {
+  display: none !important;
+}
+
 /* Custom transitions */
 .fade-enter {
   opacity: 0;

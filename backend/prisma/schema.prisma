@@ -162,6 +162,9 @@ model Organization {
 
   // ACP v2.0
   acpAccesses           AcpAccess[]
+  googleLocalAccesses   GoogleLocalAccess[]
+  googleLocalProfiles   GoogleLocalProfile[]
+  googleLocalScans      GoogleLocalScan[]
   acpDiagnoses          AcpDiagnosis[]
   acpIcps               AcpIcp[]
   acpOffers             AcpOffer[]
@@ -458,6 +461,10 @@ model User {
   roleId               String?
   roleObj              Role?          @relation(fields: [roleId], references: [id])
   userPermissions      UserPermission[]
+  googleLocalAccesses  GoogleLocalAccess[] @relation("GoogleLocalAccessUser")
+  googleLocalGrants    GoogleLocalAccess[] @relation("GoogleLocalAccessGrantedBy")
+  googleLocalProfiles  GoogleLocalProfile[] @relation("GoogleLocalProfileCreatedBy")
+  googleLocalScans     GoogleLocalScan[] @relation("GoogleLocalScanCreatedBy")
   
   conversations        Conversation[]
   refreshTokens        RefreshToken[]
@@ -3167,6 +3174,101 @@ model AcpAccess {
 
   @@unique([organizationId, userId])
   @@index([organizationId])
+}
+
+// ==================== GOOGLE LOCAL / GEO GRID ====================
+
+model GoogleLocalAccess {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?        @relation("GoogleLocalAccessUser", fields: [userId], references: [id], onDelete: Cascade)
+  enabled        Boolean      @default(false)
+  monthlyLimit   Int          @default(200)
+  expiresAt      DateTime?
+  grantedById    String?
+  grantedBy      User?        @relation("GoogleLocalAccessGrantedBy", fields: [grantedById], references: [id], onDelete: SetNull)
+  grantedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model GoogleLocalProfile {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  placeId        String?
+  cid            String?
+  address        String?
+  latitude       Float
+  longitude      Float
+  createdById    String
+  createdBy      User         @relation("GoogleLocalProfileCreatedBy", fields: [createdById], references: [id])
+  scans          GoogleLocalScan[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model GoogleLocalScan {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  profileId       String
+  profile         GoogleLocalProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  keyword         String
+  gridSize        Int
+  radiusKm        Float
+  zoom            Int          @default(15)
+  status          String       @default("PENDING")
+  totalPoints     Int
+  processedPoints Int          @default(0)
+  averageRank     Float?
+  top3Percent     Float?
+  top10Percent    Float?
+  foundPercent    Float?
+  error           String?      @db.Text
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdById     String
+  createdBy       User         @relation("GoogleLocalScanCreatedBy", fields: [createdById], references: [id])
+  points          GoogleLocalGridPoint[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([profileId])
+}
+
+model GoogleLocalGridPoint {
+  id             String          @id @default(uuid())
+  scanId         String
+  scan           GoogleLocalScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  rowIndex       Int
+  columnIndex    Int
+  latitude       Float
+  longitude      Float
+  rank           Int?
+  found          Boolean         @default(false)
+  matchedTitle   String?
+  matchedPlaceId String?
+  matchedCid     String?
+  scraperJobId   String?
+  status         String          @default("PENDING")
+  error          String?         @db.Text
+  rawResult      Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([scanId, rowIndex, columnIndex])
+  @@index([scanId])
 }
 
 model AcpDiagnosis {

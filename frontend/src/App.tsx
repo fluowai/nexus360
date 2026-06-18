@@ -58,6 +58,7 @@ const AdminTickets = lazy(() => import("./pages/admin/Tickets"));
 const WhiteLabel = lazy(() => import("./pages/admin/WhiteLabel"));
 const ReleaseControl = lazy(() => import("./pages/admin/ReleaseControl"));
 const AdminAcpManager = lazy(() => import("./pages/admin/AcpManager"));
+const AdminGoogleLocalManager = lazy(() => import("./pages/admin/GoogleLocalManager"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const LandingPageWizard = lazy(() => import("./pages/LandingPageWizard"));
 const LandingPageEditor = lazy(() => import("./pages/LandingPageEditor"));
@@ -77,6 +78,7 @@ const LegalPage = lazy(() => import("./pages/LegalPage"));
 const Login = lazy(() => import("./pages/Login"));
 const CRMSalesPage = lazy(() => import("./pages/CRMSalesPage"));
 const AcpHub = lazy(() => import("./pages/AcpHub"));
+const GoogleLocal = lazy(() => import("./pages/GoogleLocal"));
 
 const AutomationBuilder = lazy(() => import("./pages/AutomationBuilder"));
 const NotificationsCenter = lazy(() => import("./pages/NotificationsCenter"));
@@ -91,7 +93,7 @@ const RESERVED_WORDS = new Set([
   'admin', 'site', 'vendas', 'login', 'onboarding', 'meet',
   'dashboard', 'crm', 'finance', 'settings', 'team', 'projects',
   'reports', 'api', 'automations', 'notifications', 'delivery',
-  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health', 'whatsapp', 'acp'
+  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health', 'whatsapp', 'acp', 'google-local'
 ]);
 
 function isPublicPath(pathname: string) {
@@ -421,6 +423,7 @@ export default function App() {
           <Route path="/admin/whitelabel" element={<WhiteLabel />} />
           <Route path="/admin/releases" element={<ReleaseControl />} />
           <Route path="/admin/acp" element={<AdminAcpManager />} />
+          <Route path="/admin/google-local" element={<AdminGoogleLocalManager />} />
 
           <Route path="/whitelabel/:slug/*" element={<WorkspaceAliasRedirect />} />
 
@@ -456,6 +459,7 @@ export default function App() {
           <Route path="/:slug/proposals" element={<Proposals />} />
           <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
           <Route path="/:slug/acp" element={<AcpHub selectedClientId={selectedClientId} />} />
+          <Route path="/:slug/google-local" element={<GoogleLocal />} />
           <Route path="/:slug/ai-settings" element={<AISettings />} />
           <Route path="/:slug/prompt-architect" element={<PromptArchitect />} />
           <Route path="/:slug/billing" element={<Billing />} />
@@ -475,6 +479,7 @@ export default function App() {
           <Route path="/time-tracking" element={<TimeTracking />} />
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/client-health" element={<ClientHealthDashboard />} />
+          <Route path="/google-local" element={<GoogleLocal />} />
 
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/billing" element={<Billing />} />

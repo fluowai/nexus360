@@ -7,6 +7,7 @@ import {
   getProfileDiscovery,
   normalizeProfileCandidate,
   auditGoogleProfile,
+  profileCandidateFromGoogleMapsUrl,
   resolveGoogleLocalAccess,
   startProfileDiscovery,
 } from "../services/googleLocal.js";
@@ -46,10 +47,21 @@ export function googleLocalRoutes(prisma: PrismaClient) {
         String(req.body?.state || "").trim(),
       ].filter(Boolean).join(" ");
       if (!query) return res.status(400).json({ error: "Informe o nome do perfil ou a URL do Google Maps." });
+      if (url) {
+        const urlCandidate = profileCandidateFromGoogleMapsUrl(url, req.body?.name || req.body?.query);
+        if (urlCandidate) {
+          return res.json({ status: "COMPLETED", candidates: [urlCandidate], source: "URL_FALLBACK" });
+        }
+      }
       const jobId = await startProfileDiscovery(query);
       res.status(202).json({ jobId, status: "RUNNING" });
     } catch (error) {
-      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+      const details = error instanceof Error ? error.message : String(error);
+      console.error("[GOOGLE_LOCAL_DISCOVER_ERROR]", details);
+      res.status(502).json({
+        error: "Não foi possível conectar ao coletor do Google Maps. Verifique se o serviço google-maps-scraper está rodando na stack.",
+        details,
+      });
     }
   });
 
@@ -59,7 +71,12 @@ export function googleLocalRoutes(prisma: PrismaClient) {
     try {
       res.json(await getProfileDiscovery(req.params.jobId));
     } catch (error) {
-      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+      const details = error instanceof Error ? error.message : String(error);
+      console.error("[GOOGLE_LOCAL_DISCOVER_STATUS_ERROR]", details);
+      res.status(502).json({
+        error: "Não foi possível consultar o coletor do Google Maps.",
+        details,
+      });
     }
   });
 

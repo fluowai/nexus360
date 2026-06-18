@@ -99,13 +99,24 @@ function scraperConfig() {
 
 async function scraperRequest(path: string, options: RequestInit = {}) {
   const { baseUrl } = scraperConfig();
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Scraper indisponível em ${baseUrl}: ${message}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const details = await response.text();
@@ -140,6 +151,53 @@ export async function startProfileDiscovery(query: string) {
 function numberValue(value: unknown) {
   const parsed = Number(String(value || "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function profileCandidateFromGoogleMapsUrl(url: string, fallbackName?: string) {
+  const cleanUrl = String(url || "").trim();
+  if (!cleanUrl) return null;
+
+  const atCoordinates = cleanUrl.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  const queryCoordinates = cleanUrl.match(/[?&](?:q|ll)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+  const coordinates = atCoordinates || queryCoordinates;
+  if (!coordinates) return null;
+
+  const latitude = Number(coordinates[1]);
+  const longitude = Number(coordinates[2]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  let name = String(fallbackName || "").trim();
+  if (!name) {
+    const placeMatch = cleanUrl.match(/\/place\/([^/@?]+)/);
+    if (placeMatch?.[1]) {
+      name = decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim();
+    }
+  }
+
+  return {
+    name: name || "Perfil do Google Maps",
+    placeId: null,
+    cid: null,
+    address: null,
+    sourceUrl: cleanUrl,
+    category: null,
+    phone: null,
+    website: null,
+    rating: null,
+    reviewsCount: null,
+    latitude,
+    longitude,
+    description: null,
+    openHours: null,
+    thumbnail: null,
+    rawData: {
+      title: name || "Perfil do Google Maps",
+      link: cleanUrl,
+      latitude: String(latitude),
+      longitude: String(longitude),
+      source: "GOOGLE_MAPS_URL_FALLBACK",
+    },
+  };
 }
 
 export function normalizeProfileCandidate(row: ScraperRow) {

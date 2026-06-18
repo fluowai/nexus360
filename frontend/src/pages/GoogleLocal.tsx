@@ -5,7 +5,7 @@ import {
   Building2, CheckCircle2, ExternalLink, Loader2, MapPinned,
   Play, Plus, RefreshCw, Search, Trash2, XCircle,
 } from "lucide-react";
-import { apiFetch } from "../lib/api";
+import { apiFetch, readJsonResponse } from "../lib/api";
 
 type Profile = {
   id: string; name: string; placeId?: string | null; cid?: string | null;
@@ -110,12 +110,18 @@ export default function GoogleLocal() {
       const start = await apiFetch("/api/google-local/discover", {
         method: "POST", body: JSON.stringify(discoveryForm),
       });
-      const startData = await start.json();
+      const startData = await readJsonResponse(start, "Falha ao iniciar a busca. O proxy retornou uma resposta inválida.");
       if (!start.ok) throw new Error(startData.error || "Não foi possível iniciar a busca.");
+      if (startData.status === "COMPLETED") {
+        setCandidates(startData.candidates || []);
+        if (!startData.candidates?.length) setMessage("Nenhum perfil encontrado. Inclua a cidade ou cole a URL completa.");
+        return;
+      }
+      if (!startData.jobId) throw new Error("A busca não retornou um identificador válido.");
       for (let attempt = 0; attempt < 80; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         const response = await apiFetch(`/api/google-local/discover/${startData.jobId}`);
-        const data = await response.json();
+        const data = await readJsonResponse(response, "Falha ao consultar a busca. O proxy retornou uma resposta inválida.");
         if (!response.ok) throw new Error(data.error || "Falha ao consultar o perfil.");
         if (data.status === "FAILED") throw new Error("A busca no Google Maps falhou.");
         if (data.status === "COMPLETED") {

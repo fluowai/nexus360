@@ -745,7 +745,7 @@ export function authRoutes(prisma: PrismaClient) {
 
   // ==================== REGISTER ====================
   router.post("/register", async (req, res) => {
-    const { name, email, password, organizationName } = req.body;
+    const { name, email, password, organizationName, planId } = req.body;
 
     if (!name || !email || !password || !organizationName) {
       return res.status(400).json({
@@ -776,6 +776,20 @@ export function authRoutes(prisma: PrismaClient) {
         return res.status(400).json({ error: "Este email já está em uso." });
 
       const hashedPassword = await bcrypt.hash(password, 12);
+      const selectedPlan = planId
+        ? await prisma.plan.findFirst({
+            where: { id: planId, isActive: true, isPublic: true },
+          })
+        : await prisma.plan.findFirst({
+            where: { isActive: true, isPublic: true },
+            orderBy: { priceMonthly: "asc" },
+          });
+
+      if (planId && !selectedPlan) {
+        return res.status(400).json({ error: "O plano selecionado não está disponível." });
+      }
+
+      const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
       const result = await prisma.$transaction(async (tx) => {
         const org = await tx.organization.create({
@@ -787,7 +801,23 @@ export function authRoutes(prisma: PrismaClient) {
               .replace(/[\u0300-\u036f]/g, "")
               .replace(/[^a-z0-9]/g, "-"),
             domain: email.split("@")[1],
-            plan: "Free",
+            plan: selectedPlan?.name || "Free",
+            planId: selectedPlan?.id || null,
+            subscriptionStatus: "TRIAL",
+            trialEndsAt,
+          },
+        });
+        await tx.saaSSubscription.create({
+          data: {
+            organizationId: org.id,
+            planId: selectedPlan?.id || null,
+            status: "TRIAL",
+            startDate: new Date(),
+            trialEndsAt,
+            currentPeriodStart: new Date(),
+            currentPeriodEnd: trialEndsAt,
+            price: 0,
+            billingCycle: "MONTHLY",
           },
         });
         const user = await tx.user.create({
@@ -850,6 +880,11 @@ export function authRoutes(prisma: PrismaClient) {
           orgId: result.org.id,
           orgName: result.org.name,
           orgSlug: result.org.slug,
+          subscriptionStatus: "TRIAL",
+          trialEndsAt,
+          plan: selectedPlan
+            ? { id: selectedPlan.id, name: selectedPlan.name, slug: selectedPlan.slug }
+            : { name: "Free" },
         },
       });
     } catch (error) {

@@ -6,6 +6,27 @@ import { verifyHmacSignature, isProduction } from "../utils/security.js";
 export function billingRoutes(prisma: PrismaClient) {
   const router = Router();
 
+  // Catálogo público. A página de vendas reflete exatamente os planos
+  // publicados pelo Super Admin, sem manter preços duplicados no frontend.
+  router.get("/plans", async (_req, res) => {
+    try {
+      const plans = await prisma.plan.findMany({
+        where: { isActive: true, isPublic: true },
+        include: {
+          planFeatures: {
+            where: { isEnabled: true },
+            select: { featureKey: true, isEnabled: true, limit: true },
+          },
+        },
+        orderBy: { priceMonthly: "asc" },
+      });
+      res.json(plans);
+    } catch (error) {
+      console.error("[PUBLIC_PLANS_ERROR]", error);
+      res.status(500).json({ error: "Não foi possível carregar os planos." });
+    }
+  });
+
   // Listar faturas da organização
   router.get("/invoices", authenticateToken, async (req: any, res) => {
     const orgId = req.user.orgId;

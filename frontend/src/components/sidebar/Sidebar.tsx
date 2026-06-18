@@ -413,6 +413,7 @@ export const Sidebar: React.FC<{
               <SidebarItem icon={Rocket} label="Controle de Lancamento" path="/admin/releases" isActive={location.pathname === '/admin/releases'} collapsed={collapsed} />
               <SidebarItem icon={Brain} label="Orquestrador ACP" path="/acp" isActive={location.pathname === '/acp'} collapsed={collapsed} badge="v2" />
               <SidebarItem icon={Brain} label="ACP - Liberação" path="/admin/acp" isActive={location.pathname === '/admin/acp'} collapsed={collapsed} />
+              <SidebarItem icon={MapPinned} label="Google Local" path="/admin/google-local" isActive={location.pathname === '/admin/google-local'} collapsed={collapsed} />
             </SidebarGroup>
           ) : (
             <>

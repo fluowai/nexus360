@@ -115,6 +115,119 @@ async function scraperRequest(path: string, options: RequestInit = {}) {
   return response;
 }
 
+export async function startProfileDiscovery(query: string) {
+  const cleanQuery = query.trim();
+  if (!cleanQuery) throw new Error("Informe o nome do perfil, cidade ou URL do Google Maps.");
+  const created = await scraperRequest("/api/v1/jobs", {
+    method: "POST",
+    body: JSON.stringify({
+      name: `Nexus Profile Discovery - ${cleanQuery.slice(0, 80)}`,
+      keywords: [cleanQuery],
+      lang: "pt",
+      zoom: 15,
+      fast_mode: false,
+      radius: 50000,
+      depth: 1,
+      email: false,
+      max_time: 180000000000,
+    }),
+  });
+  const { id } = await created.json() as { id: string };
+  if (!id) throw new Error("O scraper não retornou o identificador da busca.");
+  return id;
+}
+
+function numberValue(value: unknown) {
+  const parsed = Number(String(value || "").replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function normalizeProfileCandidate(row: ScraperRow) {
+  return {
+    name: row.title || "",
+    placeId: row.place_id || null,
+    cid: row.cid || null,
+    address: row.address || null,
+    sourceUrl: row.link || null,
+    category: row.category || null,
+    phone: row.phone || null,
+    website: row.website || row.web_site || null,
+    rating: numberValue(row.review_rating),
+    reviewsCount: numberValue(row.review_count),
+    latitude: numberValue(row.latitude),
+    longitude: numberValue(row.longitude || row.longtitude),
+    description: row.descriptions || row.description || null,
+    openHours: row.open_hours || null,
+    thumbnail: row.thumbnail || null,
+    rawData: row,
+  };
+}
+
+export async function getProfileDiscovery(jobId: string) {
+  const statusResponse = await scraperRequest(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
+  const job = await statusResponse.json() as { status?: string };
+  if (job.status === "failed") return { status: "FAILED", candidates: [] };
+  if (job.status !== "ok" && job.status !== "completed") return { status: "RUNNING", candidates: [] };
+  const csvResponse = await scraperRequest(`/api/v1/jobs/${encodeURIComponent(jobId)}/download`);
+  const rows = parseCsv(await csvResponse.text());
+  return {
+    status: "COMPLETED",
+    candidates: rows.map(normalizeProfileCandidate).filter((item) =>
+      item.name && item.latitude !== null && item.longitude !== null,
+    ).slice(0, 20),
+  };
+}
+
+function hasJsonContent(value: unknown) {
+  const text = String(value || "").trim();
+  return text !== "" && text !== "{}" && text !== "[]" && text !== "null";
+}
+
+export function auditGoogleProfile(candidate: ReturnType<typeof normalizeProfileCandidate>) {
+  const checks = [
+    { key: "identity", label: "Nome e identidade do perfil", weight: 10, passed: Boolean(candidate.name) },
+    { key: "category", label: "Categoria principal configurada", weight: 12, passed: Boolean(candidate.category) },
+    { key: "address", label: "Endereço completo", weight: 10, passed: Boolean(candidate.address) },
+    { key: "phone", label: "Telefone disponível", weight: 10, passed: Boolean(candidate.phone) },
+    { key: "website", label: "Site vinculado", weight: 12, passed: Boolean(candidate.website) },
+    { key: "description", label: "Descrição do negócio", weight: 10, passed: Boolean(candidate.description) },
+    { key: "hours", label: "Horários de funcionamento", weight: 10, passed: hasJsonContent(candidate.openHours) },
+    { key: "rating", label: "Avaliação igual ou superior a 4,0", weight: 10, passed: (candidate.rating || 0) >= 4 },
+    { key: "reviews", label: "Volume mínimo de 20 avaliações", weight: 10, passed: (candidate.reviewsCount || 0) >= 20 },
+    { key: "image", label: "Imagem principal disponível", weight: 6, passed: Boolean(candidate.thumbnail) },
+  ];
+  const score = checks.reduce((total, check) => total + (check.passed ? check.weight : 0), 0);
+  const recommendations = checks
+    .filter((check) => !check.passed)
+    .map((check) => {
+      const actions: Record<string, string> = {
+        category: "Revise a categoria principal e adicione categorias secundárias relevantes.",
+        address: "Complete e valide o endereço exibido no Google.",
+        phone: "Adicione um telefone local e mantenha-o atualizado.",
+        website: "Vincule o site oficial com uma página específica para a localidade.",
+        description: "Escreva uma descrição clara com serviços, diferenciais e região atendida.",
+        hours: "Cadastre horários regulares e horários especiais.",
+        rating: "Crie uma rotina de solicitação e resposta de avaliações.",
+        reviews: "Aumente o volume de avaliações recentes e autênticas.",
+        image: "Adicione logo, capa, fachada e fotos recentes.",
+      };
+      return actions[check.key] || `Complete o item: ${check.label}.`;
+    });
+  return {
+    score,
+    level: score >= 85 ? "EXCELENTE" : score >= 70 ? "BOM" : score >= 50 ? "REGULAR" : "CRÍTICO",
+    checks,
+    recommendations,
+    summary: {
+      rating: candidate.rating,
+      reviewsCount: candidate.reviewsCount,
+      category: candidate.category,
+      website: candidate.website,
+      phone: candidate.phone,
+    },
+  };
+}
+
 async function scrapePoint(keyword: string, latitude: number, longitude: number, zoom: number) {
   const created = await scraperRequest("/api/v1/jobs", {
     method: "POST",

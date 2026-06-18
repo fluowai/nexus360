@@ -3206,8 +3206,18 @@ model GoogleLocalProfile {
   placeId        String?
   cid            String?
   address        String?
+  sourceUrl      String?
+  category       String?
+  phone          String?
+  website        String?
+  rating         Float?
+  reviewsCount   Int?
   latitude       Float
   longitude      Float
+  rawData        Json?
+  auditScore     Int?
+  auditData      Json?
+  lastAuditedAt  DateTime?
   createdById    String
   createdBy      User         @relation("GoogleLocalProfileCreatedBy", fields: [createdById], references: [id])
   scans          GoogleLocalScan[]

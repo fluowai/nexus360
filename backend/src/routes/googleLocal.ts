@@ -4,7 +4,11 @@ import { AuthRequest } from "../middleware/auth.js";
 import {
   executeGoogleLocalScan,
   generateGrid,
+  getProfileDiscovery,
+  normalizeProfileCandidate,
+  auditGoogleProfile,
   resolveGoogleLocalAccess,
+  startProfileDiscovery,
 } from "../services/googleLocal.js";
 
 export function googleLocalRoutes(prisma: PrismaClient) {
@@ -31,15 +35,38 @@ export function googleLocalRoutes(prisma: PrismaClient) {
     res.json({ profiles });
   });
 
+  router.post("/discover", async (req: AuthRequest, res) => {
+    const access = await accessFor(req);
+    if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
+    try {
+      const jobId = await startProfileDiscovery(String(req.body?.query || ""));
+      res.status(202).json({ jobId, status: "RUNNING" });
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  router.get("/discover/:jobId", async (req: AuthRequest, res) => {
+    const access = await accessFor(req);
+    if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
+    try {
+      res.json(await getProfileDiscovery(req.params.jobId));
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   router.post("/profiles", async (req: AuthRequest, res) => {
     const access = await accessFor(req);
     if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
-    const { name, placeId, cid, address, latitude, longitude } = req.body;
+    const { name, placeId, cid, address, latitude, longitude, sourceUrl, category, phone, website, rating, reviewsCount, rawData } = req.body;
     const lat = Number(latitude);
     const lon = Number(longitude);
     if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: "Nome e coordenadas válidas são obrigatórios." });
     }
+    const candidate = normalizeProfileCandidate(rawData || req.body);
+    const audit = auditGoogleProfile({ ...candidate, ...req.body });
     const profile = await prisma.googleLocalProfile.create({
       data: {
         organizationId: req.user!.orgId,
@@ -48,11 +75,54 @@ export function googleLocalRoutes(prisma: PrismaClient) {
         placeId: placeId ? String(placeId).trim() : null,
         cid: cid ? String(cid).trim() : null,
         address: address ? String(address).trim() : null,
+        sourceUrl: sourceUrl ? String(sourceUrl).trim() : null,
+        category: category ? String(category).trim() : null,
+        phone: phone ? String(phone).trim() : null,
+        website: website ? String(website).trim() : null,
+        rating: rating === null || rating === undefined ? null : Number(rating),
+        reviewsCount: reviewsCount === null || reviewsCount === undefined ? null : Number(reviewsCount),
         latitude: lat,
         longitude: lon,
+        rawData: rawData || req.body,
+        auditScore: audit.score,
+        auditData: audit,
+        lastAuditedAt: new Date(),
       },
     });
     res.status(201).json({ profile });
+  });
+
+  router.post("/profiles/:id/audit", async (req: AuthRequest, res) => {
+    const access = await accessFor(req);
+    if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
+    const existing = await prisma.googleLocalProfile.findFirst({
+      where: { id: req.params.id, organizationId: req.user!.orgId },
+    });
+    if (!existing) return res.status(404).json({ error: "Perfil não encontrado." });
+    const candidate = normalizeProfileCandidate(req.body?.rawData || req.body);
+    const audit = auditGoogleProfile({ ...candidate, ...req.body });
+    const profile = await prisma.googleLocalProfile.update({
+      where: { id: existing.id },
+      data: {
+        name: candidate.name || existing.name,
+        placeId: candidate.placeId || existing.placeId,
+        cid: candidate.cid || existing.cid,
+        address: candidate.address || existing.address,
+        sourceUrl: candidate.sourceUrl || existing.sourceUrl,
+        category: candidate.category || existing.category,
+        phone: candidate.phone || existing.phone,
+        website: candidate.website || existing.website,
+        rating: candidate.rating,
+        reviewsCount: candidate.reviewsCount === null ? null : Math.round(candidate.reviewsCount),
+        latitude: candidate.latitude ?? existing.latitude,
+        longitude: candidate.longitude ?? existing.longitude,
+        rawData: req.body?.rawData || req.body,
+        auditScore: audit.score,
+        auditData: audit,
+        lastAuditedAt: new Date(),
+      },
+    });
+    res.json({ profile });
   });
 
   router.delete("/profiles/:id", async (req: AuthRequest, res) => {

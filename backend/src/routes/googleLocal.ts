@@ -39,6 +39,7 @@ export function googleLocalRoutes(prisma: PrismaClient) {
   router.post("/discover", async (req: AuthRequest, res) => {
     const access = await accessFor(req);
     if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
+    let urlCandidate: ReturnType<typeof profileCandidateFromGoogleMapsUrl> = null;
     try {
       const url = String(req.body?.url || "").trim();
       const query = url || [
@@ -48,14 +49,17 @@ export function googleLocalRoutes(prisma: PrismaClient) {
       ].filter(Boolean).join(" ");
       if (!query) return res.status(400).json({ error: "Informe o nome do perfil ou a URL do Google Maps." });
       if (url) {
-        const urlCandidate = profileCandidateFromGoogleMapsUrl(url, req.body?.name || req.body?.query);
-        if (urlCandidate) {
-          return res.json({ status: "COMPLETED", candidates: [urlCandidate], source: "URL_FALLBACK" });
-        }
+        urlCandidate = profileCandidateFromGoogleMapsUrl(url, req.body?.name || req.body?.query);
       }
-      const jobId = await startProfileDiscovery(query);
-      res.status(202).json({ jobId, status: "RUNNING" });
+      const discoveryQuery = urlCandidate
+        ? [urlCandidate.name, urlCandidate.address].filter(Boolean).join(" ")
+        : query;
+      const jobId = await startProfileDiscovery(discoveryQuery || query);
+      res.status(202).json({ jobId, status: "RUNNING", fallbackCandidate: urlCandidate });
     } catch (error) {
+      if (urlCandidate) {
+        return res.json({ status: "COMPLETED", candidates: [urlCandidate], source: "URL_FALLBACK" });
+      }
       const details = error instanceof Error ? error.message : String(error);
       console.error("[GOOGLE_LOCAL_DISCOVER_ERROR]", details);
       res.status(502).json({

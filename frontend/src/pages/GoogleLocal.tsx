@@ -125,8 +125,17 @@ export default function GoogleLocal() {
         if (!response.ok) throw new Error(data.error || "Falha ao consultar o perfil.");
         if (data.status === "FAILED") throw new Error("A busca no Google Maps falhou.");
         if (data.status === "COMPLETED") {
-          setCandidates(data.candidates || []);
-          if (!data.candidates?.length) setMessage("Nenhum perfil encontrado. Inclua a cidade ou cole a URL completa.");
+          const foundCandidates = data.candidates?.length
+            ? data.candidates
+            : startData.fallbackCandidate
+              ? [startData.fallbackCandidate]
+              : [];
+          setCandidates(foundCandidates);
+          if (!data.candidates?.length && startData.fallbackCandidate) {
+            setMessage("Não consegui puxar todos os dados pelo coletor, mas extraí o perfil correto a partir do link.");
+          } else if (!data.candidates?.length) {
+            setMessage("Nenhum perfil encontrado. Inclua a cidade ou cole a URL completa.");
+          }
           return;
         }
       }

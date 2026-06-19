@@ -157,28 +157,52 @@ export function profileCandidateFromGoogleMapsUrl(url: string, fallbackName?: st
   const cleanUrl = String(url || "").trim();
   if (!cleanUrl) return null;
 
+  const destinationCoordinates = cleanUrl.match(/!1d(-?\d+(?:\.\d+)?)!2d(-?\d+(?:\.\d+)?)/);
   const atCoordinates = cleanUrl.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
   const queryCoordinates = cleanUrl.match(/[?&](?:q|ll)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
-  const coordinates = atCoordinates || queryCoordinates;
-  if (!coordinates) return null;
+  const latitude = destinationCoordinates
+    ? Number(destinationCoordinates[2])
+    : Number((atCoordinates || queryCoordinates)?.[1]);
+  const longitude = destinationCoordinates
+    ? Number(destinationCoordinates[1])
+    : Number((atCoordinates || queryCoordinates)?.[2]);
 
-  const latitude = Number(coordinates[1]);
-  const longitude = Number(coordinates[2]);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
 
   let name = String(fallbackName || "").trim();
+  let address: string | null = null;
+  let decodedUrl = cleanUrl.replace(/\+/g, " ");
+  try {
+    decodedUrl = decodeURIComponent(decodedUrl);
+  } catch {
+    decodedUrl = cleanUrl.replace(/\+/g, " ");
+  }
   if (!name) {
-    const placeMatch = cleanUrl.match(/\/place\/([^/@?]+)/);
-    if (placeMatch?.[1]) {
-      name = decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim();
+    const placeMatch = decodedUrl.match(/\/place\/([^/@?]+)/);
+    const directionsMatch = decodedUrl.match(/\/dir\/(?:[^/]*\/)?([^/@?]+)/);
+    const profileText = (placeMatch?.[1] || directionsMatch?.[1] || "").trim();
+    if (profileText) {
+      const parts = profileText.split(",").map((part) => part.trim()).filter(Boolean);
+      name = parts.shift() || "";
+      address = parts.join(", ") || null;
+    }
+  }
+  const placeDataId = cleanUrl.match(/!1s([^!/?&]+)/)?.[1] || null;
+  const cidHex = placeDataId?.split(":").at(-1);
+  let cid: string | null = null;
+  if (cidHex?.startsWith("0x")) {
+    try {
+      cid = BigInt(cidHex).toString();
+    } catch {
+      cid = cidHex;
     }
   }
 
   return {
     name: name || "Perfil do Google Maps",
-    placeId: null,
-    cid: null,
-    address: null,
+    placeId: placeDataId,
+    cid,
+    address,
     sourceUrl: cleanUrl,
     category: null,
     phone: null,
@@ -193,6 +217,9 @@ export function profileCandidateFromGoogleMapsUrl(url: string, fallbackName?: st
     rawData: {
       title: name || "Perfil do Google Maps",
       link: cleanUrl,
+      address,
+      cid,
+      place_id: placeDataId,
       latitude: String(latitude),
       longitude: String(longitude),
       source: "GOOGLE_MAPS_URL_FALLBACK",

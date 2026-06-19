@@ -268,7 +268,86 @@ function hasJsonContent(value: unknown) {
   return text !== "" && text !== "{}" && text !== "[]" && text !== "null";
 }
 
-export function auditGoogleProfile(candidate: ReturnType<typeof normalizeProfileCandidate>) {
+type GoogleProfileCandidate = ReturnType<typeof normalizeProfileCandidate>;
+
+export function opportunityScore(candidate: GoogleProfileCandidate, competitors: GoogleProfileCandidate[] = []) {
+  const rating = candidate.rating || 0;
+  const reviews = candidate.reviewsCount || 0;
+  const competitorReviews = competitors
+    .filter((item) => item.name !== candidate.name)
+    .map((item) => item.reviewsCount || 0)
+    .filter((value) => value > 0);
+  const avgCompetitorReviews = competitorReviews.length
+    ? competitorReviews.reduce((sum, value) => sum + value, 0) / competitorReviews.length
+    : 0;
+
+  let score = 25;
+  if (!candidate.website) score += 18;
+  if (!candidate.phone) score += 12;
+  if (!candidate.category) score += 8;
+  if (!candidate.description) score += 8;
+  if (!hasJsonContent(candidate.openHours)) score += 7;
+  if (rating > 0 && rating < 4) score += 10;
+  if (reviews < 20) score += 12;
+  if (avgCompetitorReviews && reviews < avgCompetitorReviews * 0.5) score += 15;
+  if (avgCompetitorReviews && reviews > avgCompetitorReviews * 1.5 && rating >= 4.5) score -= 15;
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+export function analyzeCompetition(candidate: GoogleProfileCandidate, competitors: GoogleProfileCandidate[] = []) {
+  const comparable = competitors
+    .filter((item) => item.name && item.name !== candidate.name)
+    .slice(0, 10);
+  const ratings = comparable.map((item) => item.rating || 0).filter(Boolean);
+  const reviews = comparable.map((item) => item.reviewsCount || 0).filter(Boolean);
+  const avgRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : null;
+  const avgReviews = reviews.length ? reviews.reduce((sum, value) => sum + value, 0) / reviews.length : null;
+  const stronger = comparable.filter((item) =>
+    (item.rating || 0) >= (candidate.rating || 0) && (item.reviewsCount || 0) > (candidate.reviewsCount || 0),
+  );
+
+  return {
+    totalCompetitors: comparable.length,
+    avgRating,
+    avgReviews,
+    strongerCompetitors: stronger.slice(0, 5).map((item) => ({
+      name: item.name,
+      rating: item.rating,
+      reviewsCount: item.reviewsCount,
+      website: item.website,
+    })),
+    insights: [
+      avgRating && (candidate.rating || 0) < avgRating ? "Avaliação abaixo da média local." : null,
+      avgReviews && (candidate.reviewsCount || 0) < avgReviews ? "Volume de avaliações abaixo dos concorrentes." : null,
+      !candidate.website ? "Perfil sem site vinculado: oportunidade clara para oferta de presença digital." : null,
+      !candidate.phone ? "Perfil sem telefone visível: oportunidade de correção básica de conversão." : null,
+    ].filter(Boolean),
+  };
+}
+
+export function buildGoogleProfileDiagnosis(candidate: GoogleProfileCandidate, audit: ReturnType<typeof auditGoogleProfile>, competitors: GoogleProfileCandidate[] = []) {
+  const competition = analyzeCompetition(candidate, competitors);
+  const opportunity = opportunityScore(candidate, competitors);
+  const diagnosis = [
+    `${candidate.name || "Este perfil"} tem score de auditoria ${audit.score}/100 e oportunidade comercial ${opportunity}/100.`,
+    audit.recommendations.length
+      ? `Prioridades: ${audit.recommendations.slice(0, 3).join(" ")}`
+      : "O perfil tem boa base cadastral; foque em diferenciação, fotos recentes e rotina de avaliações.",
+    competition.insights.length
+      ? `Concorrência local: ${competition.insights.join(" ")}`
+      : "Na amostra local, não há desvantagem crítica evidente contra os concorrentes capturados.",
+  ].join("\n\n");
+
+  return {
+    opportunityScore: opportunity,
+    commercialTemperature: opportunity >= 70 ? "HOT" : opportunity >= 40 ? "WARM" : "COLD",
+    competition,
+    diagnosis,
+  };
+}
+
+export function auditGoogleProfile(candidate: GoogleProfileCandidate) {
   const checks = [
     { key: "identity", label: "Nome e identidade do perfil", weight: 10, passed: Boolean(candidate.name) },
     { key: "category", label: "Categoria principal configurada", weight: 12, passed: Boolean(candidate.category) },

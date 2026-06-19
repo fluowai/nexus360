@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
-  Building2, CheckCircle2, ExternalLink, Loader2, MapPinned,
+  Building2, CheckCircle2, ExternalLink, Loader2, MapPinned, Send,
   Play, Plus, RefreshCw, Search, Trash2, XCircle,
 } from "lucide-react";
 import { apiFetch, readJsonResponse } from "../lib/api";
@@ -149,7 +149,7 @@ export default function GoogleLocal() {
     setSaving(true); setMessage("");
     try {
       const response = await apiFetch("/api/google-local/profiles", {
-        method: "POST", body: JSON.stringify(candidate),
+        method: "POST", body: JSON.stringify({ ...candidate, competitors: candidates }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível importar o perfil.");
@@ -157,6 +157,17 @@ export default function GoogleLocal() {
       setSelectedProfile(data.profile);
       setScanForm((current) => ({ ...current, profileId: data.profile.id }));
       setCandidates([]); setDiscoveryForm({ name: "", city: "", state: "", url: "" }); setShowDiscovery(false);
+    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    finally { setSaving(false); }
+  };
+
+  const sendProfileToCrm = async (profile: Profile) => {
+    setSaving(true); setMessage("");
+    try {
+      const response = await apiFetch(`/api/google-local/profiles/${profile.id}/send-to-crm`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível enviar para o CRM.");
+      setMessage(data.duplicated ? "Esse perfil já estava no CRM." : "Perfil enviado para o CRM como lead.");
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     finally { setSaving(false); }
   };
@@ -196,17 +207,17 @@ export default function GoogleLocal() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div><h1 className="text-2xl font-black">Google Local</h1><p className="text-sm text-gray-500">Auditoria do perfil e posicionamento geográfico no Google Maps.</p></div>
-        <button onClick={() => setShowDiscovery((value) => !value)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Localizar perfil</button>
+        <div><h1 className="text-2xl font-black">Nexus GBP Analyzer</h1><p className="text-sm text-gray-500">Busca empresas no Google Maps, audita o perfil, compara concorrentes e mantém o mapa de posicionamento.</p></div>
+        <button onClick={() => setShowDiscovery((value) => !value)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white"><Plus size={18} /> Buscar perfil</button>
       </div>
       {message && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{message}</div>}
 
       {showDiscovery && (
         <div className="rounded-[28px] border border-gray-100 bg-white p-6 shadow-sm">
-          <h2 className="font-black">Localizar Perfil da Empresa</h2>
-          <p className="mb-4 text-sm text-gray-500">Busque pelo nome e localização ou cole diretamente a URL do Google Maps.</p>
+          <h2 className="font-black">Buscar empresas no Google Maps</h2>
+          <p className="mb-4 text-sm text-gray-500">Use palavra-chave + cidade para listar concorrentes ou cole a URL de um perfil específico.</p>
           <form onSubmit={discoverProfiles} className="grid grid-cols-1 gap-3 md:grid-cols-[2fr_1fr_100px_auto]">
-            <input className="modal-input" placeholder="Nome do perfil ou empresa" value={discoveryForm.name} onChange={(e) => setDiscoveryForm({ ...discoveryForm, name: e.target.value })} />
+            <input className="modal-input" placeholder="Palavra-chave ou nome: advogado previdenciário" value={discoveryForm.name} onChange={(e) => setDiscoveryForm({ ...discoveryForm, name: e.target.value })} />
             <input className="modal-input" placeholder="Cidade" value={discoveryForm.city} onChange={(e) => setDiscoveryForm({ ...discoveryForm, city: e.target.value })} />
             <input className="modal-input" placeholder="UF" maxLength={2} value={discoveryForm.state} onChange={(e) => setDiscoveryForm({ ...discoveryForm, state: e.target.value.toUpperCase() })} />
             <button disabled={discovering || (!discoveryForm.name.trim() && !discoveryForm.url.trim())} className="flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-6 py-3 font-bold text-white disabled:opacity-50">
@@ -217,7 +228,7 @@ export default function GoogleLocal() {
             </div>
             <input className="modal-input md:col-span-4" type="url" placeholder="https://www.google.com/maps/place/..." value={discoveryForm.url} onChange={(e) => setDiscoveryForm({ ...discoveryForm, url: e.target.value })} />
           </form>
-          {discovering && <p className="mt-3 text-xs text-gray-500">A coleta própria pode levar alguns minutos na primeira consulta.</p>}
+          {discovering && <p className="mt-3 text-xs text-gray-500">Busca por palavra-chave usa o scraper e pode levar alguns minutos. URL de perfil responde na hora.</p>}
           <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {candidates.map((candidate, index) => (
               <div key={`${candidate.placeId || candidate.cid || index}`} className="rounded-2xl border border-gray-200 p-4">
@@ -240,6 +251,21 @@ export default function GoogleLocal() {
                 <div><p className="text-xs font-bold uppercase text-indigo-500">Auditoria do perfil</p><h2 className="text-xl font-black">{selectedProfile.name}</h2><p className="text-sm text-gray-500">{selectedProfile.category} · ★ {selectedProfile.rating || "—"} · {selectedProfile.reviewsCount || 0} avaliações</p></div>
                 <div className={`flex h-20 w-20 items-center justify-center rounded-full text-2xl font-black text-white ${(selectedProfile.auditScore || 0) >= 70 ? "bg-emerald-500" : (selectedProfile.auditScore || 0) >= 50 ? "bg-amber-500" : "bg-red-500"}`}>{selectedProfile.auditScore}</div>
               </div>
+              <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-2xl bg-indigo-50 p-4">
+                  <p className="text-[10px] font-black uppercase text-indigo-500">Oportunidade comercial</p>
+                  <p className="text-3xl font-black text-indigo-900">{selectedProfile.auditData.opportunityScore ?? selectedProfile.auditScore ?? "—"}</p>
+                  <p className="text-xs font-semibold text-indigo-700">{selectedProfile.auditData.commercialTemperature || "Sem classificação"}</p>
+                </div>
+                <div className="rounded-2xl bg-gray-50 p-4">
+                  <p className="text-[10px] font-black uppercase text-gray-400">Concorrentes analisados</p>
+                  <p className="text-3xl font-black">{selectedProfile.auditData.competition?.totalCompetitors ?? 0}</p>
+                  <p className="text-xs text-gray-500">Média reviews: {selectedProfile.auditData.competition?.avgReviews?.toFixed?.(0) || "—"}</p>
+                </div>
+                <button onClick={() => sendProfileToCrm(selectedProfile)} disabled={saving} className="flex items-center justify-center gap-2 rounded-2xl bg-gray-900 p-4 text-sm font-black text-white disabled:opacity-50">
+                  <Send size={18} /> Enviar para CRM
+                </button>
+              </div>
               <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                 {selectedProfile.auditData.checks?.map((check: any) => (
                   <div key={check.key} className={`flex items-center gap-3 rounded-xl p-3 ${check.passed ? "bg-emerald-50" : "bg-red-50"}`}>
@@ -247,6 +273,8 @@ export default function GoogleLocal() {
                   </div>
                 ))}
               </div>
+              {selectedProfile.auditData.diagnosis && <div className="mt-5 whitespace-pre-line rounded-2xl bg-indigo-50 p-4 text-sm font-semibold text-indigo-950">{selectedProfile.auditData.diagnosis}</div>}
+              {!!selectedProfile.auditData.competition?.strongerCompetitors?.length && <div className="mt-5 rounded-2xl border border-gray-100 p-4"><h3 className="font-black">Concorrentes mais fortes</h3><div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">{selectedProfile.auditData.competition.strongerCompetitors.map((item: any) => <div key={item.name} className="rounded-xl bg-gray-50 p-3"><p className="text-sm font-bold">{item.name}</p><p className="text-xs text-gray-500">★ {item.rating || "—"} · {item.reviewsCount || 0} avaliações</p></div>)}</div></div>}
               {!!selectedProfile.auditData.recommendations?.length && <div className="mt-5 rounded-2xl bg-amber-50 p-4"><h3 className="font-black text-amber-800">Prioridades</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">{selectedProfile.auditData.recommendations.map((item: string) => <li key={item}>{item}</li>)}</ul></div>}
               {selectedProfile.sourceUrl && <a href={selectedProfile.sourceUrl} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-indigo-600"><ExternalLink size={16} /> Abrir no Google</a>}
             </div>

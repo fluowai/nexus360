@@ -7,10 +7,12 @@ import {
   getProfileDiscovery,
   normalizeProfileCandidate,
   auditGoogleProfile,
+  buildGoogleProfileDiagnosis,
   profileCandidateFromGoogleMapsUrl,
   resolveGoogleLocalAccess,
   startProfileDiscovery,
 } from "../services/googleLocal.js";
+import { emitAutomationEvent } from "../workers/automationWorker.js";
 
 export function googleLocalRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -49,15 +51,29 @@ export function googleLocalRoutes(prisma: PrismaClient) {
       if (!query) return res.status(400).json({ error: "Informe o nome do perfil ou a URL do Google Maps." });
       // Tenta resolver links curtos (g.page, maps.app.goo.gl) antes de enviar para o scraper para evitar falhas no headless browser
       let finalQuery = query;
-      if (url && (url.includes("goo.gl") || url.includes("g.page") || url.includes("maps.app"))) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          const redirectRes = await fetch(url, { method: "HEAD", redirect: "follow", signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (redirectRes.url) finalQuery = redirectRes.url;
-        } catch (e) {
-          console.error("[URL_RESOLVE_ERROR]", e);
+      if (url) {
+        if (url.includes("goo.gl") || url.includes("g.page") || url.includes("maps.app")) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const redirectRes = await fetch(url, { method: "HEAD", redirect: "follow", signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (redirectRes.url) finalQuery = redirectRes.url;
+          } catch (e) {
+            console.error("[URL_RESOLVE_ERROR]", e);
+          }
+        }
+
+        // Se a URL for um link de Rota (/dir/) ou Local (/place/), o scraper pode se confundir ou dar timeout.
+        // Extraímos o nome limpo da URL para garantir que o scraper faça uma busca perfeita.
+        const extracted = profileCandidateFromGoogleMapsUrl(finalQuery, req.body?.name || req.body?.query);
+        if (extracted && extracted.name && extracted.name !== "Perfil do Google Maps") {
+          return res.json({
+            status: "COMPLETED",
+            candidates: [extracted],
+            source: "URL",
+            message: "Perfil localizado pelo link. O mapa de posicionamento continua disponível após importar.",
+          });
         }
       }
 
@@ -91,7 +107,7 @@ export function googleLocalRoutes(prisma: PrismaClient) {
   router.post("/profiles", async (req: AuthRequest, res) => {
     const access = await accessFor(req);
     if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
-    const { name, placeId, cid, address, latitude, longitude, sourceUrl, category, phone, website, rating, reviewsCount, rawData } = req.body;
+    const { name, placeId, cid, address, latitude, longitude, sourceUrl, category, phone, website, rating, reviewsCount, rawData, competitors = [] } = req.body;
     const lat = Number(latitude);
     const lon = Number(longitude);
     if (!name || !Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
@@ -99,6 +115,10 @@ export function googleLocalRoutes(prisma: PrismaClient) {
     }
     const candidate = normalizeProfileCandidate(rawData || req.body);
     const audit = auditGoogleProfile({ ...candidate, ...req.body });
+    const competitorCandidates = Array.isArray(competitors)
+      ? competitors.map((item) => normalizeProfileCandidate(item.rawData || item))
+      : [];
+    const analyzer = buildGoogleProfileDiagnosis({ ...candidate, ...req.body }, audit, competitorCandidates);
     const profile = await prisma.googleLocalProfile.create({
       data: {
         organizationId: req.user!.orgId,
@@ -117,11 +137,69 @@ export function googleLocalRoutes(prisma: PrismaClient) {
         longitude: lon,
         rawData: rawData || req.body,
         auditScore: audit.score,
-        auditData: audit,
+        auditData: { ...audit, ...analyzer },
         lastAuditedAt: new Date(),
       },
     });
     res.status(201).json({ profile });
+  });
+
+  router.post("/profiles/:id/send-to-crm", async (req: AuthRequest, res) => {
+    const access = await accessFor(req);
+    if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
+    const orgId = req.user!.orgId;
+    const profile = await prisma.googleLocalProfile.findFirst({
+      where: { id: req.params.id, organizationId: orgId },
+    });
+    if (!profile) return res.status(404).json({ error: "Perfil não encontrado." });
+
+    const auditData = (profile.auditData || {}) as any;
+    const score = Math.round(Number(auditData.opportunityScore || profile.auditScore || 0));
+    const notes = [
+      "[Nexus GBP Analyzer]",
+      `Perfil: ${profile.name}`,
+      profile.category ? `Categoria: ${profile.category}` : null,
+      profile.address ? `Endereço: ${profile.address}` : null,
+      profile.website ? `Site: ${profile.website}` : null,
+      profile.sourceUrl ? `Google Maps: ${profile.sourceUrl}` : null,
+      `Score GBP: ${profile.auditScore ?? "N/A"}/100`,
+      `Score oportunidade: ${score}/100`,
+      auditData.diagnosis ? `\nDiagnóstico:\n${auditData.diagnosis}` : null,
+    ].filter(Boolean).join("\n");
+
+    const existing = await prisma.lead.findFirst({
+      where: {
+        organizationId: orgId,
+        OR: [
+          { name: profile.name },
+          ...(profile.phone ? [{ phone: profile.phone }] : []),
+          ...(profile.website ? [{ notes: { contains: profile.website } }] : []),
+        ],
+      },
+    });
+
+    const lead = existing || await prisma.lead.create({
+      data: {
+        name: profile.name,
+        email: `gbp-${profile.id}@nexus360.local`,
+        phone: profile.phone || undefined,
+        status: "novo",
+        organizationId: orgId,
+        assignedToId: req.user?.id,
+        source: "Nexus GBP Analyzer",
+        channel: "Google Maps",
+        tags: profile.category || "GBP",
+        score,
+        temperature: score >= 70 ? "HOT" : score >= 40 ? "WARM" : "COLD",
+        notes,
+        aiDiagnosis: auditData.diagnosis || undefined,
+      },
+    });
+
+    if (!existing) {
+      emitAutomationEvent("lead.created", { organizationId: orgId, leadId: lead.id, lead });
+    }
+    res.json({ lead, duplicated: Boolean(existing) });
   });
 
   router.post("/profiles/:id/audit", async (req: AuthRequest, res) => {
@@ -133,6 +211,10 @@ export function googleLocalRoutes(prisma: PrismaClient) {
     if (!existing) return res.status(404).json({ error: "Perfil não encontrado." });
     const candidate = normalizeProfileCandidate(req.body?.rawData || req.body);
     const audit = auditGoogleProfile({ ...candidate, ...req.body });
+    const competitorCandidates = Array.isArray(req.body?.competitors)
+      ? req.body.competitors.map((item: any) => normalizeProfileCandidate(item.rawData || item))
+      : [];
+    const analyzer = buildGoogleProfileDiagnosis({ ...candidate, ...req.body }, audit, competitorCandidates);
     const profile = await prisma.googleLocalProfile.update({
       where: { id: existing.id },
       data: {
@@ -150,7 +232,7 @@ export function googleLocalRoutes(prisma: PrismaClient) {
         longitude: candidate.longitude ?? existing.longitude,
         rawData: req.body?.rawData || req.body,
         auditScore: audit.score,
-        auditData: audit,
+        auditData: { ...audit, ...analyzer },
         lastAuditedAt: new Date(),
       },
     });

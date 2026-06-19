@@ -39,7 +39,6 @@ export function googleLocalRoutes(prisma: PrismaClient) {
   router.post("/discover", async (req: AuthRequest, res) => {
     const access = await accessFor(req);
     if (!access?.enabled) return res.status(403).json({ error: "Módulo Google Local não liberado." });
-    let urlCandidate: ReturnType<typeof profileCandidateFromGoogleMapsUrl> = null;
     try {
       const url = String(req.body?.url || "").trim();
       const query = url || [
@@ -48,18 +47,23 @@ export function googleLocalRoutes(prisma: PrismaClient) {
         String(req.body?.state || "").trim(),
       ].filter(Boolean).join(" ");
       if (!query) return res.status(400).json({ error: "Informe o nome do perfil ou a URL do Google Maps." });
-      if (url) {
-        urlCandidate = profileCandidateFromGoogleMapsUrl(url, req.body?.name || req.body?.query);
+      // Tenta resolver links curtos (g.page, maps.app.goo.gl) antes de enviar para o scraper para evitar falhas no headless browser
+      let finalQuery = query;
+      if (url && (url.includes("goo.gl") || url.includes("g.page") || url.includes("maps.app"))) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 5000);
+          const redirectRes = await fetch(url, { method: "HEAD", redirect: "follow", signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (redirectRes.url) finalQuery = redirectRes.url;
+        } catch (e) {
+          console.error("[URL_RESOLVE_ERROR]", e);
+        }
       }
-      const discoveryQuery = urlCandidate
-        ? [urlCandidate.name, urlCandidate.address].filter(Boolean).join(" ")
-        : query;
-      const jobId = await startProfileDiscovery(discoveryQuery || query);
-      res.status(202).json({ jobId, status: "RUNNING", fallbackCandidate: urlCandidate });
+
+      const jobId = await startProfileDiscovery(finalQuery);
+      res.status(202).json({ jobId, status: "RUNNING" });
     } catch (error) {
-      if (urlCandidate) {
-        return res.json({ status: "COMPLETED", candidates: [urlCandidate], source: "URL_FALLBACK" });
-      }
       const details = error instanceof Error ? error.message : String(error);
       console.error("[GOOGLE_LOCAL_DISCOVER_ERROR]", details);
       res.status(502).json({

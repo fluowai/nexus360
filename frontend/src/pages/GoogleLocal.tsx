@@ -114,6 +114,7 @@ export default function GoogleLocal() {
       if (!start.ok) throw new Error(startData.error || "Não foi possível iniciar a busca.");
       if (startData.status === "COMPLETED") {
         setCandidates(startData.candidates || []);
+        if (startData.message) setMessage(startData.message);
         if (!startData.candidates?.length) setMessage("Nenhum perfil encontrado. Inclua a cidade ou cole a URL completa.");
         return;
       }

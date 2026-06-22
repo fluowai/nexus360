@@ -126,9 +126,27 @@ export function crmRoutes(prisma: PrismaClient) {
     if (!title) return res.status(400).json({ error: "Título é obrigatório" });
 
     try {
-      if (!clientId) return res.status(400).json({ error: "clientId e obrigatorio para criar oportunidade" });
-      const client = await prisma.client.findFirst({ where: { id: clientId, organizationId: orgId }, select: { id: true } });
-      if (!client) return res.status(400).json({ error: "Cliente invalido para esta organizacao" });
+      let targetClientId = clientId;
+      if (!targetClientId) {
+        if (req.body.clientName) {
+          const newClient = await prisma.client.create({
+            data: {
+              corporateName: req.body.clientName,
+              email: req.body.clientEmail || "",
+              phone: req.body.clientPhone || "",
+              organizationId: orgId,
+              assignedToId: assignedToId || req.user?.id,
+              status: "prospect"
+            }
+          });
+          targetClientId = newClient.id;
+        } else {
+          return res.status(400).json({ error: "clientId ou clientName e obrigatorio para criar oportunidade" });
+        }
+      } else {
+        const client = await prisma.client.findFirst({ where: { id: targetClientId, organizationId: orgId }, select: { id: true } });
+        if (!client) return res.status(400).json({ error: "Cliente invalido para esta organizacao" });
+      }
 
       let targetPipelineId = pipelineId;
       let ensuredPipeline = null;
@@ -169,7 +187,7 @@ export function crmRoutes(prisma: PrismaClient) {
           value: parseFloat(value) || 0,
           estimatedValue: parseFloat(value) || 0,
           organizationId: orgId,
-          clientId,
+          clientId: targetClientId,
           pipelineId: targetPipelineId,
           stageId: targetStageId,
           assignedToId: assignedToId || req.user?.id,

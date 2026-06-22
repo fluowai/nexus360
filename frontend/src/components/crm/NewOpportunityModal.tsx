@@ -15,6 +15,9 @@ export default function NewOpportunityModal({ onClose, onSuccess, pipelines }: N
     value: "",
     description: "",
     clientId: "",
+    clientName: "",
+    clientEmail: "",
+    clientPhone: "",
     pipelineId: pipelines[0]?.id || "",
     stageId: "",
     expectedCloseDate: "",
@@ -78,6 +81,20 @@ export default function NewOpportunityModal({ onClose, onSuccess, pipelines }: N
             <div className="flex flex-col gap-2">
               <label className="text-[10px] font-black text-[var(--nexus-text-muted)] uppercase tracking-widest">Valor (R$)</label>
               <input type="number" className="modal-input" placeholder="0,00" value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-black text-[var(--nexus-text-muted)] uppercase tracking-widest">Nome do Cliente / Empresa</label>
+            <input required className="modal-input" placeholder="Ex: Acme Corp" value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-[var(--nexus-text-muted)] uppercase tracking-widest">Email do Cliente</label>
+              <input type="email" className="modal-input" placeholder="contato@empresa.com" value={formData.clientEmail} onChange={e => setFormData({...formData, clientEmail: e.target.value})} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-[var(--nexus-text-muted)] uppercase tracking-widest">Telefone / WhatsApp</label>
+              <input className="modal-input" placeholder="(11) 99999-9999" value={formData.clientPhone} onChange={e => setFormData({...formData, clientPhone: e.target.value})} />
             </div>
           </div>
           <div className="flex flex-col gap-2">

@@ -558,8 +558,8 @@ export async function enrollCapturedLeadsInFunnel(
         crmStatus: "prospecting_funnel",
         responsibleId: consultant?.id || lead.responsibleId || null,
         aiDiagnosis: gbpContext?.gbpDiagnosis || lead.aiDiagnosis,
-        aiWeaknesses: gbpContext?.gbpWeaknesses?.length ? gbpContext.gbpWeaknesses : lead.aiWeaknesses,
-        aiOpportunities: gbpContext?.gbpOpportunities?.length ? gbpContext.gbpOpportunities : lead.aiOpportunities,
+        aiWeaknesses: gbpContext?.gbpWeaknesses?.length ? gbpContext.gbpWeaknesses as any : lead.aiWeaknesses,
+        aiOpportunities: gbpContext?.gbpOpportunities?.length ? gbpContext.gbpOpportunities as any : lead.aiOpportunities,
         notes: [
           lead.notes,
           !identityValidated ? "Funil: CNPJ/socios omitidos porque a identidade empresarial nao esta validada." : null,

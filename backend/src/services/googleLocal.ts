@@ -589,7 +589,7 @@ export async function enrichLeadWithGBPContext(
     }
   }
   if (diagnosis.competition.insights.length) {
-    opportunities.push(...diagnosis.competition.insights);
+    opportunities.push(...diagnosis.competition.insights.filter((i): i is string => i !== null));
   }
   if (diagnosis.competition.strongerCompetitors.length) {
     const top = diagnosis.competition.strongerCompetitors[0];

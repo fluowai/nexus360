@@ -111,24 +111,59 @@ export async function scanClient(input: ScanInput, serperKey: string, groqKey?: 
 
   const websiteContent = jinaContent || cheerioResult.text || null;
 
+  // Busca e valida CNPJ e Sócios
+  let discoveredCnpj = cnpj;
+  let qsaData: any[] = [];
+  let razaoSocial = "";
+  
+  if (!discoveredCnpj) {
+    // Tenta descobrir o CNPJ buscando no google
+    try {
+      const cnpjQuery = await searchGoogle(serperKey, `${companyName} CNPJ`);
+      const allText = cnpjQuery?.organic?.map((r: any) => `${r.title} ${r.snippet}`).join(" ") || "";
+      const match = allText.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
+      if (match) discoveredCnpj = match[0];
+    } catch (e) {}
+  }
+
+  if (discoveredCnpj) {
+    const cleanCnpj = discoveredCnpj.replace(/\D/g, "");
+    if (cleanCnpj.length === 14) {
+      try {
+        const { data: cnpjInfo } = await axios.get(`https://brasilapi.com.br/api/cnpj/v1/${cleanCnpj}`, { timeout: 10000 });
+        if (cnpjInfo) {
+          qsaData = cnpjInfo.qsa || [];
+          razaoSocial = cnpjInfo.razao_social || "";
+        }
+      } catch (e) {}
+    }
+  }
+
+  const decisoresText = qsaData.length > 0 
+    ? qsaData.map(s => `- ${s.nome_socio} (${s.qualificacao_socio})`).join("\n") 
+    : "Não foi possível identificar o quadro societário automaticamente.";
+
   const groqPrompt = `Com base nos dados abaixo sobre a empresa "${companyName}", gere um dossiê executivo com:
 
 1. **Resumo da empresa** (atuação, porte aparente, segmento)
-2. **Presença digital** (site, redes sociais encontradas, qualidade)
-3. **Produtos/Serviços identificados** (liste tudo que parece ser vendido)
-4. **Concorrência e mercado** (menções de concorrentes, notícias)
-5. **Sinais de maturidade digital** (baixa/média/alta)
-6. **Oportunidades comerciais** (gaps que identificou)
-7. **Recomendações iniciais** (3 ações prioritárias)
+2. **Decisores e Sócios (IMPORTANTÍSSIMO)** (Identifique quem são os sócios ou administradores listados e como abordá-los)
+3. **Presença digital** (site, redes sociais encontradas, qualidade)
+4. **Produtos/Serviços identificados** (liste tudo que parece ser vendido)
+5. **Concorrência e mercado** (menções de concorrentes, notícias)
+6. **Oportunidades comerciais** (gaps que identificou para vender nossos serviços)
 
-Seja direto e analítico. Use apenas os dados fornecidos, não invente.
+Seja direto e analítico. Use apenas os dados fornecidos, não invente nomes de sócios se não estiverem na lista.
 
 Dados da empresa:
 - Nome: ${companyName}
+- Razão Social (Receita Federal): ${razaoSocial || "N/A"}
 - Website: ${website || "N/A"}
 - Instagram: ${instagram || "N/A"}
-- CNPJ: ${cnpj || "N/A"}
+- CNPJ: ${discoveredCnpj || "N/A"}
 - Segmento: ${segment || "N/A"}
+
+Quadro de Sócios e Administradores (Decisores):
+${decisoresText}
 
 Resultados do Google (${googleResults.length} encontrados):
 ${googleResults.slice(0, 8).map(r => `- ${r.title}: ${r.snippet} (${r.url})`).join("\n")}
@@ -137,7 +172,7 @@ Notícias:
 ${newsMentions.slice(0, 5).join("\n") || "Nenhuma encontrada"}
 
 Conteúdo do site:
-${(websiteContent || "Não foi possível acessar o site").slice(0, 5000)}
+${(websiteContent || "Não foi possível acessar o site").slice(0, 4000)}
 
 Produtos/Serviços identificados:
 ${productsServices.slice(0, 20).join("\n") || "Não foi possível identificar produtos específicos."}`;
@@ -149,7 +184,7 @@ ${productsServices.slice(0, 20).join("\n") || "Não foi possível identificar pr
       {
         model: "llama-3.3-70b-versatile",
         messages: [
-          { role: "system", content: "Você é um analista de inteligência de mercado. Gere dossiês executivos concisos e acionáveis." },
+          { role: "system", content: "Você é um analista de inteligência de mercado e vendas B2B. Sua função é analisar empresas, identificar os decisores reais e gerar dossiês para a equipe comercial abordar." },
           { role: "user", content: groqPrompt }
         ],
         temperature: 0.4,

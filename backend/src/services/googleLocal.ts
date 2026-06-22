@@ -535,6 +535,94 @@ export async function executeGoogleLocalScan(prisma: PrismaClient, scanId: strin
   }
 }
 
+export async function enrichLeadWithGBPContext(
+  prisma: PrismaClient,
+  organizationId: string,
+  lead: { name?: string | null; phone?: string | null; website?: string | null },
+): Promise<{
+  gbpProfile: GoogleProfileCandidate | null;
+  audit: ReturnType<typeof auditGoogleProfile> | null;
+  diagnosis: ReturnType<typeof buildGoogleProfileDiagnosis> | null;
+  agentContext: string;
+  weaknesses: string[];
+  opportunities: string[];
+} | null> {
+  const where: any[] = [{ organizationId }];
+  if (lead.phone) {
+    const digits = String(lead.phone).replace(/\D/g, "");
+    if (digits.length >= 8) where.push({ phone: { contains: digits } });
+  }
+  if (lead.website) {
+    const domain = String(lead.website).replace(/https?:\/\//, "").split("/")[0];
+    if (domain) where.push({ website: { contains: domain } });
+  }
+  if (lead.name) {
+    const nameParts = String(lead.name).toLowerCase().slice(0, 30).split(/\s+/).filter((p) => p.length > 3);
+    if (nameParts.length) {
+      where.push({ name: { contains: nameParts[0] } });
+    }
+  }
+
+  const profile = await prisma.googleLocalProfile.findFirst({
+    where: { OR: where },
+    orderBy: { lastAuditedAt: "desc" },
+  });
+
+  if (!profile) return null;
+
+  const candidate = normalizeProfileCandidate((profile.rawData as ScraperRow) || {});
+  if (profile.name) candidate.name = profile.name;
+  if (profile.rating) candidate.rating = profile.rating;
+  if (profile.reviewsCount) candidate.reviewsCount = profile.reviewsCount;
+  if (profile.category) candidate.category = profile.category;
+  if (profile.website) candidate.website = profile.website;
+  if (profile.phone) candidate.phone = profile.phone;
+
+  const audit = auditGoogleProfile(candidate);
+  const diagnosis = buildGoogleProfileDiagnosis(candidate, audit);
+
+  const weaknesses: string[] = [];
+  const opportunities: string[] = [];
+  for (const check of audit.checks) {
+    if (!check.passed) {
+      weaknesses.push(check.label);
+    }
+  }
+  if (diagnosis.competition.insights.length) {
+    opportunities.push(...diagnosis.competition.insights);
+  }
+  if (diagnosis.competition.strongerCompetitors.length) {
+    const top = diagnosis.competition.strongerCompetitors[0];
+    opportunities.push(`Concorrente ${top.name} está melhor posicionado (rating ${top.rating}, ${top.reviewsCount} avaliações)`);
+  }
+  if (opportunityScore(candidate) >= 40) {
+    opportunities.push("Perfil com alto potencial de melhoria — oportunidade comercial clara");
+  }
+
+  const auditFailures = audit.checks.filter((c) => !c.passed);
+
+  const agentContext = [
+    `[GBP Audit - ${candidate.name}]`,
+    `Score GBP: ${audit.score}/100 (${audit.level})`,
+    `Score Oportunidade: ${diagnosis.opportunityScore}/100 (${diagnosis.commercialTemperature})`,
+    auditFailures.length ? `Falhas detectadas: ${auditFailures.map((c) => c.label).join(", ")}` : null,
+    !candidate.website ? "SEM SITE VINCULADO — perde visibilidade e credibilidade" : null,
+    (candidate.rating || 0) < 4 ? `Avaliação ${candidate.rating}/5 — abaixo do ideal` : null,
+    (candidate.reviewsCount || 0) < 20 ? `Apenas ${candidate.reviewsCount || 0} avaliações — volume baixo` : null,
+    diagnosis.competition.strongerCompetitors.length ? `Concorrentes mais fortes: ${diagnosis.competition.strongerCompetitors.map((c) => c.name).join(", ")}` : null,
+    diagnosis.diagnosis,
+  ].filter(Boolean).join("\n");
+
+  return {
+    gbpProfile: candidate,
+    audit,
+    diagnosis,
+    agentContext,
+    weaknesses,
+    opportunities,
+  };
+}
+
 export async function resolveGoogleLocalAccess(
   prisma: PrismaClient,
   organizationId: string,

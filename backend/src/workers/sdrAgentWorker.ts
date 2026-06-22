@@ -90,7 +90,10 @@ ${lastLeadMessage}
 Regras:
 1. Responda APENAS com a mensagem que vai ser enviada no WhatsApp. Nada mais.
 2. Seja MUITO curto (no máximo 3 a 4 linhas). As pessoas não lêem textões no WhatsApp.
-3. Se houver informações de que a empresa está com nota baixa no Google (abaixo de 4.0), sem site ou perdendo para concorrentes, USE ISSO como isca (Ex: "Notamos que a nota do Google de vocês pode estar perdendo clientes para o concorrente... Posso mandar o raio-x que nossa IA fez?").
+3. O dossiê acima contém dados de auditoria do Google Meu Negócio (GBP). Se houver score baixo, falhas detectadas (como falta de site, avaliações abaixo de 4.0, volume baixo de avaliações, horários não cadastrados, descrição vazia) ou concorrentes melhor posicionados, USE ISSO como isca persuasiva.
+   - Ex: "Nossa IA detectou que o perfil do Google de vocês está com score X/100. Identificamos [falha específica]. Isso pode estar fazendo vocês perderem clientes para [concorrente]. Posso enviar o diagnóstico gratuito?"
+   - Ex: "Seu concorrente [nome] aparece melhor no Google que vocês. Quer que eu mande o mapa de calor mostrando onde vocês estão perdendo visibilidade?"
+   - Ex: "Vocês estão sem site no Google Meu Negócio. Isso afeta diretamente as conversões. Nossa análise mostra oportunidade de X/100."
 4. Termine com UMA pergunta para engajar.
 5. Se você perceber que ele quer uma call ou detalhes técnicos que só um humano pode dar, inicie a mensagem com a tag secreta: [HANDOFF] e depois escreva a mensagem avisando que um especialista vai chamar.
 `;

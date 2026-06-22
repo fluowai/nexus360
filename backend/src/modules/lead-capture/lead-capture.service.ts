@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { LeadSearchParams, NormalizedLead, LeadSearchFilters } from "./providers/lead-provider.interface.js";
 import { getLeadProvider } from "./providers/lead-provider.factory.js";
+import { CompanyResolverService } from "../../services/companyResolver.js";
+import { upsertDecisionMakersFromLead } from "../../services/prospectingAutomation.js";
 
 export class LeadCaptureService {
   constructor(private prisma: PrismaClient) {}
@@ -125,7 +127,14 @@ export class LeadCaptureService {
         }
       }
 
-      // 4. Update source and log usage
+      // 4. Auto-enriquecer leads (CNPJ + decisores) em background
+      if (savedLeads.length > 0) {
+        this.autoEnrichLeads(savedLeads, tenantId).catch(err =>
+          console.error("[LEAD_CAPTURE_AUTO_ENRICH_ERROR]", err.message)
+        );
+      }
+
+      // 5. Update source and log usage
       await this.prisma.leadCaptureSource.update({
         where: { id: source.id },
         data: {
@@ -321,5 +330,62 @@ export class LeadCaptureService {
       .replace(/[\u0300-\u036f]/g, "")
       .trim()
       .toUpperCase();
+  }
+
+  private async autoEnrichLeads(leads: any[], orgId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { serperApiKey: true, groqKey: true }
+    });
+
+    const resolver = new CompanyResolverService({
+      serperApiKey: org?.serperApiKey || process.env.SERPER_API_KEY,
+      groqApiKey: org?.groqKey || process.env.GROQ_API_KEY,
+    });
+
+    for (const lead of leads.slice(0, 10)) {
+      try {
+        const result = await resolver.resolve({ name: lead.businessName });
+
+        if (result.company && result.company.score >= 80) {
+          const owners = result.company.partners
+            .map(p => p.role ? `${p.name} (${p.role})` : p.name)
+            .join(", ");
+
+          await this.prisma.capturedLead.update({
+            where: { id: lead.id },
+            data: {
+              cnpj: result.company.cnpjFormatted,
+              cnpjStatus: "validated",
+              cnpjMatchScore: result.company.score,
+              cnpjMatchReason: result.company.matchReason,
+              matchedLegalName: result.company.legalName,
+              matchedTradeName: result.company.tradeName,
+              matchedCity: result.company.city,
+              matchedState: result.company.state,
+              matchedAddress: result.company.address,
+              owners: owners || null,
+            }
+          });
+
+          if (result.decisionMakers.length > 0) {
+            const updatedLead = await this.prisma.capturedLead.findUnique({ where: { id: lead.id } });
+            if (updatedLead) {
+              await upsertDecisionMakersFromLead(this.prisma, updatedLead).catch(() => {});
+            }
+          }
+        } else if (result.candidates.length > 0) {
+          await this.prisma.capturedLead.update({
+            where: { id: lead.id },
+            data: {
+              cnpjStatus: "needs_review",
+              cnpjMatchReason: `Candidatos encontrados, mas nenhum com score suficiente: ${result.candidates.map(c => `${c.cnpj} (${c.score}%)`).join(", ")}`,
+            }
+          });
+        }
+      } catch (err: any) {
+        console.warn(`[AUTO_ENRICH] Falha ao enriquecer lead ${lead.id}:`, err.message);
+      }
+    }
   }
 }

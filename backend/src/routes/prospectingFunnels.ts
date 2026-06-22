@@ -11,6 +11,7 @@ import {
   upsertDecisionMakersFromLead,
 } from "../services/prospectingAutomation.js";
 import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service.js";
+import { enrichLeadWithGBPContext } from "../services/googleLocal.js";
 
 type ProspectingHandler = (req: AuthRequest, res: Response, next: NextFunction) => Promise<void>;
 
@@ -473,6 +474,32 @@ export async function enrollCapturedLeadsInFunnel(
       senderCompanyName: runConfig.senderCompanyName,
       decisionMakerFirstName: pickPersonFirstName(decisionMaker?.firstName || decisionMaker?.name) || pickTargetOwner(leadForFunnel),
     });
+
+    let gbpContext = null;
+    try {
+      const gbpEnrichment = await enrichLeadWithGBPContext(prisma, organizationId, {
+        name: leadForFunnel.businessName,
+        phone: leadForFunnel.phoneNormalized || leadForFunnel.phone,
+        website: leadForFunnel.website,
+      });
+      if (gbpEnrichment) {
+        gbpContext = {
+          gbpScore: gbpEnrichment.audit?.score ?? null,
+          gbpLevel: gbpEnrichment.audit?.level ?? null,
+          gbpOpportunityScore: gbpEnrichment.diagnosis?.opportunityScore ?? null,
+          gbpTemperature: gbpEnrichment.diagnosis?.commercialTemperature ?? null,
+          gbpFailures: gbpEnrichment.audit?.checks.filter((c) => !c.passed).map((c) => c.label) || [],
+          gbpDiagnosis: gbpEnrichment.agentContext || null,
+          gbpCompetitors: gbpEnrichment.diagnosis?.competition?.strongerCompetitors?.map((c) => c.name) || [],
+          gbpWeaknesses: gbpEnrichment.weaknesses || [],
+          gbpOpportunities: gbpEnrichment.opportunities || [],
+          gbpAgentContext: gbpEnrichment.agentContext || null,
+        };
+      }
+    } catch (e) {
+      // GBP enrichment is optional — keep going without it
+    }
+
     const qualificationSeed = {
       ...buildQualificationSeed(leadForFunnel, runConfig),
       consultantId: consultant?.id || lead.responsibleId || null,
@@ -488,6 +515,7 @@ export async function enrollCapturedLeadsInFunnel(
         consultant,
         decisionMaker,
         score,
+        gbpContext,
       })
     };
     const run = await prisma.prospectingRun.upsert({
@@ -529,10 +557,15 @@ export async function enrollCapturedLeadsInFunnel(
       data: {
         crmStatus: "prospecting_funnel",
         responsibleId: consultant?.id || lead.responsibleId || null,
+        aiDiagnosis: gbpContext?.gbpDiagnosis || lead.aiDiagnosis,
+        aiWeaknesses: gbpContext?.gbpWeaknesses?.length ? gbpContext.gbpWeaknesses : lead.aiWeaknesses,
+        aiOpportunities: gbpContext?.gbpOpportunities?.length ? gbpContext.gbpOpportunities : lead.aiOpportunities,
         notes: [
           lead.notes,
           !identityValidated ? "Funil: CNPJ/socios omitidos porque a identidade empresarial nao esta validada." : null,
           consultant?.name ? `Responsavel comercial: ${consultant.name}` : null,
+          gbpContext?.gbpScore != null ? `GBP Score: ${gbpContext.gbpScore}/100 (${gbpContext.gbpLevel || "N/A"})` : null,
+          gbpContext?.gbpOpportunityScore != null ? `Oportunidade GBP: ${gbpContext.gbpOpportunityScore}/100 (${gbpContext.gbpTemperature || "N/A"})` : null,
           `Enviado ao funil IA WhatsApp: ${funnel.name}`
         ].filter(Boolean).join("\n")
       }

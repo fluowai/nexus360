@@ -79,10 +79,23 @@ export function buildProspectingAgentMemorySeed(input: {
   consultant?: any;
   decisionMaker?: any;
   score?: number | null;
+  gbpContext?: {
+    gbpScore?: number | null;
+    gbpLevel?: string | null;
+    gbpOpportunityScore?: number | null;
+    gbpTemperature?: string | null;
+    gbpFailures?: string[];
+    gbpDiagnosis?: string | null;
+    gbpAgentContext?: string | null;
+    gbpCompetitors?: string[];
+    gbpWeaknesses?: string[];
+    gbpOpportunities?: string[];
+  } | null;
 }) {
   const lead = input.lead || {};
   const stage = input.stage || null;
   const decisionMakerName = input.decisionMaker?.name || input.decisionMaker?.firstName || null;
+  const gbp = input.gbpContext;
   const companyContext = {
     businessName: lead.businessName || lead.companyName || null,
     tradeName: lead.tradeName || null,
@@ -96,13 +109,19 @@ export function buildProspectingAgentMemorySeed(input: {
     rating: lead.rating || lead.googleRating || null,
     reviewsCount: lead.reviewsCount || lead.googleReviewsCount || null,
     owners: lead.owners || null,
-    aiDiagnosis: lead.aiDiagnosis || null,
-    aiWeaknesses: lead.aiWeaknesses || [],
-    aiOpportunities: lead.aiOpportunities || [],
+    aiDiagnosis: gbp?.gbpDiagnosis || lead.aiDiagnosis || null,
+    aiWeaknesses: gbp?.gbpWeaknesses?.length ? gbp.gbpWeaknesses : (lead.aiWeaknesses || []),
+    aiOpportunities: gbp?.gbpOpportunities?.length ? gbp.gbpOpportunities : (lead.aiOpportunities || []),
     suggestedOffer: lead.suggestedOffer || null,
     priorityLevel: lead.priorityLevel || null,
     mainArgument: lead.mainArgument || null,
     probableObjections: lead.probableObjections || [],
+    gbpScore: gbp?.gbpScore ?? null,
+    gbpLevel: gbp?.gbpLevel ?? null,
+    gbpOpportunityScore: gbp?.gbpOpportunityScore ?? null,
+    gbpTemperature: gbp?.gbpTemperature ?? null,
+    gbpFailures: gbp?.gbpFailures || [],
+    gbpCompetitors: gbp?.gbpCompetitors || [],
   };
 
   return {
@@ -148,6 +167,10 @@ export function buildProspectingAgentMemorySeed(input: {
       companyContext.category ? `Segmento: ${companyContext.category}` : null,
       companyContext.city && companyContext.state ? `Local: ${companyContext.city}/${companyContext.state}` : null,
       decisionMakerName ? `Decisor provavel: ${decisionMakerName}` : null,
+      gbp?.gbpScore != null ? `GBP Score: ${gbp.gbpScore}/100 (${gbp.gbpLevel || "N/A"})` : null,
+      gbp?.gbpOpportunityScore != null ? `Oportunidade: ${gbp.gbpOpportunityScore}/100 (${gbp.gbpTemperature || "N/A"})` : null,
+      gbp?.gbpFailures?.length ? `Falhas GBP: ${gbp.gbpFailures.join(", ")}` : null,
+      gbp?.gbpCompetitors?.length ? `Concorrentes mais fortes: ${gbp.gbpCompetitors.join(", ")}` : null,
       companyContext.aiDiagnosis ? `Diagnostico interno: ${String(companyContext.aiDiagnosis).slice(0, 700)}` : null,
     ].filter(Boolean).join("\n"),
     lastUpdatedAt: new Date().toISOString(),

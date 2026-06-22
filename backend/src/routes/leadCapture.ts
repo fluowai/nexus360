@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { LeadCaptureService } from "../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../modules/lead-capture/lead-ai.service.js";
+import { CompanyResolverService } from "../services/companyResolver.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
 import { pickBestDecisionMaker, upsertDecisionMakersFromLead } from "../services/prospectingAutomation.js";
@@ -145,6 +146,34 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       const result = await aiService.generateScripts(req.params.id, orgId!);
       res.json(result);
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Resolve Company by name or CNPJ
+  router.post("/resolve-company", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { serperApiKey: true, groqKey: true }
+      });
+
+      const resolver = new CompanyResolverService({
+        serperApiKey: org?.serperApiKey || process.env.SERPER_API_KEY,
+        groqApiKey: org?.groqKey || process.env.GROQ_API_KEY,
+      });
+
+      const result = await resolver.resolve({
+        name: req.body.name,
+        cnpj: req.body.cnpj,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[RESOLVE_COMPANY_ERROR]", error.message);
       res.status(500).json({ error: error.message });
     }
   });

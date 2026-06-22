@@ -346,10 +346,18 @@ export default function WhatsApp() {
     if (!name) return;
     setLoading(true);
     try {
-      await apiFetch("/api/whatsapp/connections", {
+      const res = await apiFetch("/api/whatsapp/connections", {
         method: "POST",
         body: JSON.stringify({ label: name, inboxName: name }),
       });
+      const data = await res.json();
+      
+      if (data && data.id) {
+        await apiFetch(`/api/whatsapp/connections/${data.id}/connect`, {
+          method: "POST"
+        });
+      }
+
       setInstanceName("");
       await loadConnections();
     } finally {
@@ -378,6 +386,18 @@ export default function WhatsApp() {
       await apiFetch(`/api/whatsapp/connections/${connection.id}`, {
         method: "PATCH",
         body: JSON.stringify({ isActive: !connection.isActive }),
+      });
+      await loadConnections();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const connectInstance = async (connection: Connection) => {
+    setLoading(true);
+    try {
+      await apiFetch(`/api/whatsapp/connections/${connection.id}/connect`, {
+        method: "POST"
       });
       await loadConnections();
     } finally {
@@ -524,9 +544,14 @@ export default function WhatsApp() {
                       )}
                     </div>
                   </div>
-                  <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${connectionStatusClass(conn)}`}>
-                    {connectionStatus(conn)}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${connectionStatusClass(conn)}`}>
+                      {connectionStatus(conn)}
+                    </span>
+                    {conn.config?.status === "qr" && conn.config?.qrPng && (
+                      <img src={conn.config.qrPng} alt="QR Code WhatsApp" className="mt-2 h-24 w-24 rounded-lg border border-gray-200" />
+                    )}
+                  </div>
                 </div>
 
                 <div className="mt-5 grid grid-cols-2 gap-2">
@@ -541,12 +566,15 @@ export default function WhatsApp() {
                       Editar
                     </button>
                   )}
+                  <button onClick={() => connectInstance(conn)} disabled={loading || conn.config?.status === "connected"} className="rounded-xl border border-emerald-600 bg-emerald-50 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100">
+                    Gerar QR Code
+                  </button>
                   <button onClick={() => toggleInstance(conn)} disabled={loading} className="rounded-xl border border-gray-200 py-2 text-xs font-black text-gray-600 hover:bg-gray-50">
                     {conn.isActive ? "Desativar" : "Ativar"}
                   </button>
-                  <button onClick={() => deleteInstance(conn.id)} disabled={loading} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 py-2 text-xs font-black text-red-600 hover:bg-red-50">
+                  <button onClick={() => deleteInstance(conn.id)} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 py-2 text-xs font-black text-red-600 hover:bg-red-50">
                     <Trash2 size={14} />
-                    Remover conexao
+                    Remover
                   </button>
                 </div>
               </div>

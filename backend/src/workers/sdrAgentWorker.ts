@@ -70,29 +70,30 @@ export class SdrAgentWorker {
       const memory = run.qualification as any;
       const conversationContext = memory.agentMemory?.nextAgentContext || memory.agentMemory?.handoffContext || "Sem dossiê prévio.";
       const history = (memory.agentMemory?.conversationHistory || []).slice(-6).map((h: any) => 
-        (h.aiMessage ? `[SDR]: ${h.aiMessage}` : "") + (h.leadMessage ? `\\n[Lead]: ${h.leadMessage}` : "")
-      ).join("\\n");
+        (h.aiMessage ? `[SDR]: ${h.aiMessage}` : "") + (h.leadMessage ? `\n[Lead]: ${h.leadMessage}` : "")
+      ).join("\n");
       const lastLeadMessage = memory.lastLeadMessage || "Olá";
 
-      const systemPrompt = \`Você é um SDR altamente persuasivo de Vendas B2B.
+      const systemPrompt = `Você é um SDR altamente persuasivo de Vendas B2B.
 Sua missão principal é gerar interesse e agendar uma reunião comercial (Call) ou obter um "Sim" para continuar o assunto.
 Se o lead fizer uma pergunta muito complexa técnica ou disser explicitamente que quer falar com um especialista, responda com algo breve e mude sua intenção para HUMAN_HANDOFF.
 
 Contexto e Dossiê da Empresa que estamos abordando:
-\${conversationContext}
+${conversationContext}
 
 Histórico da Conversa:
-\${history}
+${history}
 
 Última mensagem do Lead:
-\${lastLeadMessage}
+${lastLeadMessage}
 
 Regras:
 1. Responda APENAS com a mensagem que vai ser enviada no WhatsApp. Nada mais.
 2. Seja MUITO curto (no máximo 3 a 4 linhas). As pessoas não lêem textões no WhatsApp.
-3. Termine com UMA pergunta para engajar.
-4. Se você perceber que ele quer uma call ou mais detalhes que só um humano pode dar, inicie a mensagem com a tag secreta: [HANDOFF] e depois escreva a mensagem avisando que um consultor vai chamar.
-\`;
+3. Se houver informações de que a empresa está com nota baixa no Google (abaixo de 4.0), sem site ou perdendo para concorrentes, USE ISSO como isca (Ex: "Notamos que a nota do Google de vocês pode estar perdendo clientes para o concorrente... Posso mandar o raio-x que nossa IA fez?").
+4. Termine com UMA pergunta para engajar.
+5. Se você perceber que ele quer uma call ou detalhes técnicos que só um humano pode dar, inicie a mensagem com a tag secreta: [HANDOFF] e depois escreva a mensagem avisando que um especialista vai chamar.
+`;
 
       // Chamada para Groq (Llama 3)
       const groqResp = await axios.post(
@@ -103,7 +104,7 @@ Regras:
           temperature: 0.5,
           max_tokens: 300,
         },
-        { headers: { Authorization: \`Bearer \${process.env.GROQ_API_KEY}\` } }
+        { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
       ).catch(() => null);
 
       let aiResponse = groqResp?.data?.choices?.[0]?.message?.content?.trim() || "Perdão, estou com uma instabilidade. Podemos falar em breve?";
@@ -128,7 +129,7 @@ Regras:
       let bridgeMessageId = null;
       if (channel) {
         const phone = run.leadPhone.replace(/\\D/g, "") + "@s.whatsapp.net";
-        const bridge = await callBridge(\`/sessions/\${channel.id}/send\`, {
+        const bridge = await callBridge(`/sessions/${channel.id}/send`, {
           channelId: channel.id,
           to: phone,
           message: aiResponse,
@@ -146,8 +147,8 @@ Regras:
         aiMessage: aiResponse,
         status: status,
         nextAction: nextAction,
-        summary: \`Respondeu com: \${aiResponse.slice(0, 50)}...\`,
-        bridgeMessageId,
+        summary: `Respondeu com: ${aiResponse.slice(0, 50)}...`,
+        messageId: bridgeMessageId,
       });
 
       await this.prisma.prospectingRun.update({

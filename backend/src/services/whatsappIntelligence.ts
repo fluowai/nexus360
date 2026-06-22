@@ -39,15 +39,15 @@ function uniqueLabels(labels: string[]) {
   return Array.from(new Set(labels.map(cleanLabel).filter(Boolean))).slice(0, 4);
 }
 
-function parseJsonObject(raw: string): any | null {
+function parseJsonObject<T = any>(raw: string): T | null {
   const trimmed = raw.trim().replace(/^```json/i, "").replace(/^```/, "").replace(/```$/, "").trim();
   try {
-    return JSON.parse(trimmed);
+    return JSON.parse(trimmed) as T;
   } catch {
     const match = trimmed.match(/\{[\s\S]*\}/);
     if (!match) return null;
     try {
-      return JSON.parse(match[0]);
+      return JSON.parse(match[0]) as T;
     } catch {
       return null;
     }
@@ -76,8 +76,9 @@ async function transcribeAudio(groqKey: string | undefined, fileUrl?: string | n
     if (!response.ok) return null;
     const data = await response.json() as { text?: string };
     return data.text?.trim() || null;
-  } catch (error) {
-    console.warn("[WHATSAPP_AUDIO_TRANSCRIBE_FALLBACK]", (error as Error).message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[WHATSAPP_AUDIO_TRANSCRIBE_FALLBACK]", message);
     return null;
   }
 }
@@ -153,7 +154,7 @@ ${text}`;
     });
     if (!response.ok) return null;
     const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const parsed = parseJsonObject(data.choices?.[0]?.message?.content || "");
+    const parsed = parseJsonObject<ClassificationResult>(data.choices?.[0]?.message?.content || "");
     if (!parsed) return null;
     return {
       category: parsed.category || "conversa",
@@ -162,11 +163,13 @@ ${text}`;
       confidence: Math.max(0, Math.min(1, Number(parsed.confidence) || 0.5)),
       transcript,
     } as ClassificationResult;
-  } catch (error) {
-    console.warn("[WHATSAPP_AI_CLASSIFY_FALLBACK]", (error as Error).message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("[WHATSAPP_AI_CLASSIFY_FALLBACK]", message);
     return null;
   }
 }
+
 
 async function upsertTags(prisma: PrismaClient, organizationId: string, labels: string[], taggableId: string, taggableType: string) {
   for (const label of labels) {

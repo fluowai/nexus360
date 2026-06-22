@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { Prisma } from '@prisma/client';
 
-export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+export const errorHandler = (err: any, req: Request, res: Response, _next: NextFunction) => {
   console.error('--- [SERVER_ERROR_LOG] ---');
   console.error('Timestamp:', new Date().toISOString());
   console.error('Method:', req.method);

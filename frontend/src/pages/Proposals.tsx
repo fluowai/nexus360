@@ -4,17 +4,10 @@ import {
   Plus, 
   Search, 
   FileText, 
-  CheckCircle2, 
-  Clock, 
-  Send, 
-  FileEdit, 
   Trash2, 
-  UserPlus, 
   Sparkles, 
-  Link as LinkIcon, 
   Copy, 
   ExternalLink,
-  ChevronRight,
   Target,
   Image as ImageIcon,
   Type,
@@ -181,7 +174,7 @@ function NewProposalModal({ onClose, onSuccess }: { onClose: () => void, onSucce
       const data = await res.json();
       setAiContent(data);
       setStep(2);
-    } catch (err) {
+    } catch {
       alert("Erro ao gerar proposta com IA.");
     } finally {
       setGenerating(true);
@@ -202,7 +195,7 @@ function NewProposalModal({ onClose, onSuccess }: { onClose: () => void, onSucce
         })
       });
       onSuccess();
-    } catch (err) {
+    } catch {
       alert("Erro ao salvar proposta.");
     } finally {
       setSubmitting(false);

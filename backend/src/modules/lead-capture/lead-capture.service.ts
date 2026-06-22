@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { LeadProvider, LeadSearchParams, NormalizedLead, LeadSearchFilters } from "./providers/lead-provider.interface.js";
+import { LeadSearchParams, NormalizedLead, LeadSearchFilters } from "./providers/lead-provider.interface.js";
 import { getLeadProvider } from "./providers/lead-provider.factory.js";
 
 export class LeadCaptureService {
@@ -55,17 +55,18 @@ export class LeadCaptureService {
 
       const provider = getLeadProvider(providerName);
       
-      let rawResults;
+      let rawResults: any[];
       try {
         console.log(`[LEAD_CAPTURE] Chamando API do provedor: ${providerName}`);
         rawResults = await provider.search({ ...params, apiKey });
-      } catch (apiErr: any) {
-        console.error(`[LEAD_CAPTURE] Erro na resposta da API externa (${providerName}):`, apiErr.response?.data || apiErr.message);
-        throw new Error(`Erro no provedor ${providerName}: ${apiErr.response?.data?.error || apiErr.message}`);
+      } catch (apiErr: unknown) {
+        const message = apiErr instanceof Error ? apiErr.message : String(apiErr);
+        console.error(`[LEAD_CAPTURE] Erro na resposta da API externa (${providerName}):`, message);
+        throw new Error(`Erro no provedor ${providerName}: ${message}`);
       }
 
       // 2. Normalize and filter
-      let normalizedLeads;
+      let normalizedLeads: NormalizedLead[];
       try {
         normalizedLeads = rawResults.map(raw => {
           const lead = provider.normalize(raw);
@@ -73,9 +74,10 @@ export class LeadCaptureService {
           return lead;
         });
         normalizedLeads = this.applyFilters(normalizedLeads, params.filters);
-      } catch (normErr: any) {
-        console.error(`[LEAD_CAPTURE] Erro na normalização dos dados:`, normErr);
-        throw new Error(`Erro ao processar dados recebidos: ${normErr.message}`);
+      } catch (normErr: unknown) {
+        const message = normErr instanceof Error ? normErr.message : String(normErr);
+        console.error(`[LEAD_CAPTURE] Erro na normalização dos dados:`, message);
+        throw new Error(`Erro ao processar dados recebidos: ${message}`);
       }
 
       // 3. Save leads with deduplication
@@ -117,8 +119,9 @@ export class LeadCaptureService {
 
           savedLeads.push(saved);
           importedCount++;
-        } catch (dbErr: any) {
-          console.error(`[LEAD_CAPTURE] Erro ao salvar lead ${leadData.business_name}:`, dbErr.message);
+        } catch (dbErr: unknown) {
+          const message = dbErr instanceof Error ? dbErr.message : String(dbErr);
+          console.error(`[LEAD_CAPTURE] Erro ao salvar lead ${leadData.business_name}:`, message);
         }
       }
 
@@ -139,18 +142,20 @@ export class LeadCaptureService {
         leads: savedLeads
       };
 
-    } catch (error: any) {
-      console.error(`[LEAD_CAPTURE_CRITICAL]`, error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[LEAD_CAPTURE_CRITICAL]`, message);
       await this.prisma.leadCaptureSource.update({
         where: { id: source.id },
         data: {
           status: 'failed',
-          errorMessage: error.message
+          errorMessage: message
         }
       });
 
       throw error;
     }
+
   }
 
   private normalizeBrazilianPhone(phone?: string | null): string | null {

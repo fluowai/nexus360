@@ -69,10 +69,7 @@ export const authenticateToken = (req: AuthRequest, res: Response, next: NextFun
     }
 
     // Se for Super Admin, permitir trocar o contexto da organização via header
-    const impersonatedOrgId = req.headers["x-org-id"];
-    if (user.role === "SUPER_ADMIN" && impersonatedOrgId) {
-      user.orgId = impersonatedOrgId as string;
-    }
+    // Removido daqui para centralizar no resolveTenant
 
     req.user = user;
     next();

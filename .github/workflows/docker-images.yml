@@ -43,6 +43,8 @@ jobs:
           file: ./backend/Dockerfile
           platforms: linux/amd64
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.API_IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.API_IMAGE }}:${{ github.sha }}
@@ -54,6 +56,8 @@ jobs:
           file: ./frontend/Dockerfile
           platforms: linux/amd64
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           build-args: |
             VITE_API_URL=same-origin
             VITE_LIVEKIT_URL=
@@ -69,6 +73,8 @@ jobs:
           file: ./integrations/google-maps-scraper/Dockerfile
           platforms: linux/amd64
           push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.GOOGLE_MAPS_SCRAPER_IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.GOOGLE_MAPS_SCRAPER_IMAGE }}:${{ github.sha }}

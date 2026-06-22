@@ -63,7 +63,6 @@ export function requireAccess(config: AccessConfig) {
       // 5. Verificar Permissão do Usuário (RBAC)
       // Por enquanto validamos apenas o role básico se não houver permissão granular definida
       if (config.permission) {
-        const userPermissions = (access.user?.permissions as any) || {};
         // Simplificação: se for ADMIN da org, tem acesso a tudo da org (exceto limites do plano)
         if (access.user?.role !== 'ORG_ADMIN' && access.user?.role !== 'SUPER_ADMIN') {
            // Lógica de check de permissão granular aqui

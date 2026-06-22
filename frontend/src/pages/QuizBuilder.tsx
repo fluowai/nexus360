@@ -9,14 +9,11 @@ import {
   Copy, 
   CheckCircle,
   XCircle,
-  AlertCircle,
-  MoreVertical,
   MessageSquare,
   Mail,
   Phone,
   Users,
-  BarChart3,
-  ExternalLink
+  BarChart3
 } from "lucide-react";
 import QuizExperience from "../components/QuizExperience";
 import { apiFetch } from "../lib/api";
@@ -51,21 +48,11 @@ interface QuizSubmission {
   createdAt: string;
 }
 
-const questionTypes = [
-  { value: 'multiple_choice', label: 'Múltipla Escolha', icon: HelpCircle },
-  { value: 'multiple_select', label: 'Múltipla Seleção', icon: CheckCircle },
-  { value: 'rating', label: 'Avaliação (1-5)', icon: BarChart3 },
-  { value: 'text', label: 'Texto Livre', icon: MessageSquare },
-  { value: 'email', label: 'E-mail', icon: Mail },
-  { value: 'phone', label: 'Telefone', icon: Phone }
-];
-
 export default function QuizBuilder() {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [submissions, setSubmissions] = useState<QuizSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [showQuestions, setShowQuestions] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [activeTab, setActiveTab] = useState<'list' | 'submissions'>('list');
   const [showPreview, setShowPreview] = useState(false);

@@ -634,7 +634,7 @@ Com base em todo o contexto acima, execute sua função de ${agentConfig.name}.`
       }
 
       const agentSummaries = Object.entries(chainResults as Record<string, { agentName: string; output: string }>)
-        .map(([id, r]) => `### ${r.agentName}\n${r.output.slice(0, 1500)}`)
+        .map(([_id, r]) => `### ${r.agentName}\n${r.output.slice(0, 1500)}`)
         .join("\n\n");
 
       const planPrompt = `Você é o gestor de projetos do Método ACP v2.0.

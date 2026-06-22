@@ -700,11 +700,14 @@ missionScheduler.start();
 import { AutomationWorker } from "./workers/automationWorker.js";
 import { FollowUpWorker } from "./workers/followUpWorker.js";
 import { SdrAgentWorker } from "./workers/sdrAgentWorker.js";
+import { ProspectingDispatchWorker } from "./workers/prospectingDispatchWorker.js";
 
 const automationWorker = new AutomationWorker(prisma);
 automationWorker.start();
 const followUpWorker = new FollowUpWorker(prisma);
 followUpWorker.start();
+const prospectingDispatchWorker = new ProspectingDispatchWorker(prisma);
+prospectingDispatchWorker.start();
 const sdrAgentWorker = new SdrAgentWorker(prisma);
 sdrAgentWorker.start();
 

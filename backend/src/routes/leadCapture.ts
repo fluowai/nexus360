@@ -7,6 +7,7 @@ import { CompanyResolverService } from "../services/companyResolver.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
 import { pickBestDecisionMaker, upsertDecisionMakersFromLead } from "../services/prospectingAutomation.js";
+import { enrollCapturedLeadsInFunnel } from "./prospectingFunnels.js";
 
 function normalizeDocument(value: unknown) {
   if (typeof value !== "string") return value;
@@ -50,12 +51,55 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
 
     try {
+      const {
+        autoEnrollFunnel = false,
+        autoDispatch = false,
+        funnelId = "default",
+        minScore = 0,
+        requirePhone = true,
+        requireValidatedCompany = false,
+      } = req.body || {};
       const result = await leadService.captureLeads({
         ...req.body,
         tenantId: orgId,
         userId: req.user?.id
       });
-      res.json(result);
+
+      let prospecting = null;
+      if (autoEnrollFunnel) {
+        const candidateLeads = (result.leads || []).filter((lead: any) => {
+          const hasPhone = Boolean(lead.phoneNormalized || lead.phone);
+          const score = Number(lead.scoreOpportunity || 0);
+          const companyAllowed = !requireValidatedCompany || lead.cnpjStatus === "validated";
+          return (!requirePhone || hasPhone) && score >= Number(minScore || 0) && companyAllowed;
+        });
+
+        const enrollment = await enrollCapturedLeadsInFunnel(
+          prisma,
+          orgId,
+          candidateLeads.map((lead: any) => lead.id),
+          String(funnelId || "default")
+        );
+
+        if (autoDispatch) {
+          await prisma.prospectingRun.updateMany({
+            where: { organizationId: orgId, id: { in: enrollment.runs.map((run: any) => run.id) } },
+            data: { nextAction: "ready_first_contact" }
+          });
+        }
+
+        prospecting = {
+          autoEnrollFunnel: true,
+          autoDispatch: Boolean(autoDispatch),
+          eligible: candidateLeads.length,
+          enrolled: enrollment.enrolled,
+          skipped: enrollment.skipped,
+          funnelId: enrollment.funnelId,
+          runIds: enrollment.runs.map((run: any) => run.id),
+        };
+      }
+
+      res.json({ ...result, prospecting });
     } catch (error: any) {
       console.error("[LEAD_CAPTURE_ERROR] Falha na busca de leads:", error?.response?.data || error?.message || error);
       const errorMsg = error?.response?.data?.error || error?.response?.data?.message || error?.message || 'Erro desconhecido na captação';

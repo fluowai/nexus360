@@ -106,15 +106,17 @@ const connectionStatus = (connection: Connection) =>
 
 const connectionStatusLabel = (connection: Connection) => {
   const s = connectionStatus(connection);
-  if (s === "connected") return "✓ Conectado";
-  if (s === "qr") return "⬡ Aguardando QR";
-  if (s === "inactive") return "○ Inativo";
+  if (s === "connected") return "Conectado";
+  if (s === "connecting") return "Gerando QR";
+  if (s === "qr") return "Aguardando QR";
+  if (s === "inactive") return "Inativo";
   return s;
 };
 
 const connectionStatusClass = (connection: Connection) => {
   const s = connectionStatus(connection);
   if (s === "connected") return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+  if (s === "connecting") return "bg-amber-100 text-amber-800 border border-amber-200 animate-pulse";
   if (s === "qr") return "bg-amber-100 text-amber-800 border border-amber-200 animate-pulse";
   return "bg-gray-100 text-gray-500 border border-gray-200";
 };
@@ -298,10 +300,15 @@ export default function WhatsApp() {
   const [sending, setSending] = useState(false);
   const [dispatching, setDispatching] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [qrModalConnectionId, setQrModalConnectionId] = useState<string | null>(null);
 
   const activeConnection = useMemo(
     () => connections.find((conn) => conn.config?.status === "connected" && conn.isActive) || connections.find((conn) => conn.isActive),
     [connections]
+  );
+  const qrModalConnection = useMemo(
+    () => connections.find((conn) => conn.id === qrModalConnectionId) || null,
+    [connections, qrModalConnectionId]
   );
 
   const filteredConversations = useMemo(() => {
@@ -363,11 +370,10 @@ export default function WhatsApp() {
     }, 15000);
     // Polling rápido do QR Code a cada 4s quando há instância aguardando QR
     const qrTimer = window.setInterval(() => {
-      const hasQr = connections.some((c) => c.config?.status === "qr" && c.isActive);
-      if (hasQr) loadConnections();
+      if (qrModalConnectionId) loadConnections();
     }, 4000);
     return () => { window.clearInterval(timer); window.clearInterval(qrTimer); };
-  }, [messageTab, activeTab, connections]);
+  }, [messageTab, activeTab, qrModalConnectionId]);
 
   const createConnection = async () => {
     const name = instanceName.trim();
@@ -381,6 +387,7 @@ export default function WhatsApp() {
       const data = await res.json();
       
       if (data && data.id) {
+        setQrModalConnectionId(data.id);
         await apiFetch(`/api/whatsapp/connections/${data.id}/connect`, {
           method: "POST"
         });
@@ -422,6 +429,7 @@ export default function WhatsApp() {
   };
 
   const connectInstance = async (connection: Connection) => {
+    setQrModalConnectionId(connection.id);
     setLoading(true);
     try {
       await apiFetch(`/api/whatsapp/connections/${connection.id}/connect`, {
@@ -566,7 +574,7 @@ export default function WhatsApp() {
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <PlugZap size={16} />}
-                Criar e Conectar
+                Criar e gerar QR
               </button>
             </div>
             {connections.length > 0 && (
@@ -614,7 +622,6 @@ export default function WhatsApp() {
                       ) : (
                         <p className="truncate font-black text-gray-950">{connectionName(conn)}</p>
                       )}
-                      <p className="mt-0.5 text-[10px] text-gray-400 truncate">{conn.identifier}</p>
                     </div>
                   </div>
                   <span className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-black ${connectionStatusClass(conn)}`}>
@@ -661,7 +668,7 @@ export default function WhatsApp() {
                       disabled={loading || conn.config?.status === "connected"}
                       className="rounded-xl border border-emerald-500 bg-emerald-50 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-40"
                     >
-                      {conn.config?.status === "qr" ? "🔄 Novo QR" : "Conectar"}
+                      {conn.config?.status === "qr" ? "Novo QR" : "Gerar QR"}
                     </button>
                   )}
                   <button onClick={() => toggleInstance(conn)} disabled={loading} className="rounded-xl border border-gray-200 py-2 text-xs font-black text-gray-600 hover:bg-gray-50">
@@ -845,6 +852,65 @@ export default function WhatsApp() {
               </div>
             )}
           </section>
+        </div>
+      )}
+
+      {qrModalConnectionId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black text-gray-950">QR Code WhatsApp</h2>
+                <p className="mt-1 text-sm font-medium text-gray-500">
+                  {qrModalConnection ? connectionName(qrModalConnection) : "Preparando instancia"}
+                </p>
+              </div>
+              <button
+                onClick={() => setQrModalConnectionId(null)}
+                className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-black text-gray-500 hover:bg-gray-50"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-5 flex min-h-[320px] flex-col items-center justify-center rounded-2xl border border-gray-100 bg-gray-50 p-5 text-center">
+              {qrModalConnection?.config?.status === "error" ? (
+                <>
+                  <p className="text-sm font-black text-red-600">Nao foi possivel gerar o QR Code.</p>
+                  <p className="mt-2 text-xs font-medium text-gray-500">
+                    {qrModalConnection.config?.lastConnectError || "Verifique se o Whatsmeow bridge esta ativo."}
+                  </p>
+                </>
+              ) : qrModalConnection?.config?.status === "connected" ? (
+                <>
+                  <CheckCircle2 size={44} className="text-emerald-600" />
+                  <p className="mt-3 text-sm font-black text-gray-950">WhatsApp conectado</p>
+                </>
+              ) : qrModalConnection?.config?.qrPng ? (
+                <>
+                  <img
+                    src={qrModalConnection.config.qrPng}
+                    alt="QR Code WhatsApp"
+                    className="h-64 w-64 rounded-xl border-4 border-white bg-white shadow-lg"
+                  />
+                  <p className="mt-4 text-xs font-bold text-gray-500">Escaneie pelo WhatsApp do celular.</p>
+                </>
+              ) : (
+                <>
+                  <Loader2 size={38} className="animate-spin text-emerald-600" />
+                  <p className="mt-4 text-sm font-black text-gray-950">Gerando QR Code...</p>
+                  <p className="mt-1 text-xs font-medium text-gray-500">Isso pode levar alguns segundos.</p>
+                </>
+              )}
+            </div>
+
+            <button
+              onClick={loadConnections}
+              className="mt-4 w-full rounded-xl border border-gray-200 py-3 text-xs font-black text-gray-600 hover:bg-gray-50"
+            >
+              Atualizar QR
+            </button>
+          </div>
         </div>
       )}
     </div>

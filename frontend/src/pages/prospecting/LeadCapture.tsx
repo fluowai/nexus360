@@ -285,6 +285,13 @@ export default function LeadCapture() {
     minScore: 50
   });
   const [missionCreated, setMissionCreated] = useState<string | null>(null);
+  const [autoFunnel, setAutoFunnel] = useState({
+    enabled: false,
+    autoDispatch: false,
+    minScore: 0,
+    requireValidatedCompany: false
+  });
+  const [lastProspectingResult, setLastProspectingResult] = useState<any | null>(null);
 
   const handleCreateScheduledMission = async () => {
     if (!searchParams.keyword || !searchParams.city || !searchParams.state) {
@@ -477,10 +484,18 @@ export default function LeadCapture() {
     e.preventDefault();
     setLoading(true);
     setSearchError(null);
+    setLastProspectingResult(null);
     try {
       const res = await apiFetch('/api/lead-capture/search', {
         method: 'POST',
-        body: JSON.stringify(searchParams)
+        body: JSON.stringify({
+          ...searchParams,
+          autoEnrollFunnel: autoFunnel.enabled,
+          autoDispatch: autoFunnel.autoDispatch,
+          minScore: autoFunnel.minScore,
+          requireValidatedCompany: autoFunnel.requireValidatedCompany,
+          requirePhone: searchParams.filters.onlyWithPhone
+        })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -488,6 +503,7 @@ export default function LeadCapture() {
         return;
       }
       setLeads(data.leads || []);
+      setLastProspectingResult(data.prospecting || null);
       fetchSources();
       setActiveTab('search');
     } catch (err: any) {
@@ -698,10 +714,88 @@ export default function LeadCapture() {
           </button>
         </form>
 
+        <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-3">
+          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black text-gray-900">Automacao apos a extracao</p>
+                <p className="text-[11px] font-medium text-gray-500">
+                  Matricula os leads elegiveis no funil WhatsApp SDR assim que a busca terminar.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={autoFunnel.enabled}
+                    onChange={e => setAutoFunnel(current => ({ ...current, enabled: e.target.checked, autoDispatch: e.target.checked ? current.autoDispatch : false }))}
+                  />
+                  <span className="text-[11px] font-bold text-gray-600">Enviar ao funil</span>
+                </label>
+                <label className={`flex items-center gap-2 ${autoFunnel.enabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={autoFunnel.autoDispatch}
+                    disabled={!autoFunnel.enabled}
+                    onChange={e => setAutoFunnel(current => ({ ...current, autoDispatch: e.target.checked }))}
+                  />
+                  <span className="text-[11px] font-bold text-gray-600">Disparo automatico</span>
+                </label>
+              </div>
+            </div>
+
+            {autoFunnel.enabled && (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Score minimo</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={autoFunnel.minScore}
+                    onChange={e => setAutoFunnel(current => ({ ...current, minScore: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 bg-white border border-gray-100 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-primary/10"
+                  />
+                </div>
+                <label className="flex items-end gap-2 cursor-pointer pb-2">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    checked={autoFunnel.requireValidatedCompany}
+                    onChange={e => setAutoFunnel(current => ({ ...current, requireValidatedCompany: e.target.checked }))}
+                  />
+                  <span className="text-[11px] font-bold text-gray-600">Exigir CNPJ validado</span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-gray-100 bg-white p-4">
+            <p className="text-xs font-black text-gray-900">Status da esteira</p>
+            <p className="mt-1 text-[11px] font-medium text-gray-500">
+              {autoFunnel.autoDispatch
+                ? 'O worker enviara as primeiras mensagens dentro do horario comercial e limites do funil.'
+                : autoFunnel.enabled
+                  ? 'Os leads entram no funil, mas ficam aguardando liberacao de disparo.'
+                  : 'Busca manual: nenhum lead sera enviado ao funil automaticamente.'}
+            </p>
+          </div>
+        </div>
+
         {searchError && (
           <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium flex items-center gap-2">
             <AlertCircle size={16} />
             {searchError}
+          </div>
+        )}
+
+        {lastProspectingResult && (
+          <div className="mt-4 p-3 bg-primary/5 border border-primary/10 rounded-xl text-xs text-primary font-bold flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            {lastProspectingResult.enrolled || 0} lead(s) enviados ao funil SDR IA.
+            {lastProspectingResult.autoDispatch ? ' Disparo automatico liberado para o worker.' : ' Aguardando disparo manual.'}
           </div>
         )}
       </div>

@@ -798,27 +798,39 @@ export function whatsappRoutes(prisma: PrismaClient) {
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
 
-      if ((channel.config as any)?.instanceOnly || String(channel.identifier || "").startsWith("instance:")) {
-        const updated = await prisma.channel.update({
-          where: { id: channel.id },
-          data: {
-            isActive: true,
-            config: {
-              ...((channel.config as any) || {}),
-              status: "created",
-              qrCode: null,
-              qrPng: null,
-              lastLocalActivationAt: new Date().toISOString(),
-            },
+      await prisma.channel.update({
+        where: { id: channel.id },
+        data: {
+          isActive: true,
+          config: {
+            ...((channel.config as any) || {}),
+            status: "connecting",
+            qrCode: null,
+            qrPng: null,
+            lastConnectRequestedAt: new Date().toISOString(),
           },
-        });
-        return res.json({ ok: true, status: "created", instanceOnly: true, channel: updated });
-      }
+        },
+      });
 
       const result = await callBridge(`/sessions/${channel.id}/connect`, {
         organizationId: req.user!.orgId,
         channelId: channel.id,
-        phone: channel.identifier,
+        phone: (channel.config as any)?.phone || (String(channel.identifier || "").startsWith("instance:") ? "" : channel.identifier),
+      }).catch(async (error: any) => {
+        await prisma.channel.update({
+          where: { id: channel.id },
+          data: {
+            config: {
+              ...((channel.config as any) || {}),
+              status: "error",
+              qrCode: null,
+              qrPng: null,
+              lastConnectError: error?.message || "Erro ao gerar QR Code",
+              lastConnectErrorAt: new Date().toISOString(),
+            },
+          },
+        });
+        return { ok: false, status: "error", error: error?.message || "Erro ao gerar QR Code" };
       });
       res.json(result);
     } catch (error) { next(error); }

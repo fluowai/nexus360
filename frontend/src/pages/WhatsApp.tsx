@@ -104,8 +104,20 @@ const connectionName = (connection: Connection) =>
 const connectionStatus = (connection: Connection) =>
   connection.isActive ? connection.config?.status || "created" : "inactive";
 
-const connectionStatusClass = (connection: Connection) =>
-  connection.isActive ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500";
+const connectionStatusLabel = (connection: Connection) => {
+  const s = connectionStatus(connection);
+  if (s === "connected") return "✓ Conectado";
+  if (s === "qr") return "⬡ Aguardando QR";
+  if (s === "inactive") return "○ Inativo";
+  return s;
+};
+
+const connectionStatusClass = (connection: Connection) => {
+  const s = connectionStatus(connection);
+  if (s === "connected") return "bg-emerald-100 text-emerald-800 border border-emerald-200";
+  if (s === "qr") return "bg-amber-100 text-amber-800 border border-amber-200 animate-pulse";
+  return "bg-gray-100 text-gray-500 border border-gray-200";
+};
 
 const conversationTitle = (conversation: Conversation) =>
   cleanDisplayText(conversation.metadata?.displayName, conversation.subject, conversation.metadata?.group?.name) ||
@@ -285,11 +297,21 @@ export default function WhatsApp() {
   const [savingLlms, setSavingLlms] = useState(false);
   const [sending, setSending] = useState(false);
   const [dispatching, setDispatching] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
 
   const activeConnection = useMemo(
     () => connections.find((conn) => conn.config?.status === "connected" && conn.isActive) || connections.find((conn) => conn.isActive),
     [connections]
   );
+
+  const filteredConversations = useMemo(() => {
+    if (!searchTerm.trim()) return conversations;
+    const q = searchTerm.toLowerCase();
+    return conversations.filter((c) =>
+      conversationTitle(c).toLowerCase().includes(q) ||
+      conversationSubline(c).toLowerCase().includes(q)
+    );
+  }, [conversations, searchTerm]);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -334,12 +356,18 @@ export default function WhatsApp() {
 
   useEffect(() => {
     refreshAll();
+    // Refresh geral a cada 15s
     const timer = window.setInterval(() => {
       loadConnections();
-      loadConversations(messageTab);
-    }, 12000);
-    return () => window.clearInterval(timer);
-  }, [messageTab]);
+      if (activeTab === "messages") loadConversations(messageTab);
+    }, 15000);
+    // Polling rápido do QR Code a cada 4s quando há instância aguardando QR
+    const qrTimer = window.setInterval(() => {
+      const hasQr = connections.some((c) => c.config?.status === "qr" && c.isActive);
+      if (hasQr) loadConnections();
+    }, 4000);
+    return () => { window.clearInterval(timer); window.clearInterval(qrTimer); };
+  }, [messageTab, activeTab, connections]);
 
   const createConnection = async () => {
     const name = instanceName.trim();
@@ -518,63 +546,129 @@ export default function WhatsApp() {
       </div>
 
       {activeTab === "instances" && (
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_1fr]">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[340px_1fr]">
+          {/* Painel de criação */}
           <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Criar instancia</h2>
+            <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Nova Instância</h2>
+            <p className="mt-1 text-xs text-gray-400">Cada instância corresponde a um número de WhatsApp conectado.</p>
             <div className="mt-4 space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome da instancia</label>
-              <div className="flex gap-2">
-                <input value={instanceName} onChange={(e) => setInstanceName(e.target.value)} placeholder="Ex: SDR Paulo" className="min-w-0 flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-sm font-bold outline-none focus:border-emerald-200 focus:ring-2 focus:ring-emerald-100" />
-                <button onClick={createConnection} disabled={loading || !instanceName.trim()} className="rounded-xl bg-emerald-600 px-4 text-xs font-black text-white disabled:opacity-50">Criar</button>
-              </div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome da instância</label>
+              <input
+                value={instanceName}
+                onChange={(e) => setInstanceName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createConnection()}
+                placeholder="Ex: SDR Paulo, Suporte, Vendas"
+                className="w-full rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm font-bold outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100"
+              />
+              <button
+                onClick={createConnection}
+                disabled={loading || !instanceName.trim()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <PlugZap size={16} />}
+                Criar e Conectar
+              </button>
             </div>
+            {connections.length > 0 && (
+              <div className="mt-6 border-t border-gray-100 pt-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Resumo</p>
+                <div className="mt-2 flex gap-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-black text-gray-950">{connections.length}</p>
+                    <p className="text-[10px] text-gray-400">Instâncias</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-black text-emerald-600">{connections.filter(c => c.config?.status === "connected").length}</p>
+                    <p className="text-[10px] text-gray-400">Conectadas</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-black text-amber-500">{connections.filter(c => c.config?.status === "qr").length}</p>
+                    <p className="text-[10px] text-gray-400">Aguard. QR</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
+          {/* Cards das instâncias */}
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {connections.length === 0 && (
+              <div className="col-span-2 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 py-16 text-center text-gray-400">
+                <PlugZap size={36} className="mb-3 opacity-30" />
+                <p className="font-black">Nenhuma instância criada</p>
+                <p className="mt-1 text-xs">Crie sua primeira instância ao lado</p>
+              </div>
+            )}
             {connections.map((conn) => (
-              <div key={conn.id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
+              <div key={conn.id} className={`rounded-2xl border bg-white p-5 shadow-sm transition-all ${
+                conn.config?.status === "connected" ? "border-emerald-200" :
+                conn.config?.status === "qr" ? "border-amber-200" : "border-gray-100"
+              }`}>
+                {/* Header do card */}
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     {renderAvatar(conn)}
                     <div className="min-w-0">
                       {editingInstanceId === conn.id ? (
-                        <input value={editingLabel} onChange={(e) => setEditingLabel(e.target.value)} className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm font-black outline-none" />
+                        <input value={editingLabel} onChange={(e) => setEditingLabel(e.target.value)} className="w-full rounded-lg border border-emerald-200 px-2 py-1 text-sm font-black outline-none focus:ring-2 focus:ring-emerald-100" />
                       ) : (
                         <p className="truncate font-black text-gray-950">{connectionName(conn)}</p>
                       )}
+                      <p className="mt-0.5 text-[10px] text-gray-400 truncate">{conn.identifier}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${connectionStatusClass(conn)}`}>
-                      {connectionStatus(conn)}
-                    </span>
-                    {conn.config?.status === "qr" && conn.config?.qrPng && (
-                      <img src={conn.config.qrPng} alt="QR Code WhatsApp" className="mt-2 h-24 w-24 rounded-lg border border-gray-200" />
-                    )}
-                  </div>
+                  <span className={`shrink-0 rounded-lg px-2 py-1 text-[10px] font-black ${connectionStatusClass(conn)}`}>
+                    {connectionStatusLabel(conn)}
+                  </span>
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-2">
+                {/* QR Code — exibido de forma GRANDE e centralizada */}
+                {conn.config?.status === "qr" && conn.config?.qrPng && (
+                  <div className="mt-4 flex flex-col items-center rounded-xl bg-amber-50 p-4 border border-amber-100">
+                    <p className="mb-3 text-xs font-black text-amber-700">📱 Escaneie com o WhatsApp do celular</p>
+                    <img
+                      src={conn.config.qrPng}
+                      alt="QR Code WhatsApp"
+                      className="h-48 w-48 rounded-xl border-4 border-white shadow-lg"
+                    />
+                    <p className="mt-3 text-[10px] text-amber-600 animate-pulse">Atualizando automaticamente...</p>
+                  </div>
+                )}
+
+                {/* Info do número conectado */}
+                {conn.config?.status === "connected" && (
+                  <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2">
+                    <p className="text-xs font-bold text-emerald-700">
+                      {conn.config?.pushName ? `👤 ${conn.config.pushName}` : "WhatsApp Conectado"}
+                    </p>
+                  </div>
+                )}
+
+                {/* Botões de ação */}
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   {editingInstanceId === conn.id ? (
-                    <button onClick={() => saveInstance(conn)} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50">
-                      <Save size={14} />
-                      Salvar
+                    <button onClick={() => saveInstance(conn)} disabled={loading} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-2 text-xs font-black text-white">
+                      <Save size={14} /> Salvar Nome
                     </button>
                   ) : (
                     <button onClick={() => { setEditingInstanceId(conn.id); setEditingLabel(connectionName(conn)); }} className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 py-2 text-xs font-black text-gray-600 hover:bg-gray-50">
-                      <Settings2 size={14} />
-                      Editar
+                      <Settings2 size={14} /> Editar
                     </button>
                   )}
-                  <button onClick={() => connectInstance(conn)} disabled={loading || conn.config?.status === "connected"} className="rounded-xl border border-emerald-600 bg-emerald-50 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100">
-                    Gerar QR Code
-                  </button>
+                  {editingInstanceId !== conn.id && (
+                    <button
+                      onClick={() => connectInstance(conn)}
+                      disabled={loading || conn.config?.status === "connected"}
+                      className="rounded-xl border border-emerald-500 bg-emerald-50 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-40"
+                    >
+                      {conn.config?.status === "qr" ? "🔄 Novo QR" : "Conectar"}
+                    </button>
+                  )}
                   <button onClick={() => toggleInstance(conn)} disabled={loading} className="rounded-xl border border-gray-200 py-2 text-xs font-black text-gray-600 hover:bg-gray-50">
                     {conn.isActive ? "Desativar" : "Ativar"}
                   </button>
                   <button onClick={() => deleteInstance(conn.id)} disabled={loading} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-100 py-2 text-xs font-black text-red-600 hover:bg-red-50">
-                    <Trash2 size={14} />
-                    Remover
+                    <Trash2 size={14} /> Remover
                   </button>
                 </div>
               </div>
@@ -619,30 +713,71 @@ export default function WhatsApp() {
       )}
 
       {activeTab === "messages" && (
-        <div className="grid min-h-[620px] grid-cols-1 gap-5 xl:grid-cols-[400px_1fr]">
-          <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        <div className="grid min-h-[620px] grid-cols-1 gap-5 xl:grid-cols-[380px_1fr]">
+          <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm flex flex-col">
             <div className="border-b border-gray-100 p-4">
-              <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Mensagens</h2>
-              <div className="mt-3 flex gap-2">
-                <button onClick={() => { setMessageTab("direct"); setSelectedConversation(null); loadConversations("direct"); }} className={`rounded-xl px-3 py-2 text-xs font-black ${messageTab === "direct" ? "bg-emerald-600 text-white" : "bg-gray-50 text-gray-500"}`}>Normais</button>
-                <button onClick={() => { setMessageTab("groups"); setSelectedConversation(null); loadConversations("groups"); }} className={`rounded-xl px-3 py-2 text-xs font-black ${messageTab === "groups" ? "bg-emerald-600 text-white" : "bg-gray-50 text-gray-500"}`}>Grupos</button>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-black uppercase tracking-widest text-gray-400">Conversas</h2>
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500">{conversations.length}</span>
               </div>
-            </div>
-            <div className="max-h-[700px] overflow-y-auto">
-              {conversations.map((conversation) => (
-                <button key={conversation.id} onClick={() => openConversation(conversation)} className={`flex w-full items-center gap-3 border-b border-gray-50 p-4 text-left hover:bg-emerald-50/40 ${selectedConversation?.id === conversation.id ? "bg-emerald-50" : ""}`}>
-                  {renderAvatar(conversation)}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-sm font-black text-gray-950">{conversationTitle(conversation)}</p>
-                      <span className="text-[10px] font-bold text-gray-400">{conversation._count?.messages || 0}</span>
-                    </div>
-                    <p className="truncate text-xs font-medium text-gray-500">{conversation.messages?.[0]?.content || conversation.messages?.[0]?.metadata?.fileName || "Sem mensagem"}</p>
-                    <p className="mt-1 truncate text-[10px] font-bold text-gray-400">{conversationSubline(conversation)}</p>
-                  </div>
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => { setMessageTab("direct"); setSelectedConversation(null); loadConversations("direct"); }} className={`flex-1 rounded-xl py-2 text-xs font-black ${messageTab === "direct" ? "bg-emerald-600 text-white" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
+                  💬 Diretas
                 </button>
-              ))}
-              {conversations.length === 0 && <p className="p-6 text-center text-sm font-bold text-gray-400">Nenhuma mensagem sincronizada ainda.</p>}
+                <button onClick={() => { setMessageTab("groups"); setSelectedConversation(null); loadConversations("groups"); }} className={`flex-1 rounded-xl py-2 text-xs font-black ${messageTab === "groups" ? "bg-emerald-600 text-white" : "bg-gray-50 text-gray-500 hover:bg-gray-100"}`}>
+                  👥 Grupos
+                </button>
+              </div>
+              {/* Busca */}
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar conversa..."
+                className="mt-2 w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-medium outline-none focus:border-emerald-200"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {filteredConversations.map((conversation) => {
+                const lastMsg = conversation.messages?.[0];
+                const lastText = lastMsg?.content || lastMsg?.metadata?.fileName || lastMsg?.type || "Sem mensagem";
+                const isSelected = selectedConversation?.id === conversation.id;
+                const hasSDR = Boolean(conversation.metadata?.prospectingRunId);
+                return (
+                  <button
+                    key={conversation.id}
+                    onClick={() => openConversation(conversation)}
+                    className={`flex w-full items-center gap-3 border-b border-gray-50 px-4 py-3 text-left transition-colors hover:bg-emerald-50/50 ${
+                      isSelected ? "bg-emerald-50 border-l-4 border-l-emerald-500" : ""
+                    }`}
+                  >
+                    {renderAvatar(conversation)}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="truncate text-sm font-black text-gray-900">{conversationTitle(conversation)}</p>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {hasSDR && <span className="rounded bg-purple-100 px-1 text-[9px] font-black text-purple-600">IA</span>}
+                          {(conversation._count?.messages ?? 0) > 0 && (
+                            <span className="rounded-full bg-emerald-500 px-1.5 text-[9px] font-black text-white">
+                              {conversation._count?.messages}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-gray-400">{lastText.slice(0, 60)}</p>
+                      <p className="mt-0.5 text-[10px] text-gray-300">
+                        {lastMsg ? new Date(lastMsg.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+              {filteredConversations.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 text-center text-gray-300">
+                  <MessageCircle size={36} className="mb-3 opacity-40" />
+                  <p className="text-sm font-bold">{searchTerm ? "Nenhum resultado" : "Sem conversas ainda"}</p>
+                  <p className="mt-1 text-xs">{searchTerm ? "Tente outro termo" : "Conecte uma instância para receber mensagens"}</p>
+                </div>
+              )}
             </div>
           </section>
 

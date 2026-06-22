@@ -111,19 +111,22 @@ export async function scanClient(input: ScanInput, serperKey: string, groqKey?: 
 
   const websiteContent = jinaContent || cheerioResult.text || null;
 
-  // Busca e valida CNPJ e Sócios
+  // Busca e valida CNPJ e Sócios sem gastar token extra
   let discoveredCnpj = cnpj;
   let qsaData: any[] = [];
   let razaoSocial = "";
   
   if (!discoveredCnpj) {
-    // Tenta descobrir o CNPJ buscando no google
-    try {
-      const cnpjQuery = await searchGoogle(serperKey, `${companyName} CNPJ`);
-      const allText = cnpjQuery?.organic?.map((r: any) => `${r.title} ${r.snippet}`).join(" ") || "";
-      const match = allText.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
-      if (match) discoveredCnpj = match[0];
-    } catch (e) {}
+    // Procura o CNPJ nos resultados que já vieram do Serper (sem gastar nova consulta)
+    const googleText = googleResults.map(r => `${r.title} ${r.snippet}`).join(" ");
+    let match = googleText.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
+    
+    // Se não achou no Google, procura no texto do site da empresa (rodapé, contato, etc)
+    if (!match && websiteContent) {
+      match = websiteContent.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
+    }
+    
+    if (match) discoveredCnpj = match[0];
   }
 
   if (discoveredCnpj) {

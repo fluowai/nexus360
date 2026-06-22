@@ -699,10 +699,14 @@ missionScheduler.start();
 // Workers de Automação e Follow-up
 import { AutomationWorker } from "./workers/automationWorker.js";
 import { FollowUpWorker } from "./workers/followUpWorker.js";
+import { SdrAgentWorker } from "./workers/sdrAgentWorker.js";
+
 const automationWorker = new AutomationWorker(prisma);
 automationWorker.start();
 const followUpWorker = new FollowUpWorker(prisma);
 followUpWorker.start();
+const sdrAgentWorker = new SdrAgentWorker(prisma);
+sdrAgentWorker.start();
 
 // Socket.io para eventos em tempo real
 import { createServer } from "http";

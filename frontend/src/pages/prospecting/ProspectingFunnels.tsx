@@ -96,7 +96,22 @@ interface Message {
   createdAt: string;
 }
 
-type Tab = 'operation' | 'leads' | 'messages' | 'agents' | 'rules';
+interface DispatchAttempt {
+  id: string;
+  runId: string;
+  channelId?: string;
+  phone?: string;
+  displayPhone?: string;
+  message: string;
+  status: string;
+  reason?: string;
+  bridgeMessageId?: string;
+  metadata?: any;
+  sentAt?: string;
+  createdAt: string;
+}
+
+type Tab = 'operation' | 'leads' | 'queue' | 'messages' | 'agents' | 'rules';
 
 const statusLabels: Record<string, string> = {
   queued: 'Na fila',
@@ -107,6 +122,14 @@ const statusLabels: Record<string, string> = {
   human_handoff: 'Handoff',
   lost: 'Perdido',
   stopped: 'Pausado'
+};
+
+const attemptStatusLabels: Record<string, string> = {
+  queued: 'Na fila',
+  sent: 'Enviado',
+  failed: 'Falhou',
+  blocked: 'Bloqueado',
+  skipped: 'Adiado'
 };
 
 const DEFAULT_FIRST_STAGE_PROMPT = 'Primeira etapa: falar como humano e localizar o decisor antes de qualquer explicacao. Procurar socio, proprietario, administrador ou alguem da area comercial. Nunca dizer que somos agencia. Nunca abrir falando de marketing, presenca digital, solucao digital, tecnologia, clientes, diagnostico ou avaliacao. A primeira mensagem deve apenas perguntar quem e o responsavel pelo comercial.';
@@ -128,6 +151,7 @@ export default function ProspectingFunnels() {
   const [agents, setAgents] = useState<ProspectingAgent[]>([]);
   const [connections, setConnections] = useState<Connection[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [attempts, setAttempts] = useState<DispatchAttempt[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [reply, setReply] = useState('');
@@ -170,6 +194,7 @@ export default function ProspectingFunnels() {
   const sentRuns = runs.filter(run => run.status === 'sent' || run.status === 'active').length;
   const decisionRuns = runs.filter(run => run.status === 'qualified' || run.status === 'human_handoff').length;
   const averageScore = runs.length ? Math.round(runs.reduce((total, run) => total + (run.score || 0), 0) / runs.length) : 0;
+  const failedAttempts = attempts.filter(attempt => ['failed', 'blocked'].includes(attempt.status)).length;
 
   useEffect(() => {
     fetchAll();
@@ -187,20 +212,22 @@ export default function ProspectingFunnels() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const [funnelsRes, runsRes, agentsRes, connectionsRes, conversationsRes] = await Promise.all([
+      const [funnelsRes, runsRes, agentsRes, connectionsRes, conversationsRes, attemptsRes] = await Promise.all([
         apiFetch('/api/prospecting-funnels/funnels'),
         apiFetch('/api/prospecting-funnels/runs'),
         apiFetch('/api/prospecting-funnels/agents'),
         apiFetch('/api/whatsapp/connections'),
-        apiFetch('/api/whatsapp/conversations?prospecting=1&kind=direct')
+        apiFetch('/api/whatsapp/conversations?prospecting=1&kind=direct'),
+        apiFetch('/api/whatsapp/prospecting/dispatch-attempts?limit=150')
       ]);
 
-      const [funnelsData, runsData, agentsData, connectionsData, conversationsData] = await Promise.all([
+      const [funnelsData, runsData, agentsData, connectionsData, conversationsData, attemptsData] = await Promise.all([
         readApiArray<Funnel>(funnelsRes, 'Nao foi possivel carregar os funis.'),
         readApiArray<Run>(runsRes, 'Nao foi possivel carregar os leads do funil.'),
         readApiArray<ProspectingAgent>(agentsRes, 'Nao foi possivel carregar os agentes.'),
         readApiArray<Connection>(connectionsRes, 'Nao foi possivel carregar as instancias.'),
-        readApiArray<Conversation>(conversationsRes, 'Nao foi possivel carregar as mensagens.')
+        readApiArray<Conversation>(conversationsRes, 'Nao foi possivel carregar as mensagens.'),
+        readApiArray<DispatchAttempt>(attemptsRes, 'Nao foi possivel carregar a fila de disparos.')
       ]);
 
       setFunnels(funnelsData);
@@ -208,6 +235,7 @@ export default function ProspectingFunnels() {
       setAgents(agentsData);
       setConnections(connectionsData);
       setConversations(conversationsData);
+      setAttempts(attemptsData);
       setOperation(current => ({
         ...current,
         agentId: current.agentId || agentsData[0]?.id || 'sdr_first_touch',
@@ -443,16 +471,18 @@ export default function ProspectingFunnels() {
         </div>
       )}
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-5">
         <Metric icon={Database} label="Na fila" value={queuedRuns} tone="emerald" />
         <Metric icon={MessageCircle} label="Em conversa" value={sentRuns} tone="blue" />
         <Metric icon={PhoneForwarded} label="Decisores/Handoff" value={decisionRuns} tone="violet" />
         <Metric icon={Zap} label="Score medio" value={`${averageScore}%`} tone="amber" />
+        <Metric icon={ShieldCheck} label="Falhas/bloqueios" value={failedAttempts} tone="rose" />
       </section>
 
       <nav className="flex flex-wrap gap-2 rounded-lg border border-gray-100 bg-white p-2 shadow-sm">
         <TabButton active={activeTab === 'operation'} icon={GitBranch} label="Operacao" onClick={() => setActiveTab('operation')} />
         <TabButton active={activeTab === 'leads'} icon={Users} label="Leads" onClick={() => setActiveTab('leads')} />
+        <TabButton active={activeTab === 'queue'} icon={Inbox} label="Fila" onClick={() => setActiveTab('queue')} />
         <TabButton active={activeTab === 'messages'} icon={Inbox} label="Mensagens" onClick={() => setActiveTab('messages')} />
         <TabButton active={activeTab === 'agents'} icon={Bot} label="Agentes" onClick={() => setActiveTab('agents')} />
         <TabButton active={activeTab === 'rules'} icon={ShieldCheck} label="Regras" onClick={() => setActiveTab('rules')} />
@@ -499,6 +529,7 @@ export default function ProspectingFunnels() {
         <>
           {activeTab === 'operation' && <OperationBoard runs={runs} selectedAgent={selectedAgent} selectedConnection={selectedConnection} />}
           {activeTab === 'leads' && <LeadsTable runs={runs} />}
+          {activeTab === 'queue' && <QueuePanel attempts={attempts} />}
           {activeTab === 'messages' && (
             <MessagesPanel
               conversations={conversations}
@@ -600,6 +631,54 @@ function LeadsTable({ runs }: { runs: Run[] }) {
           </tbody>
         </table>
         {runs.length === 0 && <div className="py-12 text-center text-sm font-bold text-gray-500">Nenhum lead enviado ao funil ainda.</div>}
+      </div>
+    </section>
+  );
+}
+
+function QueuePanel({ attempts }: { attempts: DispatchAttempt[] }) {
+  const toneFor = (status: string) => {
+    if (status === 'sent') return 'bg-emerald-50 text-emerald-700';
+    if (status === 'failed' || status === 'blocked') return 'bg-red-50 text-red-700';
+    if (status === 'skipped') return 'bg-amber-50 text-amber-700';
+    return 'bg-gray-100 text-gray-700';
+  };
+
+  return (
+    <section className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="font-black text-gray-900">Fila e tentativas WhatsMeow</h2>
+        <span className="text-xs font-black text-gray-400">{attempts.length} eventos recentes</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-100 text-left text-[10px] font-black uppercase text-gray-400">
+              <th className="py-3 pr-4">Quando</th>
+              <th className="py-3 pr-4">Telefone</th>
+              <th className="py-3 pr-4">Status</th>
+              <th className="py-3 pr-4">Mensagem</th>
+              <th className="py-3 pr-4">Motivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {attempts.map(attempt => (
+              <tr key={attempt.id} className="align-top border-b border-gray-50">
+                <td className="whitespace-nowrap py-4 pr-4 text-xs font-bold text-gray-500">{new Date(attempt.sentAt || attempt.createdAt).toLocaleString('pt-BR')}</td>
+                <td className="py-4 pr-4">
+                  <p className="font-black text-gray-900">{attempt.displayPhone || attempt.phone || '-'}</p>
+                  <p className="text-[10px] font-bold text-gray-400">{attempt.bridgeMessageId || attempt.channelId || '-'}</p>
+                </td>
+                <td className="py-4 pr-4">
+                  <span className={`rounded-lg px-2 py-1 text-xs font-black ${toneFor(attempt.status)}`}>{attemptStatusLabels[attempt.status] || attempt.status}</span>
+                </td>
+                <td className="max-w-lg py-4 pr-4 text-xs leading-relaxed text-gray-600">{attempt.message || '-'}</td>
+                <td className="max-w-sm py-4 pr-4 text-xs font-bold text-gray-500">{attempt.reason || attempt.metadata?.kind || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {attempts.length === 0 && <div className="py-12 text-center text-sm font-bold text-gray-500">Nenhuma tentativa registrada ainda.</div>}
       </div>
     </section>
   );
@@ -781,12 +860,13 @@ function TabButton({ active, icon: Icon, label, onClick }: { active: boolean; ic
   );
 }
 
-function Metric({ icon: Icon, label, value, tone }: { icon: any; label: string; value: React.ReactNode; tone: 'blue' | 'emerald' | 'violet' | 'amber' }) {
+function Metric({ icon: Icon, label, value, tone }: { icon: any; label: string; value: React.ReactNode; tone: 'blue' | 'emerald' | 'violet' | 'amber' | 'rose' }) {
   const tones = {
     blue: 'bg-blue-50 text-blue-700',
     emerald: 'bg-emerald-50 text-emerald-700',
     violet: 'bg-violet-50 text-violet-700',
-    amber: 'bg-amber-50 text-amber-700'
+    amber: 'bg-amber-50 text-amber-700',
+    rose: 'bg-rose-50 text-rose-700'
   };
 
   return (

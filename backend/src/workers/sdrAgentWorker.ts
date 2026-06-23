@@ -1,158 +1,324 @@
 import { PrismaClient } from "@prisma/client";
 import axios from "axios";
-import { mergeProspectingAgentMemory } from "../services/prospectingAutomation.js";
+import { convertProspectingRunToCrm } from "../services/prospectingCrm.js";
+import {
+  detectOptOut,
+  ensureOptOut,
+  getFunnelRuntimeConfig,
+  isInsideBusinessHours,
+  mergeProspectingAgentMemory,
+  normalizeText,
+} from "../services/prospectingAutomation.js";
+import { OutboundDispatcherService } from "../services/outboundDispatcher.js";
+import { getOrgAIKeys } from "../utils/aiKeys.js";
 
-async function callBridge(path: string, body: any) {
-  const res = await fetch(`${process.env.WHATSAPP_BRIDGE_URL || "http://localhost:8091"}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-whatsapp-bridge-secret": process.env.WHATSAPP_BRIDGE_SECRET || "dev-whatsapp-bridge-secret",
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `WhatsApp bridge error ${res.status}`);
-  return data;
+const DEFAULT_BUFFER_MS = 12000;
+
+function asRecord(value: any): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function pendingMessages(qualification: any) {
+  const messages = Array.isArray(qualification?.pendingInboundMessages)
+    ? qualification.pendingInboundMessages
+    : [];
+  return messages
+    .map((item: any) => String(item?.text || "").trim())
+    .filter(Boolean);
+}
+
+function bufferReady(qualification: any, now = new Date()) {
+  const bufferedUntil = qualification?.bufferedUntil ? new Date(qualification.bufferedUntil) : null;
+  if (bufferedUntil && !Number.isNaN(bufferedUntil.getTime())) return bufferedUntil <= now;
+  return true;
+}
+
+function detectIntent(text: string) {
+  const normalized = normalizeText(text);
+  const handoffTerms = [
+    "pode me ligar",
+    "me chama",
+    "tenho interesse",
+    "quero entender",
+    "manda valores",
+    "me passa valores",
+    "sou eu",
+    "eu cuido",
+    "sou responsavel",
+    "sou o responsavel",
+    "sou proprietario",
+    "sou socio",
+    "agenda",
+    "reuniao",
+    "call",
+  ];
+  const meetingTerms = ["agenda", "reuniao", "call", "horario", "amanha", "hoje a tarde"];
+  return {
+    wantsHuman: handoffTerms.some((term) => normalized.includes(normalizeText(term))),
+    wantsMeeting: meetingTerms.some((term) => normalized.includes(normalizeText(term))),
+  };
+}
+
+function stripControlTags(text: string) {
+  return text
+    .replace(/\[HANDOFF\]/gi, "")
+    .replace(/\[MEETING\]/gi, "")
+    .replace(/\[STOP\]/gi, "")
+    .trim();
 }
 
 export class SdrAgentWorker {
   private prisma: PrismaClient;
   private running = false;
+  private processing = false;
   private interval: NodeJS.Timeout | null = null;
+  private dispatcher: OutboundDispatcherService;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
+    this.dispatcher = new OutboundDispatcherService(prisma);
   }
 
-  start() {
+  start(intervalMs = Number(process.env.PROSPECTING_SDR_INTERVAL_MS || 15000)) {
+    if (this.running) return;
     this.running = true;
-    console.log("[SdrAgentWorker] Motor de Respostas Autônomas iniciado.");
-    this.interval = setInterval(() => this.processActiveRuns(), 15000);
+    console.log(`[SdrAgentWorker] iniciado. Intervalo: ${intervalMs}ms.`);
+    this.interval = setInterval(() => this.processActiveRuns(), intervalMs);
   }
 
   stop() {
     this.running = false;
     if (this.interval) clearInterval(this.interval);
-    console.log("[SdrAgentWorker] Motor de Respostas Autônomas parado.");
+    this.interval = null;
+    console.log("[SdrAgentWorker] parado.");
   }
 
   private async processActiveRuns() {
-    if (!this.running) return;
+    if (!this.running || this.processing) return;
+    this.processing = true;
 
     try {
-      // Pega todos os leads que responderam e estão aguardando ação da IA
+      const now = new Date();
       const runs = await this.prisma.prospectingRun.findMany({
         where: {
           status: "active",
-          nextAction: "lead_replied_continue_agent",
+          nextAction: { in: ["lead_replied_buffering", "lead_replied_continue_agent"] },
         },
-        include: { funnel: true, stage: true },
-        take: 5, // Processa aos poucos
+        include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
+        orderBy: { updatedAt: "asc" },
+        take: Number(process.env.PROSPECTING_SDR_BATCH_SIZE || 5),
       });
 
       for (const run of runs) {
+        const qualification = asRecord(run.qualification);
+        if (run.nextAction === "lead_replied_buffering" && !bufferReady(qualification, now)) continue;
         await this.handleAgentResponse(run);
       }
     } catch (error) {
-      console.error("[SdrAgentWorker] Erro ao processar fila:", error);
+      console.error("[SdrAgentWorker] erro ao processar fila:", error);
+    } finally {
+      this.processing = false;
     }
   }
 
+  private async buildAiResponse(run: any, leadMessage: string, intent: { wantsHuman: boolean; wantsMeeting: boolean }) {
+    const keys = await getOrgAIKeys(this.prisma, run.organizationId).catch(() => null);
+    const groqKey = keys?.groqKey || process.env.GROQ_API_KEY;
+    if (!groqKey) {
+      if (intent.wantsHuman) return "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui.";
+      return "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
+    }
+
+    const memory = asRecord(run.qualification);
+    const agentMemory = asRecord(memory.agentMemory);
+    const conversationContext = agentMemory.nextAgentContext || agentMemory.handoffContext || "Sem contexto previo.";
+    const history = (Array.isArray(agentMemory.conversationHistory) ? agentMemory.conversationHistory : [])
+      .slice(-8)
+      .map((item: any) => [
+        item.aiMessage ? `[SDR]: ${item.aiMessage}` : null,
+        item.leadMessage ? `[Lead]: ${item.leadMessage}` : null,
+      ].filter(Boolean).join("\n"))
+      .filter(Boolean)
+      .join("\n");
+
+    const systemPrompt = [
+      "Voce e um SDR B2B da Nexus/Consultio em uma conversa de WhatsApp.",
+      "Objetivo: localizar o decisor comercial, entender abertura e encaminhar para humano quando houver interesse real.",
+      "",
+      "Regras obrigatorias:",
+      "- Responda apenas com a mensagem final para WhatsApp.",
+      "- Use no maximo 3 linhas.",
+      "- Faca uma pergunta por vez.",
+      "- Nao prometa resultado.",
+      "- Nao force reuniao.",
+      "- Nao fale como robo.",
+      "- Se o lead demonstrar interesse, pedir valores, pedir ligacao, disser que e decisor ou quiser agenda, comece com [HANDOFF].",
+      "- Se o lead pedir para parar/remover/cancelar, comece com [STOP].",
+      "- Se ainda nao estiver claro quem decide, pergunte quem cuida das decisoes comerciais.",
+      "",
+      `Contexto:\n${conversationContext}`,
+      "",
+      `Historico:\n${history || "Sem historico recente."}`,
+      "",
+      `Mensagem recebida agora:\n${leadMessage}`,
+    ].join("\n");
+
+    const response = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: process.env.GROQ_SDR_MODEL || "llama-3.3-70b-versatile",
+        messages: [{ role: "system", content: systemPrompt }],
+        temperature: 0.35,
+        max_tokens: 220,
+      },
+      { headers: { Authorization: `Bearer ${groqKey}` } }
+    );
+
+    return String(response.data?.choices?.[0]?.message?.content || "").trim();
+  }
+
   private async handleAgentResponse(run: any) {
+    const locked = await this.prisma.prospectingRun.updateMany({
+      where: {
+        id: run.id,
+        status: "active",
+        nextAction: run.nextAction,
+      },
+      data: { nextAction: "processing_ai" },
+    });
+    if (locked.count === 0) return;
+
     try {
-      // Marca como processando para não pegar 2x
-      await this.prisma.prospectingRun.update({
-        where: { id: run.id },
-        data: { nextAction: "processing_ai" },
-      });
+      const qualification = asRecord(run.qualification);
+      const runtimeConfig = getFunnelRuntimeConfig(run.funnel);
+      const bufferedMessages = pendingMessages(qualification);
+      const leadMessage = bufferedMessages.length
+        ? bufferedMessages.join("\n")
+        : String(qualification.lastLeadMessage || "").trim();
+      const intent = detectIntent(leadMessage);
+      const optedOut = detectOptOut(leadMessage, runtimeConfig.stopWords);
+      const lastConversationId = qualification.lastConversationId || qualification.agentMemory?.conversationHistory?.slice(-1)?.[0]?.conversationId || null;
+      const lastMessageId = qualification.lastMessageId || qualification.agentMemory?.conversationHistory?.slice(-1)?.[0]?.messageId || null;
 
-      const memory = run.qualification as any;
-      const conversationContext = memory.agentMemory?.nextAgentContext || memory.agentMemory?.handoffContext || "Sem dossiê prévio.";
-      const history = (memory.agentMemory?.conversationHistory || []).slice(-6).map((h: any) => 
-        (h.aiMessage ? `[SDR]: ${h.aiMessage}` : "") + (h.leadMessage ? `\n[Lead]: ${h.leadMessage}` : "")
-      ).join("\n");
-      const lastLeadMessage = memory.lastLeadMessage || "Olá";
-
-      const systemPrompt = `Você é um SDR altamente persuasivo de Vendas B2B.
-Sua missão principal é gerar interesse e agendar uma reunião comercial (Call) ou obter um "Sim" para continuar o assunto.
-Se o lead fizer uma pergunta muito complexa técnica ou disser explicitamente que quer falar com um especialista, responda com algo breve e mude sua intenção para HUMAN_HANDOFF.
-
-Contexto e Dossiê da Empresa que estamos abordando:
-${conversationContext}
-
-Histórico da Conversa:
-${history}
-
-Última mensagem do Lead:
-${lastLeadMessage}
-
-Regras:
-1. Responda APENAS com a mensagem que vai ser enviada no WhatsApp. Nada mais.
-2. Seja MUITO curto (no máximo 3 a 4 linhas). As pessoas não lêem textões no WhatsApp.
-3. O dossiê acima contém dados de auditoria do Google Meu Negócio (GBP). Se houver score baixo, falhas detectadas (como falta de site, avaliações abaixo de 4.0, volume baixo de avaliações, horários não cadastrados, descrição vazia) ou concorrentes melhor posicionados, USE ISSO como isca persuasiva.
-   - Ex: "Nossa IA detectou que o perfil do Google de vocês está com score X/100. Identificamos [falha específica]. Isso pode estar fazendo vocês perderem clientes para [concorrente]. Posso enviar o diagnóstico gratuito?"
-   - Ex: "Seu concorrente [nome] aparece melhor no Google que vocês. Quer que eu mande o mapa de calor mostrando onde vocês estão perdendo visibilidade?"
-   - Ex: "Vocês estão sem site no Google Meu Negócio. Isso afeta diretamente as conversões. Nossa análise mostra oportunidade de X/100."
-4. Termine com UMA pergunta para engajar.
-5. Se você perceber que ele quer uma call ou detalhes técnicos que só um humano pode dar, inicie a mensagem com a tag secreta: [HANDOFF] e depois escreva a mensagem avisando que um especialista vai chamar.
-`;
-
-      // Chamada para Groq (Llama 3)
-      const groqResp = await axios.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: systemPrompt }],
-          temperature: 0.5,
-          max_tokens: 300,
-        },
-        { headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}` } }
-      ).catch(() => null);
-
-      let aiResponse = groqResp?.data?.choices?.[0]?.message?.content?.trim() || "Perdão, estou com uma instabilidade. Podemos falar em breve?";
-      let nextAction = "wait_lead_reply";
-      let status = "active";
-
-      if (aiResponse.includes("[HANDOFF]")) {
-        aiResponse = aiResponse.replace("[HANDOFF]", "").trim();
-        nextAction = "human_handoff";
-        status = "human_handoff";
-      }
-
-      // Delay cognitivo simulando digitação (de 5 a 15 segundos)
-      const delayMs = Math.floor(Math.random() * 10000) + 5000;
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-
-      // Dispara a mensagem para a Bridge do WhatsApp
-      const channel = await this.prisma.channel.findFirst({
-        where: { provider: "WHATS_MEOW", isActive: true, inbox: { organizationId: run.organizationId } },
-      });
-
-      let bridgeMessageId = null;
-      if (channel) {
-        const phone = run.leadPhone.replace(/\\D/g, "") + "@s.whatsapp.net";
-        const bridge = await callBridge(`/sessions/${channel.id}/send`, {
-          channelId: channel.id,
-          to: phone,
-          message: aiResponse,
-        }).catch(err => {
-          console.error("[SdrAgentWorker] Erro ao enviar mensagem bridge:", err);
-          return null;
+      if (optedOut) {
+        await ensureOptOut(this.prisma, {
+          organizationId: run.organizationId,
+          phone: run.leadPhone,
+          reason: leadMessage,
+          source: "sdr_agent",
+          conversationId: lastConversationId,
+          messageId: lastMessageId,
+          metadata: { prospectingRunId: run.id },
         });
-        bridgeMessageId = bridge?.messageId || null;
+        await this.prisma.prospectingRun.update({
+          where: { id: run.id },
+          data: {
+            status: "stopped",
+            nextAction: "opt_out_received",
+            qualification: {
+              ...mergeProspectingAgentMemory(qualification, {
+                currentStage: run.stage,
+                nextStage: run.stage,
+                leadMessage,
+                intent: "opt_out",
+                status: "stopped",
+                nextAction: "opt_out_received",
+                summary: "Lead pediu para interromper o contato.",
+                conversationId: lastConversationId,
+                messageId: lastMessageId,
+              }),
+              pendingInboundMessages: [],
+              bufferedUntil: null,
+              optOut: true,
+            },
+          },
+        });
+        return;
       }
 
-      // Atualiza memória do Run
-      const newMemory = mergeProspectingAgentMemory(run.qualification, {
-        currentStage: run.stage,
-        nextStage: run.stage,
-        aiMessage: aiResponse,
-        status: status,
-        nextAction: nextAction,
-        summary: `Respondeu com: ${aiResponse.slice(0, 50)}...`,
-        messageId: bridgeMessageId,
+      let aiResponse = await this.buildAiResponse(run, leadMessage, intent).catch((error: any) => {
+        console.warn("[SdrAgentWorker] IA indisponivel:", error?.message || error);
+        return intent.wantsHuman
+          ? "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui."
+          : "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
       });
+
+      const aiRequestedStop = /\[STOP\]/i.test(aiResponse);
+      const aiRequestedHandoff = /\[HANDOFF\]|\[MEETING\]/i.test(aiResponse);
+      aiResponse = stripControlTags(aiResponse);
+      const shouldHandoff = intent.wantsHuman || intent.wantsMeeting || aiRequestedHandoff;
+
+      if (aiRequestedStop) {
+        await ensureOptOut(this.prisma, {
+          organizationId: run.organizationId,
+          phone: run.leadPhone,
+          reason: leadMessage,
+          source: "sdr_agent_ai",
+          conversationId: lastConversationId,
+          messageId: lastMessageId,
+          metadata: { prospectingRunId: run.id },
+        });
+        await this.prisma.prospectingRun.update({
+          where: { id: run.id },
+          data: { status: "stopped", nextAction: "opt_out_received" },
+        });
+        return;
+      }
+
+      if (!isInsideBusinessHours(runtimeConfig.businessHours)) {
+        await this.prisma.prospectingRun.update({
+          where: { id: run.id },
+          data: {
+            nextAction: "lead_replied_continue_agent",
+            qualification: {
+              ...qualification,
+              pendingInboundMessages: bufferedMessages.map((text: string) => ({ text, receivedAt: new Date().toISOString() })),
+              bufferedUntil: new Date(Date.now() + DEFAULT_BUFFER_MS).toISOString(),
+              lastDelayReason: `Fora do horario comercial (${runtimeConfig.businessHours})`,
+            },
+          },
+        });
+        return;
+      }
+
+      const delayMs = Number(process.env.PROSPECTING_SDR_SEND_DELAY_MS || 5000);
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      const dispatch = await this.dispatcher.dispatchText({
+        organizationId: run.organizationId,
+        userId: null,
+        channelId: qualification?.campaign?.channelId || undefined,
+        contact: { name: run.leadName, phone: run.leadPhone },
+        message: aiResponse,
+        ia: false,
+        source: "nexus_sdr_agent",
+        metadata: { prospectingRunId: run.id, lastConversationId },
+      });
+
+      const nextAction = shouldHandoff ? "human_handoff" : "wait_lead_reply";
+      const status = shouldHandoff ? "human_handoff" : "active";
+      const summary = shouldHandoff
+        ? "Lead demonstrou abertura e foi encaminhado para atendimento humano."
+        : "SDR IA respondeu e aguarda nova mensagem do lead.";
+
+      const updatedQualification = {
+        ...mergeProspectingAgentMemory(qualification, {
+          currentStage: run.stage,
+          nextStage: run.stage,
+          leadMessage,
+          aiMessage: aiResponse,
+          intent: shouldHandoff ? "human_handoff" : "continue_qualification",
+          status,
+          nextAction,
+          summary,
+          conversationId: dispatch.conversationId || lastConversationId,
+          messageId: dispatch.messageId,
+        }),
+        pendingInboundMessages: [],
+        bufferedUntil: null,
+        lastConversationId: dispatch.conversationId || lastConversationId,
+        lastMessageId: dispatch.messageId,
+      };
 
       await this.prisma.prospectingRun.update({
         where: { id: run.id },
@@ -160,13 +326,23 @@ Regras:
           status,
           nextAction,
           lastContactAt: new Date(),
-          qualification: newMemory,
+          lastAiSummary: summary,
+          handedOffAt: shouldHandoff ? new Date() : undefined,
+          qualification: updatedQualification,
         },
       });
 
-    } catch (err) {
-      console.error("[SdrAgentWorker] Erro crítico no handler:", err);
-      // Retorna para o estado anterior em caso de erro para tentar novamente depois
+      if (shouldHandoff) {
+        await convertProspectingRunToCrm(this.prisma, { ...run, qualification: updatedQualification }, {
+          reason: intent.wantsMeeting ? "lead_pediu_agenda" : "lead_demonstrou_interesse",
+          summary,
+          conversationId: dispatch.conversationId || lastConversationId,
+        }).catch((error: any) => {
+          console.error("[SdrAgentWorker] falha ao converter para CRM:", error?.message || error);
+        });
+      }
+    } catch (err: any) {
+      console.error("[SdrAgentWorker] erro critico no handler:", err?.message || err);
       await this.prisma.prospectingRun.update({
         where: { id: run.id },
         data: { nextAction: "lead_replied_continue_agent" },

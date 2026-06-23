@@ -626,7 +626,21 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
     const currentOrder = (prospectingRun as any).stage?.order ?? 0;
     const nextStage = (prospectingRun as any).funnel?.stages?.find((stage: any) => stage.order > currentOrder) || (prospectingRun as any).stage;
     const inboundText = messageContent || messageCaption || "";
-    const nextAction = optedOut ? "stop_contact" : "lead_replied_continue_agent";
+    const previousQualification = (prospectingRun.qualification as any) || {};
+    const pendingInboundMessages = [
+      ...(
+        Array.isArray(previousQualification.pendingInboundMessages)
+          ? previousQualification.pendingInboundMessages
+          : []
+      ),
+      {
+        text: inboundText,
+        messageId: message.id,
+        conversationId: conversation.id,
+        receivedAt: new Date().toISOString(),
+      },
+    ].filter((item) => String(item.text || "").trim()).slice(-8);
+    const nextAction = optedOut ? "stop_contact" : "lead_replied_buffering";
     const summary = optedOut
       ? "Lead pediu para interromper o contato."
       : "Lead respondeu no WhatsApp. Proxima fase deve usar todo o historico e continuar com uma pergunta objetiva.";
@@ -650,7 +664,7 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
         nextAction,
         lastAiSummary: summary,
         qualification: {
-          ...mergeProspectingAgentMemory((prospectingRun.qualification as any) || {}, {
+          ...mergeProspectingAgentMemory(previousQualification, {
             currentStage: (prospectingRun as any).stage,
             nextStage: optedOut ? (prospectingRun as any).stage : nextStage,
             leadMessage: inboundText,
@@ -663,6 +677,8 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
           }),
           lastConversationId: conversation.id,
           lastMessageId: message.id,
+          pendingInboundMessages: optedOut ? [] : pendingInboundMessages,
+          bufferedUntil: optedOut ? null : new Date(Date.now() + Number(process.env.PROSPECTING_INBOUND_BUFFER_MS || 12000)).toISOString(),
           optOut: optedOut,
         },
       },

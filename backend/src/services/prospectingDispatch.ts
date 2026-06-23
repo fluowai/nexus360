@@ -10,16 +10,9 @@ import {
   mergeProspectingAgentMemory,
   updateDispatchAttempt,
 } from "./prospectingAutomation.js";
+import { OutboundDispatcherService } from "./outboundDispatcher.js";
 
 const WHATSAPP_PROVIDER = "WHATS_MEOW";
-
-function bridgeBaseUrl() {
-  return process.env.WHATSAPP_BRIDGE_URL || "http://localhost:8091";
-}
-
-function bridgeSecret() {
-  return process.env.WHATSAPP_BRIDGE_SECRET || "dev-whatsapp-bridge-secret";
-}
 
 function dayStart(now = new Date()) {
   const start = new Date(now);
@@ -51,23 +44,6 @@ function isUnsafeProspectingFirstMessage(message?: string | null) {
 
 function safeProspectingFirstMessage() {
   return "Oi, tudo bem? Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?";
-}
-
-async function callBridge(path: string, body: any) {
-  const res = await fetch(`${bridgeBaseUrl()}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-whatsapp-bridge-secret": bridgeSecret(),
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || `WhatsApp bridge error ${res.status}`);
-  }
-  return data;
 }
 
 async function pickChannel(prisma: PrismaClient, organizationId: string, preferredChannelId?: string | null) {
@@ -106,71 +82,6 @@ async function hasRecentBlockedAttempt(prisma: PrismaClient, runId: string, minu
     select: { id: true },
   });
   return Boolean(recent);
-}
-
-async function recordOutboundProspectingMessage(prisma: PrismaClient, input: {
-  channel: any;
-  organizationId: string;
-  toJid: string;
-  content: string;
-  run: any;
-  userId?: string | null;
-  bridgeMessageId?: string | null;
-}) {
-  const phone = normalizeWhatsAppPhone(input.toJid);
-  let conversation = await prisma.conversation.findFirst({
-    where: { channelId: input.channel.id, contactId: input.toJid },
-  });
-
-  const metadata = {
-    externalChatId: input.toJid,
-    isGroup: false,
-    phone: phone.e164,
-    displayPhone: phone.display,
-    displayName: input.run.leadName || phone.display,
-    prospectingRunId: input.run.id,
-    provider: WHATSAPP_PROVIDER,
-  };
-
-  if (!conversation) {
-    conversation = await prisma.conversation.create({
-      data: {
-        subject: input.run.leadName || phone.display,
-        inboxId: input.channel.inboxId,
-        channelId: input.channel.id,
-        contactId: input.toJid,
-        status: "open",
-        priority: "medium",
-        lastMessageAt: new Date(),
-      } as any,
-    });
-  }
-
-  const message = await prisma.message.create({
-    data: {
-      conversationId: conversation.id,
-      senderId: input.userId || undefined,
-      senderType: input.userId ? "USER" : "AI",
-      content: input.content,
-      type: "text",
-      metadata: {
-        source: "nexus_prospecting_worker",
-        bridgeMessageId: input.bridgeMessageId || null,
-        fromMe: true,
-        displayName: input.userId ? "Voce" : "SDR IA",
-        displayPhone: phone.display,
-        prospectingRunId: input.run.id,
-        conversation: metadata,
-      },
-    },
-  });
-
-  await prisma.conversation.update({
-    where: { id: conversation.id },
-    data: { lastMessageAt: new Date(), subject: input.run.leadName || conversation.subject },
-  });
-
-  return message;
 }
 
 function campaignScheduledAt(run: any) {
@@ -285,28 +196,27 @@ export async function dispatchProspectingRun(prisma: PrismaClient, run: any, opt
     return { ok: false, runId: run.id, error: "Limite diario por lead atingido" };
   }
 
-  let bridge: any;
+  let dispatchResult: any;
   try {
-    bridge = await callBridge(`/sessions/${channel.id}/send`, {
+    const dispatcher = new OutboundDispatcherService(prisma);
+    dispatchResult = await dispatcher.dispatchText({
+      organizationId: orgId,
+      userId: options.userId,
       channelId: channel.id,
-      to: phone.jid,
-      message: firstMessage,
+      contact: {
+        name: run.leadName,
+        phone: phone.e164 || phone.digits,
+      },
+      message: firstMessage || "",
+      ia: false,
+      source: "nexus_prospecting_worker",
+      metadata: { prospectingRunId: run.id },
     });
   } catch (error: any) {
     await updateDispatchAttempt(prisma, attempt.id, { status: "failed", reason: error?.message || "Falha ao enviar pelo WhatsApp bridge" });
     await markReadyAgain(prisma, run);
     return { ok: false, runId: run.id, error: error?.message || "Falha ao enviar pelo WhatsApp bridge" };
   }
-
-  await recordOutboundProspectingMessage(prisma, {
-    channel,
-    organizationId: orgId,
-    toJid: phone.jid,
-    content: firstMessage || "",
-    run,
-    userId: options.userId,
-    bridgeMessageId: bridge.messageId || null,
-  });
 
   await prisma.prospectingRun.update({
     where: { id: run.id },
@@ -324,19 +234,19 @@ export async function dispatchProspectingRun(prisma: PrismaClient, run: any, opt
           nextAction: "wait_lead_reply",
           summary: "Primeira mensagem enviada automaticamente. Aguardar resposta antes de avancar abordagem.",
         }),
-        bridgeMessageId: bridge.messageId || null,
+        bridgeMessageId: dispatchResult.bridgeMessageId || null,
       },
     },
   });
 
   await updateDispatchAttempt(prisma, attempt.id, {
     status: "sent",
-    bridgeMessageId: bridge.messageId || null,
+    bridgeMessageId: dispatchResult.bridgeMessageId || null,
     sentAt: new Date(),
-    metadata: { bridge, automated: Boolean(options.automated) },
+    metadata: { dispatchResult, automated: Boolean(options.automated) },
   });
 
-  return { ok: true, runId: run.id, channelId: channel.id, bridgeMessageId: bridge.messageId || null };
+  return { ok: true, runId: run.id, channelId: channel.id, bridgeMessageId: dispatchResult.bridgeMessageId || null };
 }
 
 export async function processProspectingDispatchQueue(prisma: PrismaClient, options: {

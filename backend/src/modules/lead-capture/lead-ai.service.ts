@@ -114,19 +114,45 @@ export class LeadAiService {
       console.warn("[LEAD_DIAGNOSIS_FALLBACK]", { leadId, reason: fallbackReason });
     }
 
-    return await this.prisma.capturedLead.update({
-      where: { id: leadId },
-      data: {
-        aiDiagnosis: fallbackReason
-          ? `${result.diagnosis}\n\nNota interna: analise gerada por fallback porque a IA externa nao respondeu (${fallbackReason}).`
-          : result.diagnosis,
-        aiWeaknesses: Array.isArray(result.weaknesses) ? result.weaknesses : [],
-        aiOpportunities: Array.isArray(result.opportunities) ? result.opportunities : [],
-        suggestedOffer: result.suggested_offer || "Estruturacao comercial para aumentar previsibilidade e receita.",
-        opportunityLevel: result.priority_level || lead.opportunityLevel || "Media",
-        // Optional: you can add more fields or merge them into diagnosis
+    const aiDiagnosis = fallbackReason
+      ? `${result.diagnosis}\n\nNota interna: analise gerada por fallback porque a IA externa nao respondeu (${fallbackReason}).`
+      : result.diagnosis;
+
+    const diagnosisData = {
+      aiDiagnosis,
+      aiWeaknesses: Array.isArray(result.weaknesses) ? result.weaknesses : [],
+      aiOpportunities: Array.isArray(result.opportunities) ? result.opportunities : [],
+      suggestedOffer: result.suggested_offer || "Estruturacao comercial para aumentar previsibilidade e receita.",
+      opportunityLevel: result.priority_level || lead.opportunityLevel || "Media",
+    };
+
+    try {
+      return await this.prisma.capturedLead.update({
+        where: { id: leadId },
+        data: diagnosisData
+      });
+    } catch (error: any) {
+      const message = error?.message || "";
+      const mayBeOutdatedSchema =
+        error?.code === "P2022" ||
+        /column .* does not exist/i.test(message) ||
+        /Unknown arg .*aiWeaknesses|Unknown argument .*aiWeaknesses/i.test(message);
+
+      if (!mayBeOutdatedSchema) {
+        throw error;
       }
-    });
+
+      console.warn("[LEAD_DIAGNOSIS_PARTIAL_SAVE]", {
+        leadId,
+        reason: "Banco de dados sem colunas auxiliares do diagnostico. Salvando apenas aiDiagnosis.",
+        error: message
+      });
+
+      return await this.prisma.capturedLead.update({
+        where: { id: leadId },
+        data: { aiDiagnosis }
+      });
+    }
   }
 
   async generateScripts(leadId: string, orgId: string) {

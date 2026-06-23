@@ -61,6 +61,7 @@ import { onboardingRoutes } from "./routes/onboarding.js";
 import { onboardingWhitelabelRoutes } from "./routes/onboardingWhitelabel.js";
 import { omnichannelRoutes } from "./routes/omnichannel.js";
 import { whatsappRoutes, whatsappInternalRoutes } from "./routes/whatsapp.js";
+import { outboundRoutes } from "./routes/outbound.js";
 import { storageRoutes, adminStorageRoutes } from "./routes/storage.js";
 import { landingPageRoutes } from "./routes/landingPages.js";
 import { googleLocalRoutes } from "./routes/googleLocal.js";
@@ -612,6 +613,7 @@ const protectedRoutes = [
   { path: "/api/onboarding/whitelabel", router: onboardingWhitelabelRoutes },
   { path: "/api/omnichannel", router: omnichannelRoutes },
   { path: "/api/whatsapp", router: whatsappRoutes },
+  { path: "/api/outbound", router: outboundRoutes },
   { path: "/api/acp", router: acpRoutes },
   { path: "/api/agent-queue", router: agentQueueRoutes },
   { path: "/api/storage", router: storageRoutes },

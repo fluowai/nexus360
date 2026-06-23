@@ -113,10 +113,24 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
   // Run AI Diagnosis
   router.post("/leads/:id/analyze", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
+    if (!orgId) return res.status(403).json({ error: "TENANT_MISSING" });
+
     try {
-      const result = await aiService.runDiagnosis(req.params.id, orgId!);
+      const result = await aiService.runDiagnosis(req.params.id, orgId);
       res.json(result);
     } catch (error: any) {
+      if (error?.message === "Lead not found") {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      console.error("[LEAD_DIAGNOSIS_ROUTE_ERROR]", {
+        leadId: req.params.id,
+        orgId,
+        error: error?.message,
+        code: error?.code,
+        stack: error?.stack
+      });
+
       res.status(500).json({ error: error.message });
     }
   });

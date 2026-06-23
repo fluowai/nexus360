@@ -16,6 +16,7 @@ env:
   API_IMAGE: nexus360-api
   FRONTEND_IMAGE: nexus360-frontend
   GOOGLE_MAPS_SCRAPER_IMAGE: nexus360-google-maps-scraper
+  WHATSAPP_BRIDGE_IMAGE: nexus360-whatsapp-bridge
 
 jobs:
   build:
@@ -78,3 +79,16 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.GOOGLE_MAPS_SCRAPER_IMAGE }}:latest
             ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.GOOGLE_MAPS_SCRAPER_IMAGE }}:${{ github.sha }}
+
+      - name: Build and push WhatsApp bridge
+        uses: docker/build-push-action@v6
+        with:
+          context: ./whatsapp-bridge
+          file: ./whatsapp-bridge/Dockerfile
+          platforms: linux/amd64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.WHATSAPP_BRIDGE_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.WHATSAPP_BRIDGE_IMAGE }}:${{ github.sha }}

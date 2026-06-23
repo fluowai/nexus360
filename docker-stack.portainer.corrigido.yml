@@ -82,7 +82,7 @@ services:
       BILLING_WEBHOOK_SECRET: "${BILLING_WEBHOOK_SECRET:-}"
       ASAAS_WEBHOOK_SECRET: "${ASAAS_WEBHOOK_SECRET:-}"
       STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
-      WHATSAPP_BRIDGE_URL: "${WHATSAPP_BRIDGE_URL:-}"
+      WHATSAPP_BRIDGE_URL: "${WHATSAPP_BRIDGE_URL:-http://whatsapp-bridge:8091}"
       WHATSAPP_BRIDGE_SECRET: "${WHATSAPP_BRIDGE_SECRET:-}"
       GOOGLE_MAPS_SCRAPER_URL: "http://google-maps-scraper:8080"
       GOOGLE_MAPS_SCRAPER_CONCURRENCY: "${GOOGLE_MAPS_SCRAPER_CONCURRENCY:-2}"
@@ -152,12 +152,32 @@ services:
           memory: 2G
     stop_grace_period: 30s
 
+  whatsapp-bridge:
+    image: ghcr.io/fluowai/nexus360-whatsapp-bridge:latest
+    environment:
+      WHATSAPP_BRIDGE_ADDR: ":8091"
+      WHATSAPP_BRIDGE_SECRET: "${WHATSAPP_BRIDGE_SECRET:-dev-whatsapp-bridge-secret}"
+      WHATSAPP_BRIDGE_PUBLIC_URL: "${WHATSAPP_BRIDGE_PUBLIC_URL:-https://nexus360.consultio.com.br}"
+      NEXUS_BACKEND_URL: "${NEXUS_BACKEND_URL:-http://backend:10000}"
+    volumes:
+      - whatsapp_bridge_data:/app/data
+    networks:
+      nexus360_internal:
+        aliases:
+          - whatsapp-bridge
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+
 volumes:
   imobzy_traefik_dynamic:
     external: true
     name: imobzy_traefik_dynamic
   google_maps_scraper_data:
     name: nexus360_google_maps_scraper_data
+  whatsapp_bridge_data:
+    name: nexus360_whatsapp_bridge_data
 
 networks:
   consultio1:

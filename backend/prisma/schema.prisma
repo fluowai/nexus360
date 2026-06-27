@@ -112,6 +112,10 @@ model Organization {
   
   inboxes           Inbox[]
   usageEvents       UsageEvent[]
+  aiAgents          AiAgent[]
+  aiEntitlements    AiEntitlement[]
+  aiUsageLedgers    AiUsageLedger[]
+  aiQuotaWindows    AiQuotaWindow[]
   proposalTemplates ProposalTemplate[]
   onboardingGeneratedItems OnboardingGeneratedItem[]
   quickReplies      QuickReply[]
@@ -2939,6 +2943,153 @@ model AiLog {
 
   @@index([organizationId])
   @@index([agentType])
+}
+
+model AiModel {
+  id             String   @id @default(uuid())
+  name           String
+  displayName    String
+  provider       String   @default("local")
+  runtime        String   @default("ollama")
+  modelId        String   @unique
+  contextWindow  Int      @default(8192)
+  inputCostPer1k Float    @default(0)
+  outputCostPer1k Float   @default(0)
+  creditCost     Int      @default(1)
+  capabilities   Json?
+  metadata       Json?
+  status         String   @default("active") // active, disabled, degraded
+  healthStatus   String   @default("unknown") // healthy, unhealthy, unknown
+  lastHealthAt   DateTime?
+  isSelfHosted   Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+
+  agents         AiAgent[] @relation("PrimaryAiModel")
+  fallbackAgents AiAgent[] @relation("FallbackAiModel")
+  entitlements   AiEntitlement[]
+  usageLedgers   AiUsageLedger[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([provider])
+  @@index([runtime])
+  @@index([status])
+}
+
+model AiAgent {
+  id              String        @id @default(uuid())
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  key             String
+  name            String
+  description     String?
+  systemPrompt    String?       @db.Text
+  modelId         String?
+  model           AiModel?      @relation("PrimaryAiModel", fields: [modelId], references: [id])
+  fallbackModelId String?
+  fallbackModel   AiModel?      @relation("FallbackAiModel", fields: [fallbackModelId], references: [id])
+  temperature     Float         @default(0.4)
+  maxTokens       Int           @default(2048)
+  tools           Json?
+  status          String        @default("active")
+
+  entitlements    AiEntitlement[]
+  usageLedgers    AiUsageLedger[]
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+  @@index([status])
+}
+
+model AiEntitlement {
+  id                 String        @id @default(uuid())
+  organizationId     String
+  organization       Organization  @relation(fields: [organizationId], references: [id])
+  clientId           String?
+  planId             String?
+  agentId            String?
+  agent              AiAgent?      @relation(fields: [agentId], references: [id])
+  modelId            String?
+  model              AiModel?      @relation(fields: [modelId], references: [id])
+  scope              String        @default("organization") // organization, client, plan, agent, model
+  enabled            Boolean       @default(true)
+  rebillingEnabled   Boolean       @default(false)
+  markupMultiplier   Float         @default(1)
+  monthlyPrice       Float?
+  maxRequestsDaily   Int?
+  maxRequestsMonthly Int?
+  maxTokensDaily     Int?
+  maxTokensMonthly   Int?
+  maxCreditsDaily    Int?
+  maxCreditsMonthly  Int?
+  settings           Json?
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([agentId])
+  @@index([modelId])
+}
+
+model AiUsageLedger {
+  id              String        @id @default(uuid())
+  requestId       String        @unique
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id])
+  userId          String?
+  clientId        String?
+  agentId         String?
+  agent           AiAgent?      @relation(fields: [agentId], references: [id])
+  agentKey        String
+  modelId         String?
+  model           AiModel?      @relation(fields: [modelId], references: [id])
+  modelName       String
+  provider        String        @default("ai-core")
+  channel         String        @default("nexus")
+  tokensIn        Int           @default(0)
+  tokensOut       Int           @default(0)
+  totalTokens     Int           @default(0)
+  credits         Int           @default(0)
+  estimatedCost   Float         @default(0)
+  durationMs      Int           @default(0)
+  status          String        @default("success")
+  errorMessage    String?
+  metadata        Json?
+
+  createdAt       DateTime      @default(now())
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([agentKey])
+  @@index([modelName])
+  @@index([createdAt])
+}
+
+model AiQuotaWindow {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  clientId       String?
+  agentKey       String?
+  modelName      String?
+  windowType     String       // daily, monthly
+  windowStart    DateTime
+  requests       Int          @default(0)
+  tokens         Int          @default(0)
+  credits        Int          @default(0)
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, clientId, agentKey, modelName, windowType, windowStart])
+  @@index([organizationId])
+  @@index([windowType, windowStart])
 }
 
 model ProspectValidation {

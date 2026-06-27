@@ -42,7 +42,8 @@ import {
   Bot,
   LockKeyhole,
   KeyRound,
-  MapPinned
+  MapPinned,
+  Cpu
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
@@ -412,6 +413,7 @@ export const Sidebar: React.FC<{
               <SidebarItem icon={Globe} label="Dominios" path="/admin/domains" isActive={location.pathname === '/admin/domains'} collapsed={collapsed} />
               <SidebarItem icon={Rocket} label="Controle de Lancamento" path="/admin/releases" isActive={location.pathname === '/admin/releases'} collapsed={collapsed} />
               <SidebarItem icon={Brain} label="Orquestrador ACP" path="/acp" isActive={location.pathname === '/acp'} collapsed={collapsed} badge="v2" />
+              <SidebarItem icon={Cpu} label="AI Core" path="/admin/ai" isActive={location.pathname === '/admin/ai'} collapsed={collapsed} />
               <SidebarItem icon={Brain} label="ACP - Liberação" path="/admin/acp" isActive={location.pathname === '/admin/acp'} collapsed={collapsed} />
               <SidebarItem icon={MapPinned} label="Google Local" path="/admin/google-local" isActive={location.pathname === '/admin/google-local'} collapsed={collapsed} />
             </SidebarGroup>

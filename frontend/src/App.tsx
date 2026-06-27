@@ -59,6 +59,7 @@ const WhiteLabel = lazy(() => import("./pages/admin/WhiteLabel"));
 const ReleaseControl = lazy(() => import("./pages/admin/ReleaseControl"));
 const AdminAcpManager = lazy(() => import("./pages/admin/AcpManager"));
 const AdminGoogleLocalManager = lazy(() => import("./pages/admin/GoogleLocalManager"));
+const AdminAIManager = lazy(() => import("./pages/admin/AIManager"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const LandingPageWizard = lazy(() => import("./pages/LandingPageWizard"));
 const LandingPageEditor = lazy(() => import("./pages/LandingPageEditor"));
@@ -424,6 +425,7 @@ export default function App() {
           <Route path="/admin/releases" element={<ReleaseControl />} />
           <Route path="/admin/acp" element={<AdminAcpManager />} />
           <Route path="/admin/google-local" element={<AdminGoogleLocalManager />} />
+          <Route path="/admin/ai" element={<AdminAIManager />} />
 
           <Route path="/whitelabel/:slug/*" element={<WorkspaceAliasRedirect />} />
 

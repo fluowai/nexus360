@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+
 	"go.mau.fi/whatsmeow/types"
 )
 
@@ -24,7 +25,7 @@ func TestNormalizePhone(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("normalizePhone(%q) = %q; quer %q", tt.input, result, tt.expected)
 			}
-		}
+		})
 	}
 }
 
@@ -45,7 +46,7 @@ func TestIsNewsletterJID(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("isNewsletterJID(%v) = %v; quer %v", tt.jid, result, tt.expected)
 			}
-		}
+		})
 	}
 }
 
@@ -69,15 +70,15 @@ func TestExtensionForMime(t *testing.T) {
 			if result != tt.expected {
 				t.Errorf("extensionForMime(%q) = %q; quer %q", tt.mime, result, tt.expected)
 			}
-		}
+		})
 	}
 }
 
 func TestParseJID(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		expectedErr bool
+		name         string
+		input        string
+		expectedErr  bool
 		expectedUser string
 	}{
 		{"Apenas numero", "11999998888", false, "5511999998888"},
@@ -95,6 +96,6 @@ func TestParseJID(t *testing.T) {
 			if err == nil && res.User != tt.expectedUser {
 				t.Errorf("parseJID(%q) usuario = %q; quer %q", tt.input, res.User, tt.expectedUser)
 			}
-		}
+		})
 	}
 }

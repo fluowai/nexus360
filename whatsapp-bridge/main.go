@@ -837,23 +837,22 @@ func isNewsletterJID(jid types.JID) bool {
 }
 
 func extensionForMime(mimeType string) string {
-	if ext, err := mime.ExtensionsByType(mimeType); err == nil && len(ext) > 0 {
-		return ext[0]
-	}
 	switch {
+	case strings.Contains(mimeType, "jpeg"):
+		return ".jpg"
+	case strings.Contains(mimeType, "png"):
+		return ".png"
 	case strings.Contains(mimeType, "ogg"):
 		return ".ogg"
 	case strings.Contains(mimeType, "webp"):
 		return ".webp"
 	case strings.Contains(mimeType, "pdf"):
 		return ".pdf"
-	case strings.Contains(mimeType, "jpeg"):
-		return ".jpg"
-	case strings.Contains(mimeType, "png"):
-		return ".png"
-	default:
-		return ".bin"
 	}
+	if ext, err := mime.ExtensionsByType(mimeType); err == nil && len(ext) > 0 {
+		return ext[0]
+	}
+	return ".bin"
 }
 
 var _ = fmt.Sprintf

@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
-import { getOrgAIKeys } from "../utils/aiKeys.js";
+import { runAiCoreChat } from "../services/aiCoreClient.js";
 
 export function orgSettingsRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -313,9 +313,6 @@ export function orgSettingsRoutes(prisma: PrismaClient) {
     orgId: string
   ): Promise<{ name: string; stages: string[] }[]> => {
     try {
-      const { groqKey } = await getOrgAIKeys(prisma, orgId);
-      if (!groqKey) return [];
-
       const prompt = `Você é um especialista em CRM e vendas. Com base na descrição do negócio abaixo, crie de 2 a 4 pipelines de vendas personalizados para este negócio.
 
 DESCRIÇÃO DO NEGÓCIO:
@@ -336,27 +333,16 @@ EXEMPLO DE FORMATO (para uma clínica):
 
 RESPOSTA (apenas JSON válido):`;
 
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${groqKey}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.4,
-          response_format: { type: "json_object" },
-        }),
+      const aiResult = await runAiCoreChat({
+        system: "onboarding-pipelines",
+        clientId: orgId,
+        agent: "onboarding-pipelines",
+        message: prompt,
+        temperature: 0.4,
+        maxTokens: 2048,
       });
 
-      if (!response.ok) {
-        console.error("[ONBOARDING_AI_ERROR]", await response.text());
-        return [];
-      }
-
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content || "[]";
+      const text = aiResult.response || "[]";
       const parsed = JSON.parse(text.trim());
       const pipelines = parsed.pipelines || parsed;
       if (Array.isArray(pipelines) && pipelines.length > 0) {

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { runAiCoreChat } from "./aiCoreClient.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 
 type ClassificationInput = {
@@ -115,8 +116,7 @@ function fallbackClassification(input: ClassificationInput, transcript?: string 
   return { category: "conversa", labels: uniqueLabels(labels), summary: "Conversa individual ainda sem classificacao comercial forte.", transcript, confidence: 0.42 };
 }
 
-async function aiClassification(groqKey: string | undefined, input: ClassificationInput, transcript?: string | null) {
-  if (!groqKey) return null;
+async function aiClassification(input: ClassificationInput, transcript?: string | null) {
   const text = (input.text || transcript || "").trim();
   if (!text) return null;
 
@@ -139,22 +139,15 @@ Mensagem:
 ${text}`;
 
   try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${groqKey}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-      }),
+    const result = await runAiCoreChat({
+      system: "whatsapp-classifier",
+      clientId: input.organizationId,
+      agent: "whatsapp-classifier",
+      message: prompt,
+      temperature: 0.2,
+      maxTokens: 1024,
     });
-    if (!response.ok) return null;
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const parsed = parseJsonObject<ClassificationResult>(data.choices?.[0]?.message?.content || "");
+    const parsed = parseJsonObject<ClassificationResult>(result.response);
     if (!parsed) return null;
     return {
       category: parsed.category || "conversa",
@@ -212,12 +205,11 @@ export async function classifyAndTagWhatsAppConversation(prisma: PrismaClient, i
     return { skipped: true, reason: "group" };
   }
 
-  const { groqKey } = await getOrgAIKeys(prisma, input.organizationId);
   const transcript = String(input.mediaType || "").toLowerCase() === "audio"
-    ? await transcribeAudio(groqKey, input.fileUrl, input.mimeType)
+    ? await transcribeAudio(process.env.GROQ_API_KEY, input.fileUrl, input.mimeType)
     : null;
   const classification =
-    await aiClassification(groqKey, input, transcript) ||
+    await aiClassification(input, transcript) ||
     fallbackClassification(input, transcript);
   const labels = uniqueLabels(classification.labels.length ? classification.labels : ["WhatsApp"]);
 

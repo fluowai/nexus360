@@ -335,13 +335,12 @@ export class LeadCaptureService {
   private async autoEnrichLeads(leads: any[], orgId: string) {
     const org = await this.prisma.organization.findUnique({
       where: { id: orgId },
-      select: { serperApiKey: true, groqKey: true }
+      select: { serperApiKey: true }
     });
 
     const resolver = new CompanyResolverService({
       serperApiKey: org?.serperApiKey || process.env.SERPER_API_KEY,
-      groqApiKey: org?.groqKey || process.env.GROQ_API_KEY,
-    });
+    }, orgId);
 
     for (const lead of leads.slice(0, 10)) {
       try {

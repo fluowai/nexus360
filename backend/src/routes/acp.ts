@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
+import { runAiCoreChat } from "../services/aiCoreClient.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 import { scanClient } from "../services/webScanner.js";
 import { imageAI } from "../services/imageAI.js";
@@ -258,43 +259,25 @@ export function acpRoutes(prisma: PrismaClient) {
         return res.status(400).json({ error: `Agente '${agentId}' não encontrado.` });
       }
 
-      const { groqKey } = await getOrgAIKeys(prisma, orgId);
-      if (!groqKey) {
-        return res.status(500).json({ error: "API Key não configurada." });
-      }
-
-      const systemPrompt = `Você é o agente ${agentConfig.name} do sistema ACP v2.0 (Arquitetura de Crescimento Previsível).
+      const fullPrompt = `Você é o agente ${agentConfig.name} do sistema ACP v2.0 (Arquitetura de Crescimento Previsível).
 Organização: ${req.user?.email || "N/A"}
 ${clientName ? `Cliente: ${clientName}` : ""}
 
 ${agentConfig.prompt}
 
-Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja direto e acionável.`;
+Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja direto e acionável.
 
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${groqKey}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: input }
-          ],
-          temperature: 0.6,
-          max_tokens: 4096,
-        }),
+${input}`;
+
+      const aiResult = await runAiCoreChat({
+        system: `acp-${agentId}`,
+        clientId: orgId,
+        agent: `acp-${agentId}`,
+        message: fullPrompt,
+        temperature: 0.6,
+        maxTokens: 4096,
       });
-
-      if (!response.ok) {
-        const details = await response.text();
-        return res.status(response.status).json({ error: "Falha ao executar agente", details });
-      }
-
-      const data = await response.json();
-      const result = data.choices?.[0]?.message?.content || "Não foi possível gerar resposta.";
+      const result = aiResult.response || "Não foi possível gerar resposta.";
 
       // Registrar execução
       await prisma.acpAgentExecution.create({
@@ -501,12 +484,9 @@ Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja 
         return res.status(400).json({ error: "companyName é obrigatório." });
       }
 
-      const { serperKey, groqKey } = await getOrgAIKeys(prisma, orgId);
-      if (!groqKey) {
-        return res.status(500).json({ error: "GROQ Key não configurada. Configure em Configurações > IA." });
-      }
+      const { serperKey } = await getOrgAIKeys(prisma, orgId);
 
-      const result = await scanClient({ companyName, website, instagram, cnpj, segment }, serperKey || "", groqKey || undefined);
+      const result = await scanClient({ companyName, website, instagram, cnpj, segment }, serperKey || "", undefined, orgId);
       res.json(result);
     } catch (error) {
       console.error("[ACP_SCAN_ERROR]", error);
@@ -523,11 +503,6 @@ Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja 
       const { dossier, clientName, additionalContext, clientId, briefing } = req.body;
       if (!dossier) {
         return res.status(400).json({ error: "dossier é obrigatório (execute o scan primeiro)." });
-      }
-
-      const { groqKey } = await getOrgAIKeys(prisma, orgId);
-      if (!groqKey) {
-        return res.status(500).json({ error: "GROQ Key não configurada." });
       }
 
       const agentOrder = ["atlas", "hera", "prometeu", "mercurio", "apolo", "iris", "cadmo", "orfeu", "hermes", "demeter", "cronos", "atena", "hestia", "zeus"];
@@ -557,24 +532,21 @@ ${additionalContext ? `\n## Informações Adicionais\n${additionalContext}` : ""
 
 Com base em todo o contexto acima, execute sua função de ${agentConfig.name}.`;
 
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-          body: JSON.stringify({
-            model: "llama-3.3-70b-versatile",
-            messages: [{ role: "system", content: systemPrompt }, { role: "user", content: input }],
+        let output = "Não foi possível gerar resposta.";
+        try {
+          const aiResult = await runAiCoreChat({
+            system: `acp-${agentId}`,
+            clientId: orgId,
+            agent: `acp-${agentId}`,
+            message: input,
             temperature: 0.6,
-            max_tokens: 4096,
-          }),
-        });
-
-        if (!response.ok) {
+            maxTokens: 4096,
+          });
+          output = aiResult.response || output;
+        } catch {
           results[agentId] = { agentName: agentConfig.name, output: `**Erro:** Falha ao executar ${agentConfig.name}` };
           continue;
         }
-
-        const data = await response.json();
-        const output = data.choices?.[0]?.message?.content || "Não foi possível gerar resposta.";
         results[agentId] = { agentName: agentConfig.name, output };
         previousOutput = output;
 
@@ -628,10 +600,7 @@ Com base em todo o contexto acima, execute sua função de ${agentConfig.name}.`
         return res.status(400).json({ error: "chainResults é obrigatório (execute a cadeia primeiro)." });
       }
 
-      const { groqKey, togetherKey } = await getOrgAIKeys(prisma, orgId);
-      if (!groqKey) {
-        return res.status(500).json({ error: "GROQ Key não configurada." });
-      }
+      const { togetherKey } = await getOrgAIKeys(prisma, orgId);
 
       const agentSummaries = Object.entries(chainResults as Record<string, { agentName: string; output: string }>)
         .map(([_id, r]) => `### ${r.agentName}\n${r.output.slice(0, 1500)}`)
@@ -658,26 +627,20 @@ ${agentSummaries}
 
 Responda em português do Brasil, com markdown estruturado e foco em acionabilidade.`;
 
-      const planResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            { role: "system", content: "Você é um gestor de projetos sênior especializado em crescimento comercial." },
-            { role: "user", content: planPrompt },
-          ],
+      let executionPlan = "Não foi possível gerar o plano.";
+      try {
+        const planAiResult = await runAiCoreChat({
+          system: "acp-plan",
+          clientId: orgId,
+          agent: "acp-plan",
+          message: planPrompt,
           temperature: 0.5,
-          max_tokens: 8192,
-        }),
-      });
-
-      if (!planResponse.ok) {
+          maxTokens: 8192,
+        });
+        executionPlan = planAiResult.response || executionPlan;
+      } catch {
         return res.status(500).json({ error: "Falha ao gerar plano de execução" });
       }
-
-      const planData = await planResponse.json();
-      const executionPlan = planData.choices?.[0]?.message?.content || "Não foi possível gerar o plano.";
 
       const images: string[] = [];
       if (generateImages && togetherKey) {

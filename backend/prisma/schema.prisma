@@ -179,6 +179,9 @@ model Organization {
   acpChurnSignals       AcpChurnSignal[]
   agentQueueItems        AgentQueueItem[]
 
+  // Whitelabel Sync Logs (Fase 3)
+  whitelabelSyncLogs WhitelabelSyncLog[]
+
   // Onboarding: Experiências Profissionais
   professionalExperiences ProfessionalExperience[]
 }
@@ -3583,6 +3586,45 @@ model AcpChurnSignal {
 }
 
 // ==================== ONBOARDING: EXPERIÊNCIAS PROFISSIONAIS ====================
+
+// ==================== WHITELABEL SYNC (FASE 3) ====================
+
+model WhitelabelSyncTemplate {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+
+  config      Json     @default("{}")   // merged into Organization.whiteLabelConfig
+  settings    Json?                      // merged into Organization.settings
+  orgFields   Json?                      // direct org field updates (plan, domain, etc.)
+  tags        String?
+
+  isActive    Boolean  @default(true)
+
+  syncLogs    WhitelabelSyncLog[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WhitelabelSyncLog {
+  id              String       @id @default(uuid())
+  templateId      String
+  template        WhitelabelSyncTemplate @relation(fields: [templateId], references: [id])
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id])
+
+  status          String       @default("pending")
+  error           String?      @db.Text
+  appliedConfig   Json?
+
+  createdBy       String?
+  createdAt       DateTime     @default(now())
+
+  @@index([templateId])
+  @@index([organizationId])
+  @@index([status])
+}
 
 model ProfessionalExperience {
   id             String       @id @default(uuid())

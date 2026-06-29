@@ -1,4 +1,5 @@
 import axios from "axios";
+import { runAiCoreChat } from "./aiCoreClient.js";
 
 type ResolvedPartner = {
   name: string;
@@ -40,8 +41,8 @@ export class CompanyResolverService {
   constructor(
     private deps: {
       serperApiKey?: string | null;
-      groqApiKey?: string | null;
-    }
+    },
+    private orgId?: string
   ) {}
 
   async resolve(input: { name?: string | null; cnpj?: string | null }): Promise<ResolveResult> {
@@ -103,10 +104,7 @@ export class CompanyResolverService {
     const company = this.buildCompany(best.registry, best.cnpj, best.score, best.reason);
     const qsaDecisores = this.partnersToDecisionMakers(best.registry.partners, "qsa", 85);
 
-    let webDecisores: ResolvedDecisionMaker[] = [];
-    if (this.deps.groqApiKey) {
-      webDecisores = await this.searchDecisionMakersWeb(name, best.registry.legalName || name);
-    }
+    const webDecisores: ResolvedDecisionMaker[] = await this.searchDecisionMakersWeb(name, best.registry.legalName || name);
 
     return {
       company,
@@ -244,7 +242,7 @@ export class CompanyResolverService {
   }
 
   private async searchDecisionMakersWeb(companyName: string, legalName: string): Promise<ResolvedDecisionMaker[]> {
-    if (!this.deps.serperApiKey || !this.deps.groqApiKey) return [];
+    if (!this.deps.serperApiKey) return [];
 
     try {
       const query = `"${companyName}" (CEO OR "sócio" OR "diretor" OR "proprietário" OR founder OR "gerente")`;
@@ -256,27 +254,17 @@ export class CompanyResolverService {
 
       const searchText = JSON.stringify(searchRes).substring(0, 5000);
 
-      const { data: groqRes } = await axios.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "system",
-              content: "Você extrai nomes de pessoas e cargos de resultados de busca. Responda APENAS JSON.",
-            },
-            {
-              role: "user",
-              content: `Empresa: ${companyName} (${legalName})\n\nResultados da busca:\n${searchText}\n\nExtraia nomes de pessoas que parecem ser sócios, diretores, CEOs, proprietários ou gerentes desta empresa. Retorne JSON: { "people": [{ "name": string, "role": string | null }] }`,
-            },
-          ],
-          temperature: 0.1,
-          max_tokens: 500,
-        },
-        { headers: { Authorization: `Bearer ${this.deps.groqApiKey}` } }
-      );
+      const result = await runAiCoreChat({
+        system: "Você extrai nomes de pessoas e cargos de resultados de busca. Responda APENAS JSON.",
+        message: `Empresa: ${companyName} (${legalName})\n\nResultados da busca:\n${searchText}\n\nExtraia nomes de pessoas que parecem ser sócios, diretores, CEOs, proprietários ou gerentes desta empresa. Retorne JSON: { "people": [{ "name": string, "role": string | null }] }`,
+        model: "llama-local",
+        temperature: 0.1,
+        maxTokens: 500,
+        clientId: this.orgId,
+        agent: "company-resolver",
+      });
 
-      const content = groqRes?.choices?.[0]?.message?.content;
+      const content = result.response;
       if (!content) return [];
 
       const parsed = JSON.parse(content);

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import axios from "axios";
+import { runAiCoreChat } from "../services/aiCoreClient.js";
 import { convertProspectingRunToCrm } from "../services/prospectingCrm.js";
 import {
   detectOptOut,
@@ -10,7 +11,6 @@ import {
   normalizeText,
 } from "../services/prospectingAutomation.js";
 import { OutboundDispatcherService } from "../services/outboundDispatcher.js";
-import { getOrgAIKeys } from "../utils/aiKeys.js";
 
 const DEFAULT_BUFFER_MS = 12000;
 
@@ -122,9 +122,7 @@ export class SdrAgentWorker {
   }
 
   private async buildAiResponse(run: any, leadMessage: string, intent: { wantsHuman: boolean; wantsMeeting: boolean }) {
-    const keys = await getOrgAIKeys(this.prisma, run.organizationId).catch(() => null);
-    const groqKey = keys?.groqKey || process.env.GROQ_API_KEY;
-    if (!groqKey) {
+    if (!run.organizationId) {
       if (intent.wantsHuman) return "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui.";
       return "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
     }
@@ -163,18 +161,22 @@ export class SdrAgentWorker {
       `Mensagem recebida agora:\n${leadMessage}`,
     ].join("\n");
 
-    const response = await axios.post(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        model: process.env.GROQ_SDR_MODEL || "llama-3.3-70b-versatile",
-        messages: [{ role: "system", content: systemPrompt }],
+    try {
+      const result = await runAiCoreChat({
+        system: systemPrompt,
+        message: leadMessage,
+        model: process.env.AI_CORE_SDR_MODEL || "llama-local",
         temperature: 0.35,
-        max_tokens: 220,
-      },
-      { headers: { Authorization: `Bearer ${groqKey}` } }
-    );
+        maxTokens: 220,
+        clientId: run.organizationId,
+        agent: "sdr-agent",
+      });
 
-    return String(response.data?.choices?.[0]?.message?.content || "").trim();
+      return result.response.trim();
+    } catch {
+      if (intent.wantsHuman) return "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui.";
+      return "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
+    }
   }
 
   private async handleAgentResponse(run: any) {

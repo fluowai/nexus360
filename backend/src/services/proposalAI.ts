@@ -1,9 +1,7 @@
-import { Groq } from "groq-sdk";
+import { runAiCoreChat } from "./aiCoreClient.js";
 
 export const proposalAI = {
-  generate: async (niche: string, clientName: string, services: string[], apiKey: string, googleLocalDiagnosis?: string) => {
-    const groq = new Groq({ apiKey });
-
+  generate: async (niche: string, clientName: string, services: string[], orgId: string, googleLocalDiagnosis?: string) => {
     const diagnosisContext = googleLocalDiagnosis 
       ? `\n\nDIAGNÓSTICO DO GOOGLE MEU NEGÓCIO DESTE CLIENTE (USE ISSO PARA CRIAR URGÊNCIA E MOSTRAR QUE ESTUDAMOS A EMPRESA):\n"${googleLocalDiagnosis}"\n` 
       : "";
@@ -37,14 +35,16 @@ export const proposalAI = {
     `;
 
     try {
-      const completion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3-70b-8192",
-        response_format: { type: "json_object" },
-        temperature: 0.6
+      const result = await runAiCoreChat({
+        system: "proposal-writer",
+        clientId: orgId,
+        agent: "proposal-writer",
+        message: prompt,
+        temperature: 0.6,
+        maxTokens: 4096,
       });
 
-      return JSON.parse(completion.choices[0].message.content || "{}");
+      return JSON.parse(result.response || "{}");
     } catch (error) {
       console.error("[PROPOSAL_AI_ERROR]", error);
       throw new Error("Falha ao gerar proposta via IA.");

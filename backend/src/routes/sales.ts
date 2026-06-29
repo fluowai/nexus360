@@ -90,16 +90,7 @@ export function salesRoutes(prisma: PrismaClient) {
     }
 
     try {
-      const config = await prisma.organization.findUnique({
-        where: { id: orgId },
-        select: { groqKey: true }
-      });
-  
-      if (!config?.groqKey) {
-        return res.status(400).json({ error: "Configure sua chave do Groq para usar a IA." });
-      }
-
-      const content = await proposalAI.generate(niche, clientName, services || [], config.groqKey);
+      const content = await proposalAI.generate(niche, clientName, services || [], orgId);
       res.json(content);
     } catch (error: any) {
       console.error("[SALES_PROPOSAL_GENERATE_ERROR]", error);

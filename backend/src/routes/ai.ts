@@ -562,29 +562,6 @@ ${transcript}
       });
 
       return res.json({ text: result.response });
-
-      const legacyOrgId = (req as any).user?.orgId;
-      const { geminiKey } = await getOrgAIKeys(prisma, legacyOrgId);
-
-      if (!geminiKey) {
-        return res.status(500).json({ error: "Gemini API Key não configurada no servidor ou organização" });
-      }
-
-      const legacyRefinedPrompt = `Como um especialista em marketing 360, crie um conteúdo do tipo ${type} baseado no seguinte tema: ${prompt}. Retorne em formato markdown puro. Use um tom profissional e persuasivo em Português do Brasil.`;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: legacyRefinedPrompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 4096 }
-        })
-      });
-
-      const data = await response.json();
-      const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "Erro ao gerar conteúdo";
-      
-      res.json({ text: content });
     } catch (error) {
       console.error("[AI_GEN_ERROR]", error);
       res.status(500).json({ error: "Erro interno ao gerar conteúdo" });
@@ -613,36 +590,6 @@ ${transcript}
       });
 
       return res.json({ result: governed.result.response });
-
-      const { geminiKey } = await getOrgAIKeys(prisma, orgId as string);
-
-      if (!prompt || !input) {
-        return res.status(400).json({ error: "Prompt e entrada são obrigatórios." });
-      }
-
-      if (!geminiKey) {
-        return res.status(500).json({ error: "Gemini API Key não configurada no servidor ou organização" });
-      }
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: `${prompt}\n\nEntrada do usuário:\n${input}\n\nResponda em português do Brasil com estrutura clara e acionável.` }]
-          }],
-          generationConfig: { temperature: 0.6, maxOutputTokens: 4096 }
-        })
-      });
-
-      if (!response.ok) {
-        const details = await response.text();
-        return res.status(response.status).json({ error: "Falha ao executar agente", details });
-      }
-
-      const data = await response.json();
-      const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "Não foi possível gerar uma resposta.";
-      res.json({ result });
     } catch (error) {
       console.error("[AI_AGENT_ERROR]", error);
       res.status(500).json({ error: "Erro interno ao executar agente" });

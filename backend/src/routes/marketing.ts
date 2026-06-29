@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-import { getOrgAIKeys } from "../utils/aiKeys.js";
+import { runAiCoreChat } from "../services/aiCoreClient.js";
 import { sanitizeStoredHtml } from "../utils/security.js";
 
 export function marketingRoutes(prisma: PrismaClient) {
@@ -130,13 +130,6 @@ export function marketingRoutes(prisma: PrismaClient) {
       } = req.body;
 
       const orgId = req.user.orgId;
-      const { groqKey } = await getOrgAIKeys(prisma, orgId);
-
-      if (!groqKey) {
-        return res.status(400).json({ 
-          error: "Groq API Key não configurada. Vá em Configurações > Configurações de IA e cadastre sua chave." 
-        });
-      }
 
       // ---- STEP 1: Gerar o conteúdo da LP via IA ----
       const prompt = `Você é um copywriter e web designer sênior especializado em landing pages de alta conversão.
@@ -172,37 +165,16 @@ Retorne APENAS um JSON válido com esta estrutura exata:
   "metaDescription": "Descrição SEO"
 }`;
 
-      if (!groqKey) {
-        return res.status(400).json({ 
-          error: "Configuração do Groq ausente.", 
-          details: "Por favor, configure sua chave de API do Groq nas configurações de IA." 
-        });
-      }
-
-      console.log(`[AI_GENERATION] Usando chave Groq: ${groqKey.substring(0, 6)}...`);
-
-      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${groqKey}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3-70b-8192", // Modelo mais estável e rápido
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.7,
-          response_format: { type: "json_object" }
-        }),
+      const groqResponse = await runAiCoreChat({
+        system: "lp-generator",
+        clientId: orgId,
+        agent: "lp-generator",
+        message: prompt,
+        temperature: 0.7,
+        maxTokens: 8192,
       });
 
-      if (!groqResponse.ok) {
-        const err = await groqResponse.text();
-        console.error("[GROQ_ERROR]", err);
-        throw new Error("Erro no Groq: " + err);
-      }
-
-      const groqData = await groqResponse.json();
-      const aiContent = JSON.parse(groqData.choices[0].message.content);
+      const aiContent = JSON.parse(groqResponse.response);
 
       // ---- STEP 2: Gerar o HTML completo da Landing Page ----
       const primaryColor = colorPrimary || '#2563eb';

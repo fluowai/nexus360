@@ -5,7 +5,7 @@ import {
   CheckCircle2, Sparkles, BrainCircuit, Building2, DollarSign,
   Phone, Calendar, Clock, AlertCircle, Package, RefreshCw,
   BarChart3, UserPlus, MessageSquare, Globe, FileText, Truck,
-  Loader2, Briefcase, Plus, Trash2
+  Loader2, Briefcase, Plus, Trash2, Globe
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
@@ -89,6 +89,8 @@ const initialData: StepData = {
 };
 
 export default function OnboardingWizard() {
+  const [showWhitelabelChoice, setShowWhitelabelChoice] = useState(true);
+  const [convertingToWL, setConvertingToWL] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<StepData>(initialData);
   const [saving, setSaving] = useState(false);
@@ -101,6 +103,25 @@ export default function OnboardingWizard() {
     startDate: "", endDate: "", isCurrent: false,
   });
   const navigate = useNavigate();
+
+  const handleConvertToWhitelabel = async () => {
+    setConvertingToWL(true);
+    try {
+      const res = await apiFetch("/api/onboarding/convert-to-whitelabel", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success) {
+        localStorage.setItem("nexus_org_type", "WHITELABEL");
+        navigate("/onboarding/whitelabel", { replace: true });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setConvertingToWL(false);
+    }
+  };
 
   useEffect(() => {
     if (currentStep === 5) loadExperiences();
@@ -259,7 +280,7 @@ export default function OnboardingWizard() {
       </div>
 
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
-        <div className="lg:col-span-4 space-y-8 hidden lg:block">
+                        <div className={`lg:col-span-4 space-y-8 hidden lg:block ${showWhitelabelChoice ? 'opacity-30' : ''}`}>
           <div className="mb-12">
             <div className="flex items-center gap-3 text-2xl font-black tracking-tighter italic">
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-card text-white not-italic">N</div>
@@ -291,7 +312,57 @@ export default function OnboardingWizard() {
             className="bg-white rounded-lg p-8 lg:p-12 border border-gray-200 shadow-floating"
           >
             <AnimatePresence mode="wait">
-              {currentStep === 1 && (
+              {showWhitelabelChoice && (
+                <motion.div
+                  key="wl-choice"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="space-y-8"
+                >
+                  <div className="w-20 h-20 bg-purple-500/10 text-purple-500 rounded-lg flex items-center justify-center mb-4 border border-purple-200">
+                    <Building2 size={40} />
+                  </div>
+                  <div className="space-y-4">
+                    <h1 className="text-5xl font-black leading-tight text-slate-950">
+                      Como deseja usar o Nexus360?
+                    </h1>
+                    <p className="text-gray-500 text-lg">
+                      Escolha o perfil que melhor se encaixa no seu negócio.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <button
+                      onClick={() => setShowWhitelabelChoice(false)}
+                      className="flex flex-col items-center gap-4 p-8 rounded-xl border-2 border-gray-200 bg-white hover:border-primary hover:bg-primary/5 transition-all group"
+                    >
+                      <Building2 size={48} className="text-gray-400 group-hover:text-primary transition-colors" />
+                      <div className="text-center">
+                        <p className="text-xl font-black text-slate-950">Usar para meu negócio</p>
+                        <p className="text-sm text-gray-500 mt-1">Configurar CRM, vendas e operação para minha própria empresa</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleConvertToWhitelabel}
+                      disabled={convertingToWL}
+                      className="flex flex-col items-center gap-4 p-8 rounded-xl border-2 border-gray-200 bg-white hover:border-purple-500 hover:bg-purple-50/50 transition-all group disabled:opacity-50"
+                    >
+                      <Globe size={48} className="text-gray-400 group-hover:text-purple-500 transition-colors" />
+                      <div className="text-center">
+                        <p className="text-xl font-black text-slate-950">Sou uma Agência / Revenda</p>
+                        <p className="text-sm text-gray-500 mt-1">Revender o sistema white label para meus clientes com minha marca</p>
+                      </div>
+                    </button>
+                  </div>
+                  {convertingToWL && (
+                    <div className="flex items-center justify-center gap-2 text-purple-600 font-bold">
+                      <Loader2 size={20} className="animate-spin" /> Configando ambiente White Label...
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {!showWhitelabelChoice && currentStep === 1 && (
                 <motion.div
                   key="step1"
                   initial={{ opacity: 0, y: 20 }}

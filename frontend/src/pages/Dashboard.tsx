@@ -204,26 +204,30 @@ export default function Dashboard() {
         <div className="glass-card">
           <h3 className="font-bold text-lg text-gray-900 mb-6">Metas Mensais</h3>
           <div className="flex flex-col gap-8">
-            {[
-              { label: "Leads Qualificados", current: 850, total: 1000, color: "bg-blue-600" },
-              { label: "Propostas Enviadas", current: 42, total: 60, color: "bg-purple-600" },
-              { label: "Conversão Final", current: 3.2, total: 5, color: "bg-green-600" },
-            ].map((meta, i) => (
-              <div key={i} className="flex flex-col gap-2">
-                <div className="flex justify-between text-sm">
-                  <span className="font-medium text-gray-700">{meta.label}</span>
-                  <span className="text-gray-500">{Math.round((meta.current/meta.total)*100)}%</span>
+            {(data.monthlyGoals || [
+              { label: "Leads Qualificados", current: 0, total: 100, color: "bg-blue-600" },
+              { label: "Propostas Enviadas", current: 0, total: 10, color: "bg-purple-600" },
+              { label: "Conversão Final", current: 0, total: 5, color: "bg-green-600", isPercent: true },
+            ]).map((meta: any, i: number) => {
+              const pct = meta.total > 0 ? Math.min(Math.round((meta.current / meta.total) * 100), 100) : 0;
+              const displayCurrent = meta.isPercent ? `${meta.current}%` : meta.current;
+              return (
+                <div key={i} className="flex flex-col gap-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium text-gray-700">{meta.label}</span>
+                    <span className="text-gray-500">{pct}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      className={`h-full ${meta.color}`}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-400 font-medium">{displayCurrent} / {meta.isPercent ? `${meta.total}%` : meta.total} planejado</span>
                 </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${(meta.current/meta.total)*100}%` }}
-                    className={`h-full ${meta.color}`}
-                  />
-                </div>
-                <span className="text-xs text-gray-400 font-medium">{meta.current} / {meta.total} planejado</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
           
           <div className="mt-8 pt-8 border-t border-gray-100">

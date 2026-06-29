@@ -49,9 +49,43 @@ export function adminRoutes(prisma: PrismaClient) {
     const whereClause = orgId ? { organizationId: String(orgId) } : {};
 
     try {
-      const leadsCount = await prisma.lead.count({ where: whereClause });
-      const clientsCount = await prisma.client.count({ where: whereClause });
-      const proposalsCount = await prisma.proposal.count({ where: whereClause });
+      const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      const [leadsCount, clientsCount, proposalsCount, invoicesSum, contentCount, chartData] = await Promise.all([
+        prisma.lead.count({ where: whereClause }),
+        prisma.client.count({ where: whereClause }),
+        prisma.proposal.count({ where: whereClause }),
+        prisma.invoice.aggregate({ where: { ...whereClause, status: 'paga' }, _sum: { total: true } }),
+        (async () => {
+          const [creatives, campaigns, lps] = await Promise.all([
+            prisma.creative.count({ where: whereClause }),
+            prisma.campaign.count({ where: whereClause as any }),
+            prisma.landingPage.count({ where: whereClause as any }),
+          ]);
+          return creatives + campaigns + lps;
+        })(),
+        (async () => {
+          try {
+            const orgFilter = orgId ? `AND l.organization_id = $1` : ``;
+            const params: any[] = [];
+            if (orgId) params.push(String(orgId));
+            params.push(sevenDaysAgo);
+            const rows = await prisma.$queryRawUnsafe<Array<{ date: Date; leads: bigint; conv: bigint }>>(
+              `SELECT DATE(l.created_at) as date, COUNT(*) FILTER (WHERE l.status = 'qualificado' OR l.status = 'fechado') as conv,
+               COUNT(*) as leads FROM "Lead" l WHERE 1=1 ${orgFilter} AND l.created_at >= $${params.length} GROUP BY DATE(l.created_at) ORDER BY date ASC`,
+              ...params
+            );
+            return rows.map((r) => ({
+              name: dayLabels[new Date(r.date).getDay()] || "N/A",
+              leads: Number(r.leads),
+              conv: Number(r.conv),
+            }));
+          } catch {
+            return [];
+          }
+        })(),
+      ]);
 
       let orgName = "Painel Global";
       let plan: any = { name: "Global", maxLeads: 100, leadsLimit: 100 };
@@ -75,6 +109,8 @@ export function adminRoutes(prisma: PrismaClient) {
       }
 
       const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } });
+      const revenue = invoicesSum._sum.total || 0;
+      const conversions = leadsCount > 0 ? Number(((clientsCount / leadsCount) * 100).toFixed(1)) : 0;
 
       res.json({
         orgName,
@@ -85,19 +121,11 @@ export function adminRoutes(prisma: PrismaClient) {
           leads: leadsCount,
           clients: clientsCount,
           proposals: proposalsCount,
-          revenue: 45200.00,
-          conversions: clientsCount > 0 ? ((clientsCount / leadsCount) * 100).toFixed(1) : 0,
-          contentCount: 42
+          revenue,
+          conversions,
+          contentCount,
         },
-        chartData: [
-          { name: "Seg", leads: 40, conv: 24 },
-          { name: "Ter", leads: 30, conv: 13 },
-          { name: "Qua", leads: 20, conv: 98 },
-          { name: "Qui", leads: 27, conv: 39 },
-          { name: "Sex", leads: 18, conv: 48 },
-          { name: "Sab", leads: 23, conv: 38 },
-          { name: "Dom", leads: 34, conv: 43 },
-        ]
+        chartData,
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch dashboard" });

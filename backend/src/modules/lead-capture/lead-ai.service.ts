@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { Groq } from "groq-sdk";
+import { runAiCoreChat } from "../../services/aiCoreClient.js";
 import axios from "axios";
 
 type CnpjSearchCandidate = {
@@ -32,23 +32,6 @@ type MatchScore = {
 
 export class LeadAiService {
   constructor(private prisma: PrismaClient) {}
-
-  private async getGroqClient(orgId: string) {
-    const org = await this.prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { groqKey: true }
-    });
-
-    const apiKey = org?.groqKey || process.env.GROQ_API_KEY;
-
-    if (!apiKey) {
-      throw new Error("Chave do Groq não configurada para esta organização.");
-    }
-
-    return new Groq({
-      apiKey
-    });
-  }
 
   async runDiagnosis(leadId: string, orgId: string) {
     const lead = await this.prisma.capturedLead.findFirst({
@@ -101,14 +84,16 @@ export class LeadAiService {
     let fallbackReason: string | null = null;
 
     try {
-      const groq = await this.getGroqClient(orgId);
-      const chatCompletion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
+      const aiResult = await runAiCoreChat({
+        system: "lead-diagnosis",
+        clientId: orgId,
+        agent: "lead-diagnosis",
+        message: prompt,
+        temperature: 0.2,
+        maxTokens: 2048,
       });
 
-      result = this.parseJsonObject(chatCompletion.choices[0].message.content) || result;
+      result = this.parseJsonObject(aiResult.response) || result;
     } catch (error: any) {
       fallbackReason = error?.message || "Falha ao gerar diagnostico com IA.";
       console.warn("[LEAD_DIAGNOSIS_FALLBACK]", { leadId, reason: fallbackReason });
@@ -156,7 +141,6 @@ export class LeadAiService {
   }
 
   async generateScripts(leadId: string, orgId: string) {
-    const groq = await this.getGroqClient(orgId);
     const lead = await this.prisma.capturedLead.findFirst({
       where: { id: leadId, organizationId: orgId }
     });
@@ -199,13 +183,16 @@ export class LeadAiService {
       }
     `;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-versatile",
-      response_format: { type: "json_object" }
+    const aiResult = await runAiCoreChat({
+      system: "lead-scripts",
+      clientId: orgId,
+      agent: "lead-scripts",
+      message: prompt,
+      temperature: 0.3,
+      maxTokens: 4096,
     });
 
-    const result = JSON.parse(chatCompletion.choices[0].message.content || "{}");
+    const result = JSON.parse(aiResult.response || "{}");
     const ownerCandidate = String(lead.owners || "")
       .split(/[,;|\n]+/)
       .map(item => item.replace(/\([^)]*\)/g, "").trim())
@@ -237,7 +224,6 @@ export class LeadAiService {
   }
 
   async generateDossier(leadId: string, orgId: string) {
-    const groq = await this.getGroqClient(orgId);
     // Fetch lead and organization details
     const [lead, org] = await Promise.all([
       this.prisma.capturedLead.findFirst({ where: { id: leadId, organizationId: orgId } }),
@@ -271,12 +257,16 @@ export class LeadAiService {
       Responda em formato Markdown profissional. Evite linguagem de pitch e não use "agência".
     `;
 
-    const chatCompletion = await groq.chat.completions.create({
-      messages: [{ role: "user", content: prompt }],
-      model: "llama-3.3-70b-versatile"
+    const aiResult = await runAiCoreChat({
+      system: "lead-dossier",
+      clientId: orgId,
+      agent: "lead-dossier",
+      message: prompt,
+      temperature: 0.3,
+      maxTokens: 4096,
     });
 
-    const dossier = chatCompletion.choices[0].message.content;
+    const dossier = aiResult.response;
 
     return await this.prisma.capturedLead.update({
       where: { id: leadId },
@@ -862,7 +852,6 @@ export class LeadAiService {
       });
 
       const searchData = JSON.stringify(searchRes.data);
-      const groq = await this.getGroqClient(orgId);
 
       const prompt = `
         Abaixo estão resultados de busca do LinkedIn para a empresa "${lead.businessName}".
@@ -878,13 +867,16 @@ export class LeadAiService {
         }
       `;
 
-      const chatCompletion = await groq.chat.completions.create({
-        messages: [{ role: "user", content: prompt }],
-        model: "llama-3.3-70b-versatile",
-        response_format: { type: "json_object" }
+      const aiResult = await runAiCoreChat({
+        system: "lead-research",
+        clientId: orgId,
+        agent: "lead-research",
+        message: prompt,
+        temperature: 0.2,
+        maxTokens: 2048,
       });
 
-      const result = this.parseJsonObject(chatCompletion.choices[0].message.content) || {};
+      const result = this.parseJsonObject(aiResult.response) || {};
 
       return await this.prisma.capturedLead.update({
         where: { id: leadId },

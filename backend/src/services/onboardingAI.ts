@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { runAiCoreChat } from "./aiCoreClient.js";
 
 interface OnboardingAnswers {
   businessName: string;
@@ -104,30 +105,16 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
     const startTime = Date.now();
 
     try {
-      const { groqKey } = await this.getOrgAIKeys(orgId);
-      const model = "llama-3.3-70b-versatile";
-
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${groqKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.3,
-          response_format: { type: "json_object" },
-        }),
+      const result = await runAiCoreChat({
+        message: prompt,
+        model: process.env.AI_CORE_ONBOARDING_MODEL || "llama-local",
+        temperature: 0.3,
+        maxTokens: 4096,
+        clientId: orgId,
+        agent: "onboarding-diagnosis",
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Groq API error: ${response.status} - ${errText}`);
-      }
-
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || "{}";
+      const content = result.response;
       const diagnosis = JSON.parse(content) as AiDiagnosis;
       const durationMs = Date.now() - startTime;
 
@@ -138,9 +125,9 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
           agentType: "diagnosis",
           prompt,
           response: content,
-          model,
-          tokensIn: data.usage?.prompt_tokens || 0,
-          tokensOut: data.usage?.completion_tokens || 0,
+          model: result.usage.model,
+          tokensIn: result.usage.tokensIn,
+          tokensOut: result.usage.tokensOut,
           durationMs,
           success: true,
         },
@@ -156,7 +143,7 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
           agentType: "diagnosis",
           prompt,
           response: error.message,
-          model: "llama-3.3-70b-versatile",
+          model: "ai-core",
           durationMs,
           success: false,
           errorMessage: error.message,
@@ -366,15 +353,4 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
     }
   }
 
-  private async getOrgAIKeys(orgId: string): Promise<{ groqKey: string }> {
-    const org = await this.prisma.organization.findUnique({
-      where: { id: orgId },
-      select: { groqKey: true },
-    });
-    const groqKey = org?.groqKey || process.env.GROQ_API_KEY || "";
-    if (!groqKey) {
-      throw new Error("GROQ_API_KEY não configurada para esta organização");
-    }
-    return { groqKey };
-  }
 }

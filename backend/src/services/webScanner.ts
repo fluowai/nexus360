@@ -1,5 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { runAiCoreChat } from "./aiCoreClient.js";
 
 export interface ScanInput {
   companyName: string;
@@ -79,7 +80,7 @@ async function fetchViaCheerio(url: string): Promise<{ text: string; products: s
   }
 }
 
-export async function scanClient(input: ScanInput, serperKey: string, groqKey?: string): Promise<ScanResult> {
+export async function scanClient(input: ScanInput, serperKey: string, groqKey?: string, orgId?: string): Promise<ScanResult> {
   const { companyName, website, instagram, cnpj, segment } = input;
 
   const googleQuery = `${companyName} ${segment || ""} ${cnpj ? `CNPJ ${cnpj}` : ""}`.trim();
@@ -119,11 +120,11 @@ export async function scanClient(input: ScanInput, serperKey: string, groqKey?: 
   if (!discoveredCnpj) {
     // Procura o CNPJ nos resultados que já vieram do Serper (sem gastar nova consulta)
     const googleText = googleResults.map(r => `${r.title} ${r.snippet}`).join(" ");
-    let match = googleText.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
+    let match = googleText.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
     
     // Se não achou no Google, procura no texto do site da empresa (rodapé, contato, etc)
     if (!match && websiteContent) {
-      match = websiteContent.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}/);
+      match = websiteContent.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
     }
     
     if (match) discoveredCnpj = match[0];
@@ -138,7 +139,7 @@ export async function scanClient(input: ScanInput, serperKey: string, groqKey?: 
           qsaData = cnpjInfo.qsa || [];
           razaoSocial = cnpjInfo.razao_social || "";
         }
-      } catch (e) {}
+      } catch { /* CNPJ fetch failed silently */ }
     }
   }
 
@@ -182,22 +183,18 @@ ${productsServices.slice(0, 20).join("\n") || "Não foi possível identificar pr
 
   let dossier = "";
   try {
-    const groqResp = await axios.post(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          { role: "system", content: "Você é um analista de inteligência de mercado e vendas B2B. Sua função é analisar empresas, identificar os decisores reais e gerar dossiês para a equipe comercial abordar." },
-          { role: "user", content: groqPrompt }
-        ],
-        temperature: 0.4,
-        max_tokens: 4096,
-      },
-      { headers: { Authorization: `Bearer ${groqKey || process.env.GROQ_API_KEY}` } }
-    );
-    dossier = groqResp.data.choices?.[0]?.message?.content || "Dossiê não gerado.";
+    const result = await runAiCoreChat({
+      system: "Você é um analista de inteligência de mercado e vendas B2B. Sua função é analisar empresas, identificar os decisores reais e gerar dossiês para a equipe comercial abordar.",
+      message: groqPrompt,
+      model: "llama-local",
+      temperature: 0.4,
+      maxTokens: 4096,
+      clientId: orgId,
+      agent: "web-scanner",
+    });
+    dossier = result.response || "Dossiê não gerado.";
   } catch {
-    dossier = "Falha ao gerar dossiê com IA. Verifique a chave GROQ.";
+    dossier = "Falha ao gerar dossiê com IA.";
   }
 
   const instagramInfo = instagram

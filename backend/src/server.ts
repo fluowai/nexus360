@@ -23,6 +23,7 @@ import { financeRoutes } from "./routes/finance.js";
 import { opsRoutes } from "./routes/ops.js";
 import { adminRoutes } from "./routes/admin.js";
 import { adminPlansRoutes } from "./routes/admin/plans.js";
+import { adminWhitelabelSyncRoutes } from "./routes/admin/whitelabelSync.js";
 import { adsRoutes } from "./routes/ads.js";
 import { clientRoutes } from "./routes/clients.js";
 import { aiRoutes } from "./routes/ai.js";
@@ -625,6 +626,9 @@ const protectedRoutes = [
 // Rotas Administrativas de Planos
 app.use("/api/admin/plans", authenticateToken, adminPlansRoutes(prisma));
 
+// Rotas Administrativas de Whitelabel Sync
+app.use("/api/admin/whitelabel-sync", authenticateToken, adminWhitelabelSyncRoutes(prisma));
+
 protectedRoutes.forEach(route => {
   app.use(route.path, authenticateToken, enforceTenantDomain, resolveTenant, route.router(prisma));
 });
@@ -649,16 +653,40 @@ async function safeDashboardValue<T>(label: string, fallback: T, loader: () => P
 app.get("/api/dashboard", authenticateToken, enforceTenantDomain, resolveTenant, async (req: any, res, next) => {
   try {
     const orgId = req.user.orgId;
-    const [leads, clients, proposals, invoices, contentCount, org, user, agency] = await Promise.all([
-      safeDashboardValue("leads", 0, () => prisma.lead.count({ where: { organizationId: orgId } })),
-      safeDashboardValue("clients", 0, () => prisma.client.count({ where: { organizationId: orgId } })),
-      safeDashboardValue("proposals", 0, () => prisma.proposal.count({ where: { organizationId: orgId } })),
-      safeDashboardValue("invoices", { _sum: { total: 0 } }, () => prisma.invoice.aggregate({ where: { organizationId: orgId, status: 'paga' }, _sum: { total: true } })),
-      safeDashboardValue("creatives", 0, () => prisma.creative.count({ where: { organizationId: orgId } })),
-      safeDashboardValue("organization", null, () => orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, plan: true, planObj: true } }) : Promise.resolve(null)),
-      safeDashboardValue("user", null, () => prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } })),
-      safeDashboardValue("agency", null, () => req.user.agencyId ? prisma.agency.findUnique({ where: { id: req.user.agencyId }, select: { name: true } }) : Promise.resolve(null)),
-    ]);
+      const dayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+      const [leads, clients, proposals, invoices, contentCount, chartData, monthlyStats, org, user, agency] = await Promise.all([
+        safeDashboardValue("leads", 0, () => prisma.lead.count({ where: { organizationId: orgId } })),
+        safeDashboardValue("clients", 0, () => prisma.client.count({ where: { organizationId: orgId } })),
+        safeDashboardValue("proposals", 0, () => prisma.proposal.count({ where: { organizationId: orgId } })),
+        safeDashboardValue("invoices", { _sum: { total: 0 } }, () => prisma.invoice.aggregate({ where: { organizationId: orgId, status: 'paga' }, _sum: { total: true } })),
+        safeDashboardValue("creatives", 0, () => prisma.creative.count({ where: { organizationId: orgId } })),
+        safeDashboardValue("chartData", [], () =>
+          prisma.$queryRawUnsafe<Array<{ date: Date; leads: bigint; conv: bigint }>>(
+            `SELECT DATE(l.created_at) as date, COUNT(*) FILTER (WHERE l.status = 'qualificado' OR l.status = 'fechado') as conv,
+             COUNT(*) as leads FROM "Lead" l WHERE l.organization_id = $1 AND l.created_at >= $2 GROUP BY DATE(l.created_at) ORDER BY date ASC`,
+            orgId, sevenDaysAgo
+          ).then((rows) =>
+            rows.map((r) => ({
+              name: dayLabels[new Date(r.date).getDay()] || "N/A",
+              leads: Number(r.leads),
+              conv: Number(r.conv),
+            }))
+          ).catch(() => [] as { name: string; leads: number; conv: number }[])
+        ),
+        safeDashboardValue("monthlyStats", { qualifiedLeads: 0, sentProposals: 0 }, () =>
+          Promise.all([
+            prisma.lead.count({ where: { organizationId: orgId, status: { in: ["qualificado", "fechado"] }, createdAt: { gte: firstOfMonth } } }),
+            prisma.proposal.count({ where: { organizationId: orgId, createdAt: { gte: firstOfMonth } } }),
+          ]).then(([qualifiedLeads, sentProposals]) => ({ qualifiedLeads, sentProposals }))
+        ),
+        safeDashboardValue("organization", null, () => orgId ? prisma.organization.findUnique({ where: { id: orgId }, select: { name: true, plan: true, planObj: true } }) : Promise.resolve(null)),
+        safeDashboardValue("user", null, () => prisma.user.findUnique({ where: { id: req.user.id }, select: { name: true } })),
+        safeDashboardValue("agency", null, () => req.user.agencyId ? prisma.agency.findUnique({ where: { id: req.user.agencyId }, select: { name: true } }) : Promise.resolve(null)),
+      ]);
 
     const conversions = leads > 0 ? Number(((clients / leads) * 100).toFixed(1)) : 0;
     const legacyPlan = !org?.planObj && org?.plan
@@ -671,13 +699,21 @@ app.get("/api/dashboard", authenticateToken, enforceTenantDomain, resolveTenant,
       leadsLimit: (sourcePlan as any).maxLeads ?? (sourcePlan as any).leadsLimit ?? 100,
     };
 
+    const totalLeadGoal = plan.maxLeads || 100;
+    const totalProposalGoal = Math.max(Math.round(proposals * 1.5), 10);
+
     res.json({
       orgName: org?.name || agency?.name || "Minha Agência",
       userName: user?.name || "Usuário",
       plan,
       usage: { leads },
       metrics: { leads, clients, proposals, conversions, revenue: invoices._sum.total || 0, contentCount },
-      chartData: [] 
+      chartData: chartData.length > 0 ? chartData : [],
+      monthlyGoals: [
+        { label: "Leads Qualificados", current: monthlyStats.qualifiedLeads, total: totalLeadGoal, color: "bg-blue-600" },
+        { label: "Propostas Enviadas", current: monthlyStats.sentProposals, total: totalProposalGoal, color: "bg-purple-600" },
+        { label: "Conversão Final", current: conversions, total: 5, color: "bg-green-600", isPercent: true },
+      ],
     });
   } catch (error) {
     next(error);

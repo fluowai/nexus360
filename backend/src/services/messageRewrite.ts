@@ -1,6 +1,5 @@
-import axios from "axios";
 import { PrismaClient } from "@prisma/client";
-import { getOrgAIKeys } from "../utils/aiKeys.js";
+import { runAiCoreChat } from "./aiCoreClient.js";
 
 type RewriteResult = {
   text: string;
@@ -18,12 +17,6 @@ export class MessageRewriteService {
       return { text: original, applied: false, provider: null, reason: "empty_message" };
     }
 
-    const keys = await getOrgAIKeys(this.prisma, organizationId);
-    const groqKey = keys.groqKey || process.env.GROQ_API_KEY;
-    if (!groqKey) {
-      return { text: original, applied: false, provider: null, reason: "missing_groq_key" };
-    }
-
     const systemPrompt = [
       "Reescreva o texto abaixo melhorando clareza, fluidez e impacto, mantendo exatamente o mesmo sentido e intencao original.",
       "",
@@ -39,29 +32,28 @@ export class MessageRewriteService {
     ].join("\n");
 
     try {
-      const response = await axios.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        {
-          model: process.env.GROQ_REWRITE_MODEL || "llama-3.3-70b-versatile",
-          messages: [{ role: "system", content: systemPrompt }],
-          temperature: 0.35,
-          max_tokens: 500,
-        },
-        { headers: { Authorization: `Bearer ${groqKey}` } }
-      );
+      const result = await runAiCoreChat({
+        system: systemPrompt,
+        message: original,
+        model: process.env.AI_CORE_REWRITE_MODEL || "llama-local",
+        temperature: 0.35,
+        maxTokens: 500,
+        clientId: organizationId,
+        agent: "message-rewrite",
+      });
 
-      const rewritten = String(response.data?.choices?.[0]?.message?.content || "").trim();
+      const rewritten = result.response.trim();
       if (!rewritten) {
-        return { text: original, applied: false, provider: "groq", reason: "empty_ai_response" };
+        return { text: original, applied: false, provider: "ai-core", reason: "empty_ai_response" };
       }
 
-      return { text: rewritten, applied: rewritten !== original, provider: "groq" };
+      return { text: rewritten, applied: rewritten !== original, provider: "ai-core" };
     } catch (error: any) {
       return {
         text: original,
         applied: false,
-        provider: "groq",
-        reason: error?.response?.data?.error?.message || error?.message || "rewrite_failed",
+        provider: "ai-core",
+        reason: error?.message || "rewrite_failed",
       };
     }
   }

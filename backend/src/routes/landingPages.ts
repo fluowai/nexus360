@@ -5,6 +5,7 @@ import { getPagination } from "../utils/pagination.js";
 import { sanitizeBody } from "../utils/sanitizer.js";
 import { auditFromRequest } from "../utils/auditLogger.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
+import { runAiCoreChat } from "../services/aiCoreClient.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 
 function generateSlug(name: string): string {
@@ -173,30 +174,16 @@ async function callGemini(prompt: string, geminiKey: string): Promise<string> {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-async function callGroq(prompt: string, groqKey: string): Promise<string> {
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${groqKey}`,
-    },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: "Você é um copywriter especialista em landing pages. Responda apenas com JSON válido." },
-        { role: "user", content: prompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 8192,
-      response_format: { type: "json_object" }
-    })
+async function callAiCore(prompt: string, orgId: string): Promise<string> {
+  const result = await runAiCoreChat({
+    system: "lp-copywriter",
+    clientId: orgId,
+    agent: "lp-copywriter",
+    message: prompt,
+    temperature: 0.7,
+    maxTokens: 8192,
   });
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Groq: ${response.status} ${err.slice(0, 200)}`);
-  }
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || "";
+  return result.response || "";
 }
 
 async function callOpenAI(prompt: string, openaiKey: string): Promise<string> {
@@ -225,18 +212,14 @@ async function callOpenAI(prompt: string, openaiKey: string): Promise<string> {
   return data.choices?.[0]?.message?.content || "";
 }
 
-async function generateWithFallback(prompt: string, keys: any): Promise<string> {
+async function generateWithFallback(prompt: string, keys: any, orgId: string): Promise<string> {
   const provider = keys.aiProvider || "gemini";
   const errors: string[] = [];
 
   const ordered: { name: string; fn: () => Promise<string> }[] = [];
 
-  if (provider === "groq" && keys.groqKey) ordered.push({ name: "Groq", fn: () => callGroq(prompt, keys.groqKey) });
-  if (provider === "openai" && (keys.openaiKey || keys.chatgptKey)) ordered.push({ name: "OpenAI", fn: () => callOpenAI(prompt, keys.openaiKey || keys.chatgptKey) });
-  if (provider === "gemini" && keys.geminiKey) ordered.push({ name: "Gemini", fn: () => callGemini(prompt, keys.geminiKey) });
-
+  ordered.push({ name: "AI Core", fn: () => callAiCore(prompt, orgId) });
   if (keys.geminiKey) ordered.push({ name: "Gemini", fn: () => callGemini(prompt, keys.geminiKey) });
-  if (keys.groqKey && provider !== "groq") ordered.push({ name: "Groq", fn: () => callGroq(prompt, keys.groqKey) });
   if ((keys.openaiKey || keys.chatgptKey) && provider !== "openai") ordered.push({ name: "OpenAI", fn: () => callOpenAI(prompt, keys.openaiKey || keys.chatgptKey) });
 
   for (const { name, fn } of ordered) {
@@ -266,7 +249,7 @@ export function landingPageRoutes(prisma: PrismaClient) {
       const keys = await getOrgAIKeys(prisma, orgId);
       const prompt = buildLPPrompt(wizardData, themeInput);
 
-      const rawContent = await generateWithFallback(prompt, keys);
+      const rawContent = await generateWithFallback(prompt, keys, orgId);
 
       let parsed: any;
       try {

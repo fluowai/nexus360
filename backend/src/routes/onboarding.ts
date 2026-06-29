@@ -3,6 +3,17 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { OnboardingAIService } from "../services/onboardingAI.js";
 
+function buildOrgSlug(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63);
+}
+
 export function onboardingRoutes(prisma: PrismaClient) {
   const router = Router();
   const aiService = new OnboardingAIService(prisma);
@@ -210,6 +221,50 @@ export function onboardingRoutes(prisma: PrismaClient) {
       });
 
       res.json({ success: true, message: "Ambiente comercial configurado com sucesso!" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ==================== CONVERTER PARA WHITELABEL ====================
+
+  router.post("/convert-to-whitelabel", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { brandName, logoUrl, primaryColor, secondaryColor } = req.body;
+
+      const org = await prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { type: true, whiteLabelConfig: true, name: true, slug: true, settings: true },
+      });
+
+      if (!org) return res.status(404).json({ error: "Organização não encontrada" });
+      if (org.type === "WHITELABEL") return res.json({ success: true, message: "Já é whitelabel." });
+
+      const wlConfig: Record<string, any> = {
+        name: brandName || org.name,
+      };
+      if (logoUrl) wlConfig.logoUrl = logoUrl;
+      if (primaryColor) wlConfig.primaryColor = primaryColor;
+      if (secondaryColor) wlConfig.secondaryColor = secondaryColor;
+
+      const currentSettings = (org.settings && typeof org.settings === "object" ? org.settings : {}) as Record<string, any>;
+
+      await prisma.organization.update({
+        where: { id: orgId },
+        data: {
+          type: "WHITELABEL",
+          whiteLabelConfig: wlConfig,
+          slug: buildOrgSlug(org.slug || org.name),
+          settings: {
+            ...currentSettings,
+            whitelabelOnboardingStep: 1,
+            whitelabelOnboardingComplete: false,
+          },
+        },
+      });
+
+      res.json({ success: true, message: "Conta convertida para White Label!" });
     } catch (error) {
       next(error);
     }

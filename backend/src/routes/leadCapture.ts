@@ -216,13 +216,12 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
     try {
       const org = await prisma.organization.findUnique({
         where: { id: orgId },
-        select: { serperApiKey: true, groqKey: true }
+        select: { serperApiKey: true }
       });
 
       const resolver = new CompanyResolverService({
         serperApiKey: org?.serperApiKey || process.env.SERPER_API_KEY,
-        groqApiKey: org?.groqKey || process.env.GROQ_API_KEY,
-      });
+      }, orgId);
 
       const result = await resolver.resolve({
         name: req.body.name,

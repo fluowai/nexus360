@@ -8,10 +8,6 @@ services:
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
     command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
-    environment:
-      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY:-nexus-local-dev-key}"
-      LITELLM_DATABASE_URL: "${LITELLM_DATABASE_URL:-}"
-      STORE_MODEL_IN_DB: "False"
     configs:
       - source: litellm_config
         target: /app/config.yaml
@@ -33,29 +29,6 @@ services:
         limits:
           memory: 12G
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    volumes:
-      - ai_core_qdrant_local:/qdrant/storage
-    networks:
-      - nexus360_local
-    ports:
-      - "6333:6333"
-
-  minio:
-    image: minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: "${AI_CORE_MINIO_ROOT_USER:-nexusai}"
-      MINIO_ROOT_PASSWORD: "${AI_CORE_MINIO_ROOT_PASSWORD:-nexusai-dev-password}"
-    volumes:
-      - ai_core_minio_local:/data
-    networks:
-      - nexus360_local
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-
   # Fim AI Core
 
   backend:
@@ -72,7 +45,6 @@ services:
       DIRECT_URL: "${DIRECT_URL:-postgresql://postgres:postgres@host.docker.internal:5432/nexus360_local?schema=public}"
       GOOGLE_MAPS_SCRAPER_URL: "http://google-maps-scraper:8080"
       AI_CORE_URL: "http://litellm:4000/v1"
-      AI_CORE_API_KEY: "nexus-local-dev-key"
       AI_CORE_DEFAULT_MODEL: "qwen-local"
     env_file:
       - ./backend/.env
@@ -123,6 +95,4 @@ networks:
 
 volumes:
   ai_core_ollama_local:
-  ai_core_qdrant_local:
-  ai_core_minio_local:
   google_maps_scraper_local_data:

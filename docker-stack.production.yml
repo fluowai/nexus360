@@ -68,9 +68,7 @@ services:
 
       # Self-hosted AI Core (LiteLLM + Ollama)
       AI_CORE_URL: "http://litellm:4000/v1"
-      AI_CORE_API_KEY: "${LITELLM_MASTER_KEY?LITELLM_MASTER_KEY obrigatoria}"
       AI_CORE_DEFAULT_MODEL: "qwen-local"
-      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY?LITELLM_MASTER_KEY obrigatoria}"
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -139,10 +137,6 @@ services:
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
     command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
-    environment:
-      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY?LITELLM_MASTER_KEY obrigatoria}"
-      LITELLM_DATABASE_URL: "${LITELLM_DATABASE_URL:-}"
-      STORE_MODEL_IN_DB: "False"
     configs:
       - source: litellm_config
         target: /app/config.yaml
@@ -173,64 +167,36 @@ services:
         limits:
           memory: 12G
 
-  ai-core-postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: litellm
-      POSTGRES_USER: litellm
-      POSTGRES_PASSWORD: "${AI_CORE_POSTGRES_PASSWORD:-litellm}"
-    volumes:
-      - ai_core_postgres:/var/lib/postgresql/data
-    networks:
-      - nexus360_internal
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
+  # Qdrant (vector store) e MinIO (file storage) — adicione quando necessario
+  # qdrant:
+  #   image: qdrant/qdrant:latest
+  #   volumes:
+  #     - ai_core_qdrant:/qdrant/storage
+  #   networks:
+  #     nexus360_internal:
+  #       aliases:
+  #         - qdrant
+  #   deploy:
+  #     replicas: 1
+  #     restart_policy:
+  #       condition: any
 
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - ai_core_redis:/data
-    networks:
-      nexus360_internal:
-        aliases:
-          - ai-core-redis
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    volumes:
-      - ai_core_qdrant:/qdrant/storage
-    networks:
-      nexus360_internal:
-        aliases:
-          - qdrant
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-
-  minio:
-    image: minio/minio:latest
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: "${AI_CORE_MINIO_ROOT_USER:-nexusai}"
-      MINIO_ROOT_PASSWORD: "${AI_CORE_MINIO_ROOT_PASSWORD?AI_CORE_MINIO_ROOT_PASSWORD obrigatoria}"
-    volumes:
-      - ai_core_minio:/data
-    networks:
-      nexus360_internal:
-        aliases:
-          - ai-core-minio
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
+  # minio:
+  #   image: minio/minio:latest
+  #   command: ["server", "/data", "--console-address", ":9001"]
+  #   environment:
+  #     MINIO_ROOT_USER: "${AI_CORE_MINIO_ROOT_USER:-nexusai}"
+  #     MINIO_ROOT_PASSWORD: "${AI_CORE_MINIO_ROOT_PASSWORD?AI_CORE_MINIO_ROOT_PASSWORD obrigatoria}"
+  #   volumes:
+  #     - ai_core_minio:/data
+  #   networks:
+  #     nexus360_internal:
+  #       aliases:
+  #         - ai-core-minio
+  #   deploy:
+  #     replicas: 1
+  #     restart_policy:
+  #       condition: any
 
 configs:
   litellm_config:
@@ -241,14 +207,10 @@ volumes:
     name: nexus360_google_maps_scraper_data
   ai_core_ollama:
     name: nexus360_ai_core_ollama
-  ai_core_postgres:
-    name: nexus360_ai_core_postgres
-  ai_core_redis:
-    name: nexus360_ai_core_redis
-  ai_core_qdrant:
-    name: nexus360_ai_core_qdrant
-  ai_core_minio:
-    name: nexus360_ai_core_minio
+  # ai_core_qdrant:
+  #   name: nexus360_ai_core_qdrant
+  # ai_core_minio:
+  #   name: nexus360_ai_core_minio
 
 networks:
   woopanel1:

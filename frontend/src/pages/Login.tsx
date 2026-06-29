@@ -98,7 +98,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
           {/* Logo */}
           <div className="flex flex-col items-center gap-4 mb-10">
             {whiteLabel?.logoUrl ? (
-              <img src={whiteLabel.logoUrl} alt={brandName} className="h-16 w-16 rounded-2xl object-contain shadow-lg shadow-primary/20" />
+              <img src={whiteLabel.logoUrl} alt={brandLabel} className="h-16 w-16 rounded-2xl object-contain shadow-lg shadow-primary/20" />
             ) : (
               <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
                  <Zap size={32} className="text-white fill-current" />

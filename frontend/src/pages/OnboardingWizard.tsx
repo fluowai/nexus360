@@ -5,7 +5,7 @@ import {
   CheckCircle2, Sparkles, BrainCircuit, Building2, DollarSign,
   Phone, Calendar, Clock, AlertCircle, Package, RefreshCw,
   BarChart3, UserPlus, MessageSquare, Globe, FileText, Truck,
-  Loader2, Briefcase, Plus, Trash2, Globe
+  Loader2, Briefcase, Plus, Trash2
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";

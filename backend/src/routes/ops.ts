@@ -17,7 +17,7 @@ export function opsRoutes(prisma: PrismaClient) {
 
     try {
       // 1. Gera o roteiro com a IA Mano
-      const script = await creativeAI.generateScript(theme, type, orgId);
+      const script = await creativeAI.generateScript(prisma, theme, type, orgId, req.user?.id);
       
       // 2. Tenta gerar uma imagem (opcional, se falhar não trava o texto)
       let imageUrl = "";

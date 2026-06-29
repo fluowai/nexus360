@@ -57,6 +57,39 @@ const DEFAULT_MODELS = [
     creditCost: 1,
     capabilities: { chat: true, content: true, selfHosted: true },
   },
+  {
+    name: "gpt-4o-mini",
+    displayName: "OpenAI GPT-4o mini",
+    provider: "openai",
+    runtime: "litellm",
+    modelId: "gpt-4o-mini",
+    contextWindow: 128000,
+    creditCost: 3,
+    capabilities: { chat: true, reasoning: true, external: true },
+    isSelfHosted: false,
+  },
+  {
+    name: "gemini-flash",
+    displayName: "Google Gemini Flash",
+    provider: "gemini",
+    runtime: "litellm",
+    modelId: "gemini-flash",
+    contextWindow: 1000000,
+    creditCost: 2,
+    capabilities: { chat: true, content: true, external: true },
+    isSelfHosted: false,
+  },
+  {
+    name: "groq-llama",
+    displayName: "Groq Llama 3.3 70B",
+    provider: "groq",
+    runtime: "litellm",
+    modelId: "groq-llama",
+    contextWindow: 32768,
+    creditCost: 2,
+    capabilities: { chat: true, fast: true, external: true },
+    isSelfHosted: false,
+  },
 ];
 
 const DEFAULT_AGENTS = [
@@ -87,6 +120,42 @@ function estimatedCost(model: any, tokensIn: number, tokensOut: number) {
   return Number((input + output).toFixed(6));
 }
 
+function planAiSettings(planFeatures: Prisma.JsonValue | null | undefined) {
+  const features = typeof planFeatures === "object" && planFeatures && !Array.isArray(planFeatures)
+    ? planFeatures as Record<string, any>
+    : {};
+  const ai = typeof features.ai === "object" && features.ai && !Array.isArray(features.ai)
+    ? features.ai as Record<string, any>
+    : {};
+
+  return {
+    enabled: ai.enabled !== false,
+    allowedModels: Array.isArray(ai.allowedModels) ? ai.allowedModels.map(String) : undefined,
+    allowExternalProviders: ai.allowExternalProviders !== false,
+    capabilities: Array.isArray(ai.capabilities) ? ai.capabilities.map(String) : undefined,
+  };
+}
+
+function modelHasCapability(model: any, capability?: string) {
+  if (!capability || capability === "chat") return true;
+  const capabilities = typeof model?.capabilities === "object" && model.capabilities && !Array.isArray(model.capabilities)
+    ? model.capabilities as Record<string, any>
+    : {};
+  return capabilities[capability] === true;
+}
+
+function modelAllowedByPlan(model: any, aiSettings: ReturnType<typeof planAiSettings>, capability?: string) {
+  if (!aiSettings.enabled) return false;
+  if (!modelHasCapability(model, capability)) return false;
+  if (!aiSettings.allowExternalProviders && !model.isSelfHosted) return false;
+  if (aiSettings.allowedModels?.length) {
+    return aiSettings.allowedModels.includes(model.modelId) ||
+      aiSettings.allowedModels.includes(model.name) ||
+      aiSettings.allowedModels.includes(model.id);
+  }
+  return true;
+}
+
 export function createAiRequestId() {
   return randomUUID();
 }
@@ -105,13 +174,13 @@ export async function ensureDefaultAiGovernance(prisma: PrismaClient, organizati
         creditCost: model.creditCost,
         capabilities: model.capabilities,
         isDefault: model.isDefault || (!existingDefault && model.modelId === "qwen-local"),
-        isSelfHosted: true,
+        isSelfHosted: model.isSelfHosted ?? true,
       },
       create: {
         ...model,
         status: "active",
         healthStatus: "unknown",
-        isSelfHosted: true,
+        isSelfHosted: model.isSelfHosted ?? true,
       },
     });
   }
@@ -196,6 +265,21 @@ export async function listAiModels(prisma: PrismaClient) {
   return prisma.aiModel.findMany({
     orderBy: [{ isDefault: "desc" }, { provider: "asc" }, { displayName: "asc" }],
   });
+}
+
+export async function listAvailableAiModels(prisma: PrismaClient, organizationId: string, capability = "chat") {
+  await ensureDefaultAiGovernance(prisma, organizationId);
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    include: { planObj: true },
+  });
+  const aiSettings = planAiSettings(org?.planObj?.features);
+  const models = await prisma.aiModel.findMany({
+    where: { status: "active" },
+    orderBy: [{ isDefault: "desc" }, { provider: "asc" }, { displayName: "asc" }],
+  });
+
+  return models.filter((model) => modelAllowedByPlan(model, aiSettings, capability));
 }
 
 export async function resolveAiExecution(prisma: PrismaClient, input: AiScopeInput) {
@@ -289,6 +373,18 @@ async function usageAggregate(prisma: PrismaClient, input: AiScopeInput, from: D
 
 export async function assertAiUsageAllowed(prisma: PrismaClient, input: AiScopeInput) {
   const resolved = await resolveAiExecution(prisma, input);
+  const org = await prisma.organization.findUnique({
+    where: { id: input.organizationId },
+    include: { planObj: true },
+  });
+  const aiSettings = planAiSettings(org?.planObj?.features);
+  if (!modelAllowedByPlan(resolved.model, aiSettings, "chat")) {
+    throw Object.assign(
+      new Error("Modelo de IA nao esta disponivel no plano contratado."),
+      { status: 403, code: "AI_MODEL_NOT_ALLOWED", model: resolved.model.modelId }
+    );
+  }
+
   const policy = await loadPolicy(prisma, input, resolved.model.id, resolved.agent?.id);
   const scopedInput = { ...input, modelName: resolved.model.modelId };
   const [daily, monthly] = await Promise.all([

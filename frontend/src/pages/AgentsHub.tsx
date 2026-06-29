@@ -24,6 +24,14 @@ import { PlanGuard } from '../components/PlanGuard';
 
 type AIAgent = (typeof ACP_AGENTS)[keyof typeof ACP_AGENTS];
 
+type AiModel = {
+  id: string;
+  displayName: string;
+  modelId: string;
+  provider: string;
+  isSelfHosted: boolean;
+};
+
 const AGENT_META: Record<string, { icon: React.ElementType; color: string; soft: string }> = {
   diagnostico: { icon: Search, color: '#2563eb', soft: '#eff6ff' },
   estruturador: { icon: Layout, color: '#0891b2', soft: '#ecfeff' },
@@ -85,7 +93,24 @@ const AgentsHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedCli
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState('');
-  const [selectedModel, setSelectedModel] = useState('gemini-1.5-flash');
+  const [models, setModels] = useState<AiModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState('');
+
+  React.useEffect(() => {
+    const loadModels = async () => {
+      try {
+        const response = await apiFetch('/api/ai/available-models?capability=chat');
+        if (!response.ok) return;
+        const data = await response.json();
+        const available = data.models || [];
+        setModels(available);
+        setSelectedModel((current) => current || available[0]?.modelId || '');
+      } catch {
+        setModels([]);
+      }
+    };
+    loadModels();
+  }, []);
 
   const filteredAgents = useMemo(() => {
     const tab = AGENT_TABS.find((item) => item.id === activeTab);
@@ -278,14 +303,12 @@ const AgentsHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedCli
                   value={selectedModel}
                   onChange={(event) => setSelectedModel(event.target.value)}
                 >
-                  <optgroup label="Google Gemini">
-                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
-                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                  </optgroup>
-                  <optgroup label="Groq">
-                    <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
-                    <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
-                  </optgroup>
+                  {models.length === 0 && <option value="">Modelo padrao do plano</option>}
+                  {models.map((model) => (
+                    <option key={model.id} value={model.modelId}>
+                      {model.displayName} {model.isSelfHosted ? "(local)" : `(${model.provider})`}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

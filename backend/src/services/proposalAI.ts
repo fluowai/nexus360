@@ -1,7 +1,8 @@
-import { runAiCoreChat } from "./aiCoreClient.js";
+import { PrismaClient } from "@prisma/client";
+import { runGovernedAiText } from "./aiExecution.js";
 
 export const proposalAI = {
-  generate: async (niche: string, clientName: string, services: string[], orgId: string, googleLocalDiagnosis?: string) => {
+  generate: async (prisma: PrismaClient, niche: string, clientName: string, services: string[], orgId: string, userId?: string, googleLocalDiagnosis?: string) => {
     const diagnosisContext = googleLocalDiagnosis 
       ? `\n\nDIAGNÓSTICO DO GOOGLE MEU NEGÓCIO DESTE CLIENTE (USE ISSO PARA CRIAR URGÊNCIA E MOSTRAR QUE ESTUDAMOS A EMPRESA):\n"${googleLocalDiagnosis}"\n` 
       : "";
@@ -35,16 +36,17 @@ export const proposalAI = {
     `;
 
     try {
-      const result = await runAiCoreChat({
+      const result = await runGovernedAiText(prisma, {
         system: "proposal-writer",
-        clientId: orgId,
-        agent: "proposal-writer",
+        organizationId: orgId,
+        userId,
+        agentKey: "proposal-writer",
         message: prompt,
         temperature: 0.6,
         maxTokens: 4096,
       });
 
-      return JSON.parse(result.response || "{}");
+      return JSON.parse(result.result.response || "{}");
     } catch (error) {
       console.error("[PROPOSAL_AI_ERROR]", error);
       throw new Error("Falha ao gerar proposta via IA.");

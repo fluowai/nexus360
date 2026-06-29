@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { runAiCoreChat } from "../../services/aiCoreClient.js";
+import { runGovernedAiText } from "../../services/aiExecution.js";
 import axios from "axios";
 
 type CnpjSearchCandidate = {
@@ -84,16 +84,16 @@ export class LeadAiService {
     let fallbackReason: string | null = null;
 
     try {
-      const aiResult = await runAiCoreChat({
+      const aiResult = await runGovernedAiText(this.prisma, {
         system: "lead-diagnosis",
-        clientId: orgId,
-        agent: "lead-diagnosis",
+        organizationId: orgId,
+        agentKey: "lead-diagnosis",
         message: prompt,
         temperature: 0.2,
         maxTokens: 2048,
       });
 
-      result = this.parseJsonObject(aiResult.response) || result;
+      result = this.parseJsonObject(aiResult.result.response) || result;
     } catch (error: any) {
       fallbackReason = error?.message || "Falha ao gerar diagnostico com IA.";
       console.warn("[LEAD_DIAGNOSIS_FALLBACK]", { leadId, reason: fallbackReason });
@@ -183,16 +183,16 @@ export class LeadAiService {
       }
     `;
 
-    const aiResult = await runAiCoreChat({
+    const aiResult = await runGovernedAiText(this.prisma, {
       system: "lead-scripts",
-      clientId: orgId,
-      agent: "lead-scripts",
+      organizationId: orgId,
+      agentKey: "lead-scripts",
       message: prompt,
       temperature: 0.3,
       maxTokens: 4096,
     });
 
-    const result = JSON.parse(aiResult.response || "{}");
+    const result = JSON.parse(aiResult.result.response || "{}");
     const ownerCandidate = String(lead.owners || "")
       .split(/[,;|\n]+/)
       .map(item => item.replace(/\([^)]*\)/g, "").trim())
@@ -257,16 +257,16 @@ export class LeadAiService {
       Responda em formato Markdown profissional. Evite linguagem de pitch e não use "agência".
     `;
 
-    const aiResult = await runAiCoreChat({
+    const aiResult = await runGovernedAiText(this.prisma, {
       system: "lead-dossier",
-      clientId: orgId,
-      agent: "lead-dossier",
+      organizationId: orgId,
+      agentKey: "lead-dossier",
       message: prompt,
       temperature: 0.3,
       maxTokens: 4096,
     });
 
-    const dossier = aiResult.response;
+    const dossier = aiResult.result.response;
 
     return await this.prisma.capturedLead.update({
       where: { id: leadId },
@@ -867,16 +867,16 @@ export class LeadAiService {
         }
       `;
 
-      const aiResult = await runAiCoreChat({
+      const aiResult = await runGovernedAiText(this.prisma, {
         system: "lead-research",
-        clientId: orgId,
-        agent: "lead-research",
+        organizationId: orgId,
+        agentKey: "lead-research",
         message: prompt,
         temperature: 0.2,
         maxTokens: 2048,
       });
 
-      const result = this.parseJsonObject(aiResult.response) || {};
+      const result = this.parseJsonObject(aiResult.result.response) || {};
 
       return await this.prisma.capturedLead.update({
         where: { id: leadId },

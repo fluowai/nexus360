@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
-import { runAiCoreChat } from "../services/aiCoreClient.js";
+import { runGovernedAiText } from "../services/aiExecution.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 import { scanClient } from "../services/webScanner.js";
 import { imageAI } from "../services/imageAI.js";
@@ -269,15 +269,17 @@ Responda em português do Brasil com estrutura clara, tópicos e markdown. Seja 
 
 ${input}`;
 
-      const aiResult = await runAiCoreChat({
+      const aiResult = await runGovernedAiText(prisma, {
         system: `acp-${agentId}`,
-        clientId: orgId,
-        agent: `acp-${agentId}`,
+        organizationId: orgId,
+        userId: req.user?.id,
+        clientId: clientId || undefined,
+        agentKey: `acp-${agentId}`,
         message: fullPrompt,
         temperature: 0.6,
         maxTokens: 4096,
       });
-      const result = aiResult.response || "Não foi possível gerar resposta.";
+      const result = aiResult.result.response || "Não foi possível gerar resposta.";
 
       // Registrar execução
       await prisma.acpAgentExecution.create({
@@ -534,15 +536,17 @@ Com base em todo o contexto acima, execute sua função de ${agentConfig.name}.`
 
         let output = "Não foi possível gerar resposta.";
         try {
-          const aiResult = await runAiCoreChat({
+          const aiResult = await runGovernedAiText(prisma, {
             system: `acp-${agentId}`,
-            clientId: orgId,
-            agent: `acp-${agentId}`,
+            organizationId: orgId,
+            userId: req.user?.id,
+            clientId: clientId || undefined,
+            agentKey: `acp-${agentId}`,
             message: input,
             temperature: 0.6,
             maxTokens: 4096,
           });
-          output = aiResult.response || output;
+          output = aiResult.result.response || output;
         } catch {
           results[agentId] = { agentName: agentConfig.name, output: `**Erro:** Falha ao executar ${agentConfig.name}` };
           continue;
@@ -629,15 +633,17 @@ Responda em português do Brasil, com markdown estruturado e foco em acionabilid
 
       let executionPlan = "Não foi possível gerar o plano.";
       try {
-        const planAiResult = await runAiCoreChat({
+        const planAiResult = await runGovernedAiText(prisma, {
           system: "acp-plan",
-          clientId: orgId,
-          agent: "acp-plan",
+          organizationId: orgId,
+          userId: req.user?.id,
+          clientId: clientId || undefined,
+          agentKey: "acp-plan",
           message: planPrompt,
           temperature: 0.5,
           maxTokens: 8192,
         });
-        executionPlan = planAiResult.response || executionPlan;
+        executionPlan = planAiResult.result.response || executionPlan;
       } catch {
         return res.status(500).json({ error: "Falha ao gerar plano de execução" });
       }

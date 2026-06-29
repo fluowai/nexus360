@@ -5,7 +5,7 @@ import { getPagination } from "../utils/pagination.js";
 import { sanitizeBody } from "../utils/sanitizer.js";
 import { auditFromRequest } from "../utils/auditLogger.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
-import { runAiCoreChat } from "../services/aiCoreClient.js";
+import { runGovernedAiText } from "../services/aiExecution.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 
 function generateSlug(name: string): string {
@@ -174,16 +174,17 @@ async function callGemini(prompt: string, geminiKey: string): Promise<string> {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 
-async function callAiCore(prompt: string, orgId: string): Promise<string> {
-  const result = await runAiCoreChat({
+async function callAiCore(prisma: PrismaClient, prompt: string, orgId: string, userId?: string): Promise<string> {
+  const result = await runGovernedAiText(prisma, {
     system: "lp-copywriter",
-    clientId: orgId,
-    agent: "lp-copywriter",
+    organizationId: orgId,
+    userId,
+    agentKey: "lp-copywriter",
     message: prompt,
     temperature: 0.7,
     maxTokens: 8192,
   });
-  return result.response || "";
+  return result.result.response || "";
 }
 
 async function callOpenAI(prompt: string, openaiKey: string): Promise<string> {
@@ -212,13 +213,13 @@ async function callOpenAI(prompt: string, openaiKey: string): Promise<string> {
   return data.choices?.[0]?.message?.content || "";
 }
 
-async function generateWithFallback(prompt: string, keys: any, orgId: string): Promise<string> {
+async function generateWithFallback(prisma: PrismaClient, prompt: string, keys: any, orgId: string, userId?: string): Promise<string> {
   const provider = keys.aiProvider || "gemini";
   const errors: string[] = [];
 
   const ordered: { name: string; fn: () => Promise<string> }[] = [];
 
-  ordered.push({ name: "AI Core", fn: () => callAiCore(prompt, orgId) });
+  ordered.push({ name: "AI Core", fn: () => callAiCore(prisma, prompt, orgId, userId) });
   if (keys.geminiKey) ordered.push({ name: "Gemini", fn: () => callGemini(prompt, keys.geminiKey) });
   if ((keys.openaiKey || keys.chatgptKey) && provider !== "openai") ordered.push({ name: "OpenAI", fn: () => callOpenAI(prompt, keys.openaiKey || keys.chatgptKey) });
 
@@ -249,7 +250,7 @@ export function landingPageRoutes(prisma: PrismaClient) {
       const keys = await getOrgAIKeys(prisma, orgId);
       const prompt = buildLPPrompt(wizardData, themeInput);
 
-      const rawContent = await generateWithFallback(prompt, keys, orgId);
+      const rawContent = await generateWithFallback(prisma, prompt, keys, orgId, req.user?.id);
 
       let parsed: any;
       try {

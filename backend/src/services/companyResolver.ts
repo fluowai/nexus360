@@ -1,5 +1,7 @@
 import axios from "axios";
+import { PrismaClient } from "@prisma/client";
 import { runAiCoreChat } from "./aiCoreClient.js";
+import { runGovernedAiText } from "./aiExecution.js";
 
 type ResolvedPartner = {
   name: string;
@@ -41,6 +43,7 @@ export class CompanyResolverService {
   constructor(
     private deps: {
       serperApiKey?: string | null;
+      prisma?: PrismaClient;
     },
     private orgId?: string
   ) {}

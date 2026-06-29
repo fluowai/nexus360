@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { runAiCoreChat } from "./aiCoreClient.js";
+import { runGovernedAiText } from "./aiExecution.js";
 
 interface OnboardingAnswers {
   businessName: string;
@@ -105,16 +105,17 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
     const startTime = Date.now();
 
     try {
-      const result = await runAiCoreChat({
+      const result = await runGovernedAiText(this.prisma, {
         message: prompt,
         model: process.env.AI_CORE_ONBOARDING_MODEL || "llama-local",
         temperature: 0.3,
         maxTokens: 4096,
-        clientId: orgId,
-        agent: "onboarding-diagnosis",
+        organizationId: orgId,
+        userId,
+        agentKey: "onboarding-diagnosis",
       });
 
-      const content = result.response;
+      const content = result.result.response;
       const diagnosis = JSON.parse(content) as AiDiagnosis;
       const durationMs = Date.now() - startTime;
 
@@ -125,9 +126,9 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
           agentType: "diagnosis",
           prompt,
           response: content,
-          model: result.usage.model,
-          tokensIn: result.usage.tokensIn,
-          tokensOut: result.usage.tokensOut,
+          model: result.result.usage.model,
+          tokensIn: result.result.usage.tokensIn,
+          tokensOut: result.result.usage.tokensOut,
           durationMs,
           success: true,
         },

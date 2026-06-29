@@ -90,7 +90,7 @@ export function salesRoutes(prisma: PrismaClient) {
     }
 
     try {
-      const content = await proposalAI.generate(niche, clientName, services || [], orgId);
+      const content = await proposalAI.generate(prisma, niche, clientName, services || [], orgId, req.user?.id);
       res.json(content);
     } catch (error: any) {
       console.error("[SALES_PROPOSAL_GENERATE_ERROR]", error);

@@ -2,6 +2,11 @@ services:
   litellm:
     image: ghcr.io/berriai/litellm:main-latest
     command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
+    environment:
+      LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
     configs:
       - source: litellm_config
         target: /app/config.yaml
@@ -31,6 +36,29 @@ services:
       resources:
         limits:
           memory: 12G
+
+  ollama-model-pull:
+    image: ollama/ollama:latest
+    command:
+      - /bin/sh
+      - -lc
+      - |
+        until ollama list >/dev/null 2>&1; do
+          echo "Aguardando Ollama..."
+          sleep 5
+        done
+        for model in qwen2.5:7b-instruct llama3.1:8b gemma2:9b; do
+          echo "Baixando $$model"
+          ollama pull "$$model"
+        done
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    networks:
+      nexus360_internal:
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: none
 
   # Qdrant e MinIO — adicione quando precisar de vector store ou file storage
   # qdrant:

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
-import { runAiCoreChat } from "../services/aiCoreClient.js";
+import { runGovernedAiText } from "../services/aiExecution.js";
 import { sanitizeStoredHtml } from "../utils/security.js";
 
 export function marketingRoutes(prisma: PrismaClient) {
@@ -165,16 +165,17 @@ Retorne APENAS um JSON válido com esta estrutura exata:
   "metaDescription": "Descrição SEO"
 }`;
 
-      const groqResponse = await runAiCoreChat({
+      const groqResponse = await runGovernedAiText(prisma, {
         system: "lp-generator",
-        clientId: orgId,
-        agent: "lp-generator",
+        organizationId: orgId,
+        userId: req.user?.id,
+        agentKey: "lp-generator",
         message: prompt,
         temperature: 0.7,
         maxTokens: 8192,
       });
 
-      const aiContent = JSON.parse(groqResponse.response);
+      const aiContent = JSON.parse(groqResponse.result.response);
 
       // ---- STEP 2: Gerar o HTML completo da Landing Page ----
       const primaryColor = colorPrimary || '#2563eb';

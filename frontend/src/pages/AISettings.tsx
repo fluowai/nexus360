@@ -15,6 +15,16 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 
+type AiModel = {
+  id: string;
+  displayName: string;
+  modelId: string;
+  provider: string;
+  runtime: string;
+  isSelfHosted: boolean;
+  creditCost: number;
+};
+
 const AISettings: React.FC = () => {
   const [settings, setSettings] = useState({
     geminiKey: '',
@@ -27,6 +37,7 @@ const AISettings: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [models, setModels] = useState<AiModel[]>([]);
 
   useEffect(() => {
     fetchSettings();
@@ -45,6 +56,11 @@ const AISettings: React.FC = () => {
           togetherKey: data.togetherKey || '',
           aiProvider: data.aiProvider || 'gemini'
         });
+      }
+      const modelsResponse = await apiFetch('/api/ai/available-models?capability=chat');
+      if (modelsResponse.ok) {
+        const modelsData = await modelsResponse.json();
+        setModels(modelsData.models || []);
       }
     } catch (error) {
       console.error("Failed to fetch settings");
@@ -83,6 +99,30 @@ const AISettings: React.FC = () => {
         <h1 className="text-3xl font-black text-gray-900 mb-2 tracking-tight">Configurações de I.A. & Prospecção</h1>
         <p className="text-gray-500">Gerencie seus provedores de inteligência artificial e conectores de dados.</p>
       </header>
+
+      <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-xl shadow-gray-100/50">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-black text-gray-950">Modelos disponiveis no seu plano</h2>
+            <p className="text-sm font-medium text-gray-500">LLMs auto-hospedadas e provedores externos liberados pela sua assinatura.</p>
+          </div>
+          <Cpu className="text-emerald-600" size={24} />
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {models.map((model) => (
+            <div key={model.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase text-gray-500">{model.provider}</span>
+                {model.isSelfHosted && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase text-emerald-700">local</span>}
+              </div>
+              <p className="font-black text-gray-950">{model.displayName}</p>
+              <p className="mt-1 text-xs font-medium text-gray-500">{model.modelId}</p>
+              <p className="mt-3 text-xs font-bold text-gray-600">{model.creditCost} credito/base</p>
+            </div>
+          ))}
+          {models.length === 0 && <p className="text-sm font-bold text-gray-400">Nenhum modelo retornado para este plano.</p>}
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Gemini Card */}

@@ -7,10 +7,12 @@ import {
   assertAiUsageAllowed,
   createAiRequestId,
   ensureDefaultAiGovernance,
+  listAvailableAiModels,
   listAiModels,
   recordAiUsage,
   syncAiModelsFromCore,
 } from "../services/aiGovernance.js";
+import { runGovernedAiText } from "../services/aiExecution.js";
 
 export function aiRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -28,65 +30,19 @@ export function aiRoutes(prisma: PrismaClient) {
     maxTokens?: number;
     system?: string;
   }) {
-    const requestId = createAiRequestId();
-    const startedAt = Date.now();
-    const allowed = await assertAiUsageAllowed(prisma, {
+    return runGovernedAiText(prisma, {
       organizationId: input.orgId,
       userId: input.userId,
       clientId: input.clientId,
       agentKey: input.agent,
-      modelName: input.model,
-      channel: input.channel || "nexus",
+      channel: input.channel,
+      message: input.message,
+      context: input.context,
+      model: input.model,
+      temperature: input.temperature,
+      maxTokens: input.maxTokens,
+      system: input.system,
     });
-    try {
-      const result = await runAiCoreChat({
-        system: input.system || "nexus",
-        clientId: input.clientId,
-        userId: input.userId,
-        agent: input.agent,
-        channel: input.channel || "nexus",
-        message: input.message,
-        context: input.context,
-        model: allowed.model.modelId,
-        temperature: input.temperature,
-        maxTokens: input.maxTokens || allowed.agent?.maxTokens,
-      });
-      await recordAiUsage(prisma, {
-        requestId,
-        organizationId: input.orgId,
-        userId: input.userId,
-        clientId: input.clientId,
-        agentKey: input.agent,
-        channel: input.channel || "nexus",
-        modelName: result.usage.model,
-        provider: result.usage.provider,
-        tokensIn: result.usage.tokensIn,
-        tokensOut: result.usage.tokensOut,
-        totalTokens: result.usage.tokens,
-        credits: result.usage.credits,
-        durationMs: result.usage.latencyMs,
-        status: "success",
-      }).catch((error) => console.warn("[AI_USAGE_LEDGER_WARN]", error?.message || error));
-      return { requestId, result };
-    } catch (error: any) {
-      await recordAiUsage(prisma, {
-        requestId,
-        organizationId: input.orgId,
-        userId: input.userId,
-        clientId: input.clientId,
-        agentKey: input.agent,
-        channel: input.channel || "nexus",
-        modelName: input.model || allowed.model.modelId,
-        tokensIn: 0,
-        tokensOut: 0,
-        totalTokens: 0,
-        credits: 0,
-        durationMs: Date.now() - startedAt,
-        status: error?.code === "AI_QUOTA_EXCEEDED" ? "blocked" : "error",
-        errorMessage: error?.message || "AI Core indisponivel",
-      }).catch((usageError) => console.warn("[AI_USAGE_LEDGER_WARN]", usageError?.message || usageError));
-      throw error;
-    }
   }
 
   router.get("/models", async (_req: AuthRequest, res) => {
@@ -95,6 +51,18 @@ export function aiRoutes(prisma: PrismaClient) {
       res.json({ models });
     } catch (error: any) {
       res.status(500).json({ error: "Falha ao listar modelos de IA", details: error?.message });
+    }
+  });
+
+  router.get("/available-models", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+    try {
+      const capability = String(req.query.capability || "chat");
+      const models = await listAvailableAiModels(prisma, orgId, capability);
+      res.json({ models });
+    } catch (error: any) {
+      res.status(500).json({ error: "Falha ao listar modelos disponiveis", details: error?.message });
     }
   });
 

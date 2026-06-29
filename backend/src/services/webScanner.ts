@@ -1,6 +1,8 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { PrismaClient } from "@prisma/client";
 import { runAiCoreChat } from "./aiCoreClient.js";
+import { runGovernedAiText } from "./aiExecution.js";
 
 export interface ScanInput {
   companyName: string;
@@ -80,7 +82,7 @@ async function fetchViaCheerio(url: string): Promise<{ text: string; products: s
   }
 }
 
-export async function scanClient(input: ScanInput, serperKey: string, groqKey?: string, orgId?: string): Promise<ScanResult> {
+export async function scanClient(input: ScanInput, serperKey: string, groqKey?: string, orgId?: string, prisma?: PrismaClient): Promise<ScanResult> {
   const { companyName, website, instagram, cnpj, segment } = input;
 
   const googleQuery = `${companyName} ${segment || ""} ${cnpj ? `CNPJ ${cnpj}` : ""}`.trim();

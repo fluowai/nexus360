@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
-import { runAiCoreChat } from "../services/aiCoreClient.js";
+import { runGovernedAiText } from "../services/aiExecution.js";
 
 export function orgSettingsRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -333,16 +333,16 @@ EXEMPLO DE FORMATO (para uma clínica):
 
 RESPOSTA (apenas JSON válido):`;
 
-      const aiResult = await runAiCoreChat({
+      const aiResult = await runGovernedAiText(prisma, {
         system: "onboarding-pipelines",
-        clientId: orgId,
-        agent: "onboarding-pipelines",
+        organizationId: orgId,
+        agentKey: "onboarding-pipelines",
         message: prompt,
         temperature: 0.4,
         maxTokens: 2048,
       });
 
-      const text = aiResult.response || "[]";
+      const text = aiResult.result.response || "[]";
       const parsed = JSON.parse(text.trim());
       const pipelines = parsed.pipelines || parsed;
       if (Array.isArray(pipelines) && pipelines.length > 0) {

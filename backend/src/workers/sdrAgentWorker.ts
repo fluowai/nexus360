@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import axios from "axios";
-import { runAiCoreChat } from "../services/aiCoreClient.js";
+import { runGovernedAiText } from "../services/aiExecution.js";
 import { convertProspectingRunToCrm } from "../services/prospectingCrm.js";
 import {
   detectOptOut,
@@ -162,17 +162,17 @@ export class SdrAgentWorker {
     ].join("\n");
 
     try {
-      const result = await runAiCoreChat({
+      const result = await runGovernedAiText(this.prisma, {
         system: systemPrompt,
         message: leadMessage,
         model: process.env.AI_CORE_SDR_MODEL || "llama-local",
         temperature: 0.35,
         maxTokens: 220,
-        clientId: run.organizationId,
-        agent: "sdr-agent",
+        organizationId: run.organizationId,
+        agentKey: "sdr-agent",
       });
 
-      return result.response.trim();
+      return result.result.response.trim();
     } catch {
       if (intent.wantsHuman) return "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui.";
       return "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";

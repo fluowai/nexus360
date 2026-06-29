@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { runAiCoreChat } from "./aiCoreClient.js";
+import { runGovernedAiText } from "./aiExecution.js";
 
 type RewriteResult = {
   text: string;
@@ -32,17 +32,17 @@ export class MessageRewriteService {
     ].join("\n");
 
     try {
-      const result = await runAiCoreChat({
+      const result = await runGovernedAiText(this.prisma, {
         system: systemPrompt,
         message: original,
         model: process.env.AI_CORE_REWRITE_MODEL || "llama-local",
         temperature: 0.35,
         maxTokens: 500,
-        clientId: organizationId,
-        agent: "message-rewrite",
+        organizationId,
+        agentKey: "message-rewrite",
       });
 
-      const rewritten = result.response.trim();
+      const rewritten = result.result.response.trim();
       if (!rewritten) {
         return { text: original, applied: false, provider: "ai-core", reason: "empty_ai_response" };
       }

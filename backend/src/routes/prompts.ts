@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
-import { runAiCoreChat } from "../services/aiCoreClient.js";
+import { runGovernedAiText } from "../services/aiExecution.js";
 
 export function promptRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -42,17 +42,18 @@ export function promptRoutes(prisma: PrismaClient) {
       O resultado deve ser um documento Markdown estruturado com: Contexto, Objetivo, UX/UI, Stack Técnica, Funcionalidades Detalhadas, Banco de Dados, Segurança e Critérios de Aceite.
       `;
 
-      const result = await runAiCoreChat({
+      const result = await runGovernedAiText(prisma, {
         system: systemPrompt,
         message: userPrompt,
         model: process.env.AI_CORE_PROMPT_MODEL || "llama-local",
         temperature: 0.7,
         maxTokens: 4096,
-        clientId: orgId,
-        agent: "prompt-generator",
+        organizationId: orgId,
+        userId: req.user?.id,
+        agentKey: "prompt-generator",
       });
 
-      const generatedPrompt = result.response;
+      const generatedPrompt = result.result.response;
 
       const savedPrompt = await prisma.generatedPrompt.create({
         data: {
@@ -63,7 +64,7 @@ export function promptRoutes(prisma: PrismaClient) {
           inputData: req.body || {},
           generatedContent: generatedPrompt,
           modelProvider: "ai-core",
-          modelName: result.usage.model,
+          modelName: result.result.usage.model,
         }
       });
 
@@ -102,16 +103,17 @@ export function promptRoutes(prisma: PrismaClient) {
       }
       Sugira pelo menos 6 serviços comuns e relevantes para este nicho específico.`;
 
-      const result = await runAiCoreChat({
+      const result = await runGovernedAiText(prisma, {
         message: prompt,
         model: process.env.AI_CORE_SUGGEST_MODEL || "llama-local",
         temperature: 0.7,
         maxTokens: 2048,
-        clientId: orgId,
-        agent: "suggest-context",
+        organizationId: orgId,
+        userId: req.user?.id,
+        agentKey: "suggest-context",
       });
 
-      const suggestion = JSON.parse(result.response);
+      const suggestion = JSON.parse(result.result.response);
       res.json(suggestion);
     } catch (error) {
       console.error("[SUGGEST_ERROR]", error);

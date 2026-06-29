@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { runAiCoreChat } from "./aiCoreClient.js";
+import { runGovernedAiText } from "./aiExecution.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
 
 type ClassificationInput = {
@@ -116,7 +116,7 @@ function fallbackClassification(input: ClassificationInput, transcript?: string 
   return { category: "conversa", labels: uniqueLabels(labels), summary: "Conversa individual ainda sem classificacao comercial forte.", transcript, confidence: 0.42 };
 }
 
-async function aiClassification(input: ClassificationInput, transcript?: string | null) {
+async function aiClassification(prisma: PrismaClient, input: ClassificationInput, transcript?: string | null) {
   const text = (input.text || transcript || "").trim();
   if (!text) return null;
 
@@ -139,15 +139,16 @@ Mensagem:
 ${text}`;
 
   try {
-    const result = await runAiCoreChat({
+    const result = await runGovernedAiText(prisma, {
       system: "whatsapp-classifier",
-      clientId: input.organizationId,
-      agent: "whatsapp-classifier",
+      organizationId: input.organizationId,
+      clientId: input.leadId || undefined,
+      agentKey: "whatsapp-classifier",
       message: prompt,
       temperature: 0.2,
       maxTokens: 1024,
     });
-    const parsed = parseJsonObject<ClassificationResult>(result.response);
+    const parsed = parseJsonObject<ClassificationResult>(result.result.response);
     if (!parsed) return null;
     return {
       category: parsed.category || "conversa",
@@ -209,7 +210,7 @@ export async function classifyAndTagWhatsAppConversation(prisma: PrismaClient, i
     ? await transcribeAudio(process.env.GROQ_API_KEY, input.fileUrl, input.mimeType)
     : null;
   const classification =
-    await aiClassification(input, transcript) ||
+    await aiClassification(prisma, input, transcript) ||
     fallbackClassification(input, transcript);
   const labels = uniqueLabels(classification.labels.length ? classification.labels : ["WhatsApp"]);
 

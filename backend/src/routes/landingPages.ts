@@ -18,6 +18,56 @@ function generateSlug(name: string): string {
     .slice(0, 80);
 }
 
+function addMinutes(date: Date, minutes: number): Date {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+function isValidFutureDate(date: Date): boolean {
+  return !Number.isNaN(date.getTime()) && date.getTime() > Date.now() + 5 * 60 * 1000;
+}
+
+async function resolveLandingScheduleOwner(prisma: PrismaClient, organizationId: string) {
+  const [agenda, user] = await Promise.all([
+    prisma.agenda.findFirst({
+      where: {
+        organizationId,
+        OR: [
+          { name: { contains: "TGA", mode: "insensitive" } },
+          { name: { contains: "SDR", mode: "insensitive" } },
+          { name: { contains: "Comercial", mode: "insensitive" } },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.user.findFirst({
+      where: {
+        organizationId,
+        status: "ACTIVE",
+        OR: [
+          { name: { contains: "Ana Cristina", mode: "insensitive" } },
+          { department: { contains: "SDR", mode: "insensitive" } },
+          { department: { contains: "Comercial", mode: "insensitive" } },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    }),
+  ]);
+
+  const resolvedAgenda = agenda || await prisma.agenda.create({
+    data: {
+      name: "Agenda TGA - Landing Pages",
+      color: "#08aeea",
+      organizationId,
+    },
+  });
+
+  return {
+    agendaId: resolvedAgenda.id,
+    userId: user?.id || null,
+  };
+}
+
 function ensureUniqueSlug(prisma: PrismaClient, baseSlug: string, orgId: string, excludeId?: string): Promise<string> {
   const trySlug = async (slug: string, attempt: number): Promise<string> => {
     const existing = await prisma.landingPage.findUnique({ where: { slug } });
@@ -536,8 +586,19 @@ export function landingPageRoutes(prisma: PrismaClient) {
       const page = await prisma.landingPage.findUnique({ where: { slug: req.params.slug } });
       if (!page) return res.status(404).json({ error: "Página não encontrada" });
 
-      const { name, email, phone, message, utmSource, utmMedium, utmCampaign } = req.body;
+      const { name, email, phone, message, utmSource, utmMedium, utmCampaign, quiz, score, scheduledAt, qualified } = req.body;
       if (!name || !email) return res.status(400).json({ error: "Nome e e-mail são obrigatórios" });
+
+      const numericScore = Math.max(0, Math.min(100, Number(score) || 0));
+      const quizData = quiz && typeof quiz === "object" ? quiz : {};
+      const isQualified = Boolean(qualified) || numericScore >= 70;
+      const requestedStart = scheduledAt ? new Date(scheduledAt) : null;
+      const canSchedule = isQualified && requestedStart && isValidFutureDate(requestedStart);
+      const quizNotes = Object.keys(quizData).length
+        ? `\n\nQuiz de qualificacao TGA:\n${Object.entries(quizData).map(([key, value]) => `- ${key}: ${Array.isArray(value) ? value.join(", ") : value}`).join("\n")}\nScore: ${numericScore}/100`
+        : numericScore > 0
+          ? `\n\nScore de qualificacao TGA: ${numericScore}/100`
+          : "";
 
       const lead = await prisma.lead.create({
         data: {
@@ -546,10 +607,12 @@ export function landingPageRoutes(prisma: PrismaClient) {
           phone: phone || "",
           source: `landing-page:${page.slug}`,
           channel: "Landing Page",
-          notes: message || "",
+          notes: `${message || ""}${quizNotes}`,
           organizationId: page.organizationId,
-          status: "novo",
-          tags: `landing-page,${page.name}`,
+          status: isQualified ? "qualificado" : "novo",
+          tags: `landing-page,${page.name},score:${numericScore},${isQualified ? "qualificado" : "nutricao"}`,
+          temperature: numericScore >= 80 ? "HOT" : numericScore >= 55 ? "WARM" : "COLD",
+          score: numericScore,
         },
       });
 
@@ -561,28 +624,71 @@ export function landingPageRoutes(prisma: PrismaClient) {
         },
       });
 
-      await prisma.opportunity.create({
+      const opportunity = await prisma.opportunity.create({
         data: {
           title: `Lead: ${name} - ${page.name}`,
+          description: `${message || ""}${quizNotes}`,
           organizationId: page.organizationId,
           clientId: "",
           assignedToId: undefined,
           stage: "qualificacao",
+          probability: isQualified ? 70 : 25,
+          temperature: numericScore >= 80 ? "HOT" : numericScore >= 55 ? "WARM" : "COLD",
+          score: numericScore,
           value: 0,
         },
       }).catch(() => {});
+
+      let calendarEvent = null;
+      if (canSchedule && requestedStart) {
+        const { agendaId, userId } = await resolveLandingScheduleOwner(prisma, page.organizationId);
+        calendarEvent = await prisma.calendarEvent.create({
+          data: {
+            title: `Call diagnostico TGA - ${name}`,
+            description: [
+              `Lead qualificado pela landing page: ${page.name}`,
+              `Score: ${numericScore}/100`,
+              phone ? `WhatsApp: ${phone}` : null,
+              email ? `E-mail: ${email}` : null,
+              message ? `Farmacia/observacao: ${message}` : null,
+              Object.keys(quizData).length ? `Quiz: ${JSON.stringify(quizData)}` : null,
+            ].filter(Boolean).join("\n"),
+            startDate: requestedStart,
+            endDate: addMinutes(requestedStart, 30),
+            allDay: false,
+            type: "reunion",
+            status: "scheduled",
+            reminder: 30,
+            leadId: lead.id,
+            userId: userId || undefined,
+            agendaId,
+            organizationId: page.organizationId,
+          },
+        });
+      }
 
       emitAutomationEvent("landing_page.lead", {
         organizationId: page.organizationId,
         pageId: page.id,
         slug: page.slug,
         leadId: lead.id,
+        opportunityId: opportunity?.id,
+        calendarEventId: calendarEvent?.id,
+        score: numericScore,
+        qualified: isQualified,
         utmSource,
         utmMedium,
         utmCampaign,
       });
 
-      res.json({ success: true, message: "Lead cadastrado com sucesso!" });
+      res.json({
+        success: true,
+        message: calendarEvent ? "Diagnostico agendado com sucesso!" : "Lead cadastrado com sucesso!",
+        leadId: lead.id,
+        score: numericScore,
+        qualified: isQualified,
+        calendarEvent,
+      });
     } catch (error) {
       next(error);
     }

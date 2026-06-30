@@ -32,6 +32,8 @@ async function resolveLandingScheduleOwner(prisma: PrismaClient, organizationId:
       where: {
         organizationId,
         OR: [
+          { name: { contains: "Closer", mode: "insensitive" } },
+          { name: { contains: "V5", mode: "insensitive" } },
           { name: { contains: "TGA", mode: "insensitive" } },
           { name: { contains: "SDR", mode: "insensitive" } },
           { name: { contains: "Comercial", mode: "insensitive" } },
@@ -44,9 +46,11 @@ async function resolveLandingScheduleOwner(prisma: PrismaClient, organizationId:
         organizationId,
         status: "ACTIVE",
         OR: [
+          { name: { contains: "Closer", mode: "insensitive" } },
+          { department: { contains: "Closer", mode: "insensitive" } },
+          { department: { contains: "Comercial", mode: "insensitive" } },
           { name: { contains: "Ana Cristina", mode: "insensitive" } },
           { department: { contains: "SDR", mode: "insensitive" } },
-          { department: { contains: "Comercial", mode: "insensitive" } },
         ],
       },
       orderBy: { createdAt: "asc" },
@@ -56,8 +60,8 @@ async function resolveLandingScheduleOwner(prisma: PrismaClient, organizationId:
 
   const resolvedAgenda = agenda || await prisma.agenda.create({
     data: {
-      name: "Agenda TGA - Landing Pages",
-      color: "#08aeea",
+      name: "Agenda Closer - Landing Pages",
+      color: "#7b2cff",
       organizationId,
     },
   });
@@ -593,11 +597,11 @@ export function landingPageRoutes(prisma: PrismaClient) {
       const quizData = quiz && typeof quiz === "object" ? quiz : {};
       const isQualified = Boolean(qualified) || numericScore >= 70;
       const requestedStart = scheduledAt ? new Date(scheduledAt) : null;
-      const canSchedule = isQualified && requestedStart && isValidFutureDate(requestedStart);
+      const canSchedule = requestedStart && isValidFutureDate(requestedStart);
       const quizNotes = Object.keys(quizData).length
-        ? `\n\nQuiz de qualificacao TGA:\n${Object.entries(quizData).map(([key, value]) => `- ${key}: ${Array.isArray(value) ? value.join(", ") : value}`).join("\n")}\nScore: ${numericScore}/100`
+        ? `\n\nPre-diagnostico da landing page:\n${Object.entries(quizData).map(([key, value]) => `- ${key}: ${Array.isArray(value) ? value.join(", ") : value}`).join("\n")}\nScore: ${numericScore}/100`
         : numericScore > 0
-          ? `\n\nScore de qualificacao TGA: ${numericScore}/100`
+          ? `\n\nScore de pre-diagnostico: ${numericScore}/100`
           : "";
 
       const lead = await prisma.lead.create({
@@ -644,13 +648,13 @@ export function landingPageRoutes(prisma: PrismaClient) {
         const { agendaId, userId } = await resolveLandingScheduleOwner(prisma, page.organizationId);
         calendarEvent = await prisma.calendarEvent.create({
           data: {
-            title: `Call diagnostico TGA - ${name}`,
+            title: `Call de diagnostico - ${name}`,
             description: [
               `Lead qualificado pela landing page: ${page.name}`,
               `Score: ${numericScore}/100`,
               phone ? `WhatsApp: ${phone}` : null,
               email ? `E-mail: ${email}` : null,
-              message ? `Farmacia/observacao: ${message}` : null,
+              message ? `Observacao: ${message}` : null,
               Object.keys(quizData).length ? `Quiz: ${JSON.stringify(quizData)}` : null,
             ].filter(Boolean).join("\n"),
             startDate: requestedStart,

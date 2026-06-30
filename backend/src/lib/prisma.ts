@@ -5,7 +5,19 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function getDatabaseUrl() {
-  const rawUrl = process.env.DATABASE_URL;
+  const sanitizeUrl = (value?: string) => {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    return trimmed.replace(/^(['"])(.*)\1$/, '$2').trim();
+  };
+
+  const candidates = [
+    sanitizeUrl(process.env.DATABASE_URL),
+    sanitizeUrl(process.env.DIRECT_URL),
+    sanitizeUrl(process.env.SUPABASE_DB_URL),
+  ].filter((value): value is string => Boolean(value));
+
+  const rawUrl = candidates.find((value) => value.startsWith('postgresql://') || value.startsWith('postgres://'));
   if (!rawUrl) return undefined;
 
   try {

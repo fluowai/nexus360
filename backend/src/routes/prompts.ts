@@ -45,7 +45,7 @@ export function promptRoutes(prisma: PrismaClient) {
       const result = await runGovernedAiText(prisma, {
         system: systemPrompt,
         message: userPrompt,
-        model: process.env.AI_CORE_PROMPT_MODEL || "llama-local",
+        model: process.env.AI_CORE_PROMPT_MODEL || "gpt-4o-mini",
         temperature: 0.7,
         maxTokens: 4096,
         organizationId: orgId,
@@ -105,7 +105,7 @@ export function promptRoutes(prisma: PrismaClient) {
 
       const result = await runGovernedAiText(prisma, {
         message: prompt,
-        model: process.env.AI_CORE_SUGGEST_MODEL || "llama-local",
+        model: process.env.AI_CORE_SUGGEST_MODEL || "gpt-4o-mini",
         temperature: 0.7,
         maxTokens: 2048,
         organizationId: orgId,

@@ -1,19 +1,4 @@
 model_list:
-  - model_name: qwen-local
-    litellm_params:
-      model: ollama/qwen2.5:7b-instruct
-      api_base: http://ollama:11434
-
-  - model_name: llama-local
-    litellm_params:
-      model: ollama/llama3.1:8b
-      api_base: http://ollama:11434
-
-  - model_name: gemma-local
-    litellm_params:
-      model: ollama/gemma2:9b
-      api_base: http://ollama:11434
-
   - model_name: gpt-4o-mini
     litellm_params:
       model: openai/gpt-4o-mini

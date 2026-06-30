@@ -61,10 +61,10 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: "${SUPABASE_SERVICE_ROLE_KEY:-}"
       SUPABASE_JWT_SECRET: "${JWT_SECRET:?JWT_SECRET obrigatorio}"
 
-      # AI Core self-hosted + provedores externos opcionais
+      # AI Core via API compativel com OpenAI + provedores externos opcionais
       AI_CORE_URL: "${AI_CORE_URL:-http://litellm:4000/v1}"
       AI_CORE_API_KEY: "${AI_CORE_API_KEY:-}"
-      AI_CORE_DEFAULT_MODEL: "${AI_CORE_DEFAULT_MODEL:-qwen-local}"
+      AI_CORE_DEFAULT_MODEL: "${AI_CORE_DEFAULT_MODEL:-gpt-4o-mini}"
       LITELLM_MASTER_KEY: "${LITELLM_MASTER_KEY:-}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       GROQ_API_KEY: "${GROQ_API_KEY:-}"
@@ -160,45 +160,6 @@ services:
       labels:
         - "traefik.enable=false"
 
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ai_core_ollama:/root/.ollama
-    networks:
-      nexus360_internal:
-        aliases:
-          - ollama
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-      resources:
-        limits:
-          memory: 12G
-
-  ollama-model-pull:
-    image: ollama/ollama:latest
-    command:
-      - /bin/sh
-      - -lc
-      - |
-        until ollama list >/dev/null 2>&1; do
-          echo "Aguardando Ollama..."
-          sleep 5
-        done
-        for model in qwen2.5:7b-instruct llama3.1:8b gemma2:9b; do
-          echo "Baixando $$model"
-          ollama pull "$$model"
-        done
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    networks:
-      - nexus360_internal
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: none
-
 configs:
   litellm_config:
     file: ./litellm.config.yaml
@@ -206,8 +167,6 @@ configs:
 volumes:
   google_maps_scraper_data:
     name: nexus360_google_maps_scraper_data
-  ai_core_ollama:
-    name: nexus360_ai_core_ollama
 
 networks:
   woopanel1:

@@ -113,7 +113,7 @@ const AISettings: React.FC = () => {
             <div key={model.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black uppercase text-gray-500">{model.provider}</span>
-                {model.isSelfHosted && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase text-emerald-700">local</span>}
+                {model.isSelfHosted && <span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black uppercase text-gray-600">desativado</span>}
               </div>
               <p className="font-black text-gray-950">{model.displayName}</p>
               <p className="mt-1 text-xs font-medium text-gray-500">{model.modelId}</p>

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getInternalWorkspaceUrls } from "./domainConfig.js";
+import { logger } from "./logger.js";
 
 const RESERVED_WORKSPACE_SLUGS = new Set([
   "admin",
@@ -59,23 +60,32 @@ export async function findVerifiedTenantDomain(prisma: PrismaClient, hostValue: 
   const host = normalizeRequestHost(hostValue);
   if (!host) return null;
 
-  const domain = await prisma.domain.findFirst({
-    where: { name: host, status: "verified" },
-    include: {
-      organization: {
-        select: { id: true, name: true, slug: true, type: true, settings: true, whiteLabelConfig: true },
+  try {
+    const domain = await prisma.domain.findFirst({
+      where: { name: host, status: "verified" },
+      include: {
+        organization: {
+          select: { id: true, name: true, slug: true, type: true, settings: true, whiteLabelConfig: true },
+        },
       },
-    },
-  });
+    });
 
-  if (!domain) return null;
+    if (!domain) return null;
 
-  return {
-    host,
-    domain: domain.name,
-    status: domain.status,
-    organization: domain.organization,
-  };
+    return {
+      host,
+      domain: domain.name,
+      status: domain.status,
+      organization: domain.organization,
+    };
+  } catch (error: any) {
+    logger.error("TenantHost", "Failed to resolve verified domain", {
+      host,
+      code: error?.code,
+      message: error?.message || error,
+    });
+    return null;
+  }
 }
 
 export async function findTenantHostContext(prisma: PrismaClient, hostValue: string | string[] | undefined) {
@@ -126,8 +136,17 @@ export async function findTenantDomainStatus(prisma: PrismaClient, hostValue: st
   const host = normalizeRequestHost(hostValue);
   if (!host) return null;
 
-  return prisma.domain.findUnique({
-    where: { name: host },
-    select: { name: true, status: true, organizationId: true },
-  });
+  try {
+    return await prisma.domain.findUnique({
+      where: { name: host },
+      select: { name: true, status: true, organizationId: true },
+    });
+  } catch (error: any) {
+    logger.error("TenantHost", "Failed to resolve domain status", {
+      host,
+      code: error?.code,
+      message: error?.message || error,
+    });
+    return null;
+  }
 }

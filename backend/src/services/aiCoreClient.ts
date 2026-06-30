@@ -31,15 +31,15 @@ type AiCoreChatResult = {
 };
 
 function aiCoreBaseUrl() {
-  return (process.env.AI_CORE_URL || "http://litellm:4000/v1").replace(/\/+$/, "");
+  return (process.env.AI_CORE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
 }
 
 function aiCoreApiKey() {
-  return process.env.AI_CORE_API_KEY || process.env.LITELLM_MASTER_KEY || "nexus-local-dev-key";
+  return process.env.AI_CORE_API_KEY || process.env.OPENAI_API_KEY || "";
 }
 
 function defaultModel() {
-  return process.env.AI_CORE_DEFAULT_MODEL || "qwen-local";
+  return process.env.AI_CORE_DEFAULT_MODEL || "gpt-4o-mini";
 }
 
 function estimateCredits(tokens: number, hasContext: boolean) {

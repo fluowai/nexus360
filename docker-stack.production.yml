@@ -66,9 +66,9 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl3dmhmZ3ZsbmJpZ2ZtZXJpbGNxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzUwNjI5MSwiZXhwIjoyMDkzMDgyMjkxfQ.wIihcD0zm4rqQwvur7Smzy3-5sc0YJgTWwSQR5u47AE"
       SUPABASE_JWT_SECRET: "MTluDh9gIwUTonk9op8kRc3B/cYihNKj2RYPL8+0D1F6iCykx2shnfvPJLmJsJ/cn0z81JFY52G5os0hFjokuQ=="
 
-      # Self-hosted AI Core (LiteLLM + Ollama)
+      # AI Core via API compativel com OpenAI
       AI_CORE_URL: "http://litellm:4000/v1"
-      AI_CORE_DEFAULT_MODEL: "qwen-local"
+      AI_CORE_DEFAULT_MODEL: "gpt-4o-mini"
 
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -151,22 +151,6 @@ services:
       labels:
         - "traefik.enable=false"
 
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ai_core_ollama:/root/.ollama
-    networks:
-      nexus360_internal:
-        aliases:
-          - ollama
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: any
-      resources:
-        limits:
-          memory: 12G
-
   # Qdrant (vector store) e MinIO (file storage) — adicione quando necessario
   # qdrant:
   #   image: qdrant/qdrant:latest
@@ -205,8 +189,6 @@ configs:
 volumes:
   google_maps_scraper_data:
     name: nexus360_google_maps_scraper_data
-  ai_core_ollama:
-    name: nexus360_ai_core_ollama
   # ai_core_qdrant:
   #   name: nexus360_ai_core_qdrant
   # ai_core_minio:

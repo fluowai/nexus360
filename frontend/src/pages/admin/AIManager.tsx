@@ -262,7 +262,7 @@ export default function AdminAI() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-950">AI Core & Modelos Auto-hospedados</h1>
+          <h1 className="text-2xl font-bold text-gray-950">AI Core & Modelos</h1>
           <p className="text-sm text-gray-500">Modelos, agentes, cotas, rebilling e consumo da IA da Nexus.</p>
         </div>
         <button
@@ -300,7 +300,7 @@ export default function AdminAI() {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-bold text-gray-950">{model.displayName || model.name}</p>
                   {model.isDefault && <Badge tone="blue">Padrao</Badge>}
-                  {model.isSelfHosted && <Badge tone="emerald">Auto-hospedado</Badge>}
+                  {model.isSelfHosted && <Badge tone="gray">Desativado</Badge>}
                 </div>
                 <p className="mt-1 text-xs text-gray-500">{model.modelId}</p>
               </div>

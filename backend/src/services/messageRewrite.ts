@@ -35,7 +35,7 @@ export class MessageRewriteService {
       const result = await runGovernedAiText(this.prisma, {
         system: systemPrompt,
         message: original,
-        model: process.env.AI_CORE_REWRITE_MODEL || "llama-local",
+        model: process.env.AI_CORE_REWRITE_MODEL || "gpt-4o-mini",
         temperature: 0.35,
         maxTokens: 500,
         organizationId,

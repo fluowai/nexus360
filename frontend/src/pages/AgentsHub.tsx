@@ -306,7 +306,7 @@ const AgentsHub: React.FC<{ selectedClientId?: string | null }> = ({ selectedCli
                   {models.length === 0 && <option value="">Modelo padrao do plano</option>}
                   {models.map((model) => (
                     <option key={model.id} value={model.modelId}>
-                      {model.displayName} {model.isSelfHosted ? "(local)" : `(${model.provider})`}
+                      {model.displayName} ({model.provider})
                     </option>
                   ))}
                 </select>

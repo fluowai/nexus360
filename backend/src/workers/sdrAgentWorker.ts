@@ -165,7 +165,7 @@ export class SdrAgentWorker {
       const result = await runGovernedAiText(this.prisma, {
         system: systemPrompt,
         message: leadMessage,
-        model: process.env.AI_CORE_SDR_MODEL || "llama-local",
+        model: process.env.AI_CORE_SDR_MODEL || "gpt-4o-mini",
         temperature: 0.35,
         maxTokens: 220,
         organizationId: run.organizationId,

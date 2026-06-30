@@ -188,7 +188,7 @@ ${productsServices.slice(0, 20).join("\n") || "Não foi possível identificar pr
     const result = await runAiCoreChat({
       system: "Você é um analista de inteligência de mercado e vendas B2B. Sua função é analisar empresas, identificar os decisores reais e gerar dossiês para a equipe comercial abordar.",
       message: groqPrompt,
-      model: "llama-local",
+      model: "gpt-4o-mini",
       temperature: 0.4,
       maxTokens: 4096,
       clientId: orgId,

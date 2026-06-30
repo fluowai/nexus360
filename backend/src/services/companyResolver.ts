@@ -260,7 +260,7 @@ export class CompanyResolverService {
       const result = await runAiCoreChat({
         system: "Você extrai nomes de pessoas e cargos de resultados de busca. Responda APENAS JSON.",
         message: `Empresa: ${companyName} (${legalName})\n\nResultados da busca:\n${searchText}\n\nExtraia nomes de pessoas que parecem ser sócios, diretores, CEOs, proprietários ou gerentes desta empresa. Retorne JSON: { "people": [{ "name": string, "role": string | null }] }`,
-        model: "llama-local",
+        model: "gpt-4o-mini",
         temperature: 0.1,
         maxTokens: 500,
         clientId: this.orgId,

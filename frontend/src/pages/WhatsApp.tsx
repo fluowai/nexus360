@@ -64,7 +64,6 @@ type LlmSettings = {
 };
 
 const providerCards = [
-  { id: "local", name: "Auto-hospedado", hint: "Modelos locais via LiteLLM/Ollama inclusos no plano." },
   { id: "groq", name: "Groq", hint: "Llama rapido para agentes e qualificacao." },
   { id: "gemini", name: "Gemini", hint: "Google AI para respostas longas e analise." },
   { id: "chatgpt", name: "ChatGPT", hint: "Configuracao separada para fluxos ChatGPT." },
@@ -72,7 +71,7 @@ const providerCards = [
 ];
 
 const blankLlms: LlmSettings = {
-  aiProvider: "local",
+  aiProvider: "gemini",
   groqKey: "",
   geminiKey: "",
   openaiKey: "",
@@ -345,7 +344,7 @@ export default function WhatsApp() {
     if (!res.ok) return;
     const data = await res.json();
     setLlms({
-      aiProvider: data.aiProvider || "local",
+      aiProvider: data.aiProvider === "local" ? "gemini" : data.aiProvider || "gemini",
       groqKey: data.groqKey || "",
       geminiKey: data.geminiKey || "",
       openaiKey: data.openaiKey || "",

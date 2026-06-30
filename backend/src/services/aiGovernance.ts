@@ -27,37 +27,6 @@ type AiUsageInput = AiScopeInput & {
 
 const DEFAULT_MODELS = [
   {
-    name: "qwen-local",
-    displayName: "Qwen Local 7B",
-    provider: "local",
-    runtime: "ollama",
-    modelId: "qwen-local",
-    contextWindow: 32768,
-    creditCost: 1,
-    capabilities: { chat: true, portuguese: true, selfHosted: true },
-    isDefault: true,
-  },
-  {
-    name: "llama-local",
-    displayName: "Llama Local 8B",
-    provider: "local",
-    runtime: "ollama",
-    modelId: "llama-local",
-    contextWindow: 8192,
-    creditCost: 1,
-    capabilities: { chat: true, reasoning: true, selfHosted: true },
-  },
-  {
-    name: "gemma-local",
-    displayName: "Gemma Local 9B",
-    provider: "local",
-    runtime: "ollama",
-    modelId: "gemma-local",
-    contextWindow: 8192,
-    creditCost: 1,
-    capabilities: { chat: true, content: true, selfHosted: true },
-  },
-  {
     name: "gpt-4o-mini",
     displayName: "OpenAI GPT-4o mini",
     provider: "openai",
@@ -66,6 +35,7 @@ const DEFAULT_MODELS = [
     contextWindow: 128000,
     creditCost: 3,
     capabilities: { chat: true, reasoning: true, external: true },
+    isDefault: true,
     isSelfHosted: false,
   },
   {
@@ -112,6 +82,15 @@ function startOfMonth(date = new Date()) {
 function normalizeModelPayload(raw: any) {
   const id = raw?.id || raw?.model_name || raw?.name || raw;
   return String(id || "").trim();
+}
+
+function isSelfHostedModelId(modelId: string) {
+  const normalized = modelId.toLowerCase();
+  return (
+    normalized.includes("ollama/") ||
+    normalized.includes("local") ||
+    ["qwen-local", "llama-local", "gemma-local"].includes(normalized)
+  );
 }
 
 function estimatedCost(model: any, tokensIn: number, tokensOut: number) {
@@ -173,23 +152,54 @@ export async function ensureDefaultAiGovernance(prisma: PrismaClient, organizati
         contextWindow: model.contextWindow,
         creditCost: model.creditCost,
         capabilities: model.capabilities,
-        isDefault: model.isDefault || (!existingDefault && model.modelId === "qwen-local"),
-        isSelfHosted: model.isSelfHosted ?? true,
+        isDefault: model.isDefault || (!existingDefault && model.modelId === "gpt-4o-mini"),
+        isSelfHosted: false,
       },
       create: {
         ...model,
         status: "active",
         healthStatus: "unknown",
-        isSelfHosted: model.isSelfHosted ?? true,
+        isSelfHosted: false,
       },
     });
   }
 
+  await prisma.aiModel.updateMany({
+    where: {
+      OR: [
+        { isSelfHosted: true },
+        { provider: "local" },
+        { runtime: "ollama" },
+        { modelId: { in: ["qwen-local", "llama-local", "gemma-local"] } },
+      ],
+    },
+    data: {
+      status: "inactive",
+      isDefault: false,
+      isSelfHosted: true,
+      healthStatus: "disabled",
+    },
+  });
+
   if (organizationId) {
     const defaultModel = await prisma.aiModel.findFirst({
-      where: { status: "active" },
+      where: { status: "active", isSelfHosted: false },
       orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     });
+    if (defaultModel) {
+      await prisma.aiAgent.updateMany({
+        where: {
+          organizationId,
+          OR: [
+            { model: { isSelfHosted: true } },
+            { model: { provider: "local" } },
+            { model: { runtime: "ollama" } },
+            { model: { modelId: { in: ["qwen-local", "llama-local", "gemma-local"] } } },
+          ],
+        },
+        data: { modelId: defaultModel.id },
+      });
+    }
     for (const agent of DEFAULT_AGENTS) {
       await prisma.aiAgent.upsert({
         where: { organizationId_key: { organizationId, key: agent.key } },
@@ -225,12 +235,13 @@ export async function syncAiModelsFromCore(prisma: PrismaClient) {
   for (const raw of models) {
     const modelId = normalizeModelPayload(raw);
     if (!modelId) continue;
+    if (isSelfHostedModelId(modelId)) continue;
     const model = await prisma.aiModel.upsert({
       where: { modelId },
       update: {
         name: modelId,
         displayName: modelId,
-        provider: "local",
+        provider: "external",
         runtime: "litellm",
         healthStatus: (health as any).ok ? "healthy" : "unknown",
         lastHealthAt: new Date(),
@@ -238,13 +249,13 @@ export async function syncAiModelsFromCore(prisma: PrismaClient) {
       create: {
         name: modelId,
         displayName: modelId,
-        provider: "local",
+        provider: "external",
         runtime: "litellm",
         modelId,
         status: "active",
         healthStatus: (health as any).ok ? "healthy" : "unknown",
         lastHealthAt: new Date(),
-        isSelfHosted: true,
+        isSelfHosted: false,
       },
     });
     synced.push(model);
@@ -252,7 +263,7 @@ export async function syncAiModelsFromCore(prisma: PrismaClient) {
 
   if (!models.length) {
     await prisma.aiModel.updateMany({
-      where: { provider: "local" },
+      where: { isSelfHosted: true },
       data: { healthStatus: (health as any).ok ? "healthy" : "unknown", lastHealthAt: new Date() },
     });
   }
@@ -263,6 +274,7 @@ export async function syncAiModelsFromCore(prisma: PrismaClient) {
 export async function listAiModels(prisma: PrismaClient) {
   await ensureDefaultAiGovernance(prisma);
   return prisma.aiModel.findMany({
+    where: { isSelfHosted: false },
     orderBy: [{ isDefault: "desc" }, { provider: "asc" }, { displayName: "asc" }],
   });
 }
@@ -275,7 +287,7 @@ export async function listAvailableAiModels(prisma: PrismaClient, organizationId
   });
   const aiSettings = planAiSettings(org?.planObj?.features);
   const models = await prisma.aiModel.findMany({
-    where: { status: "active" },
+    where: { status: "active", isSelfHosted: false },
     orderBy: [{ isDefault: "desc" }, { provider: "asc" }, { displayName: "asc" }],
   });
 
@@ -291,12 +303,15 @@ export async function resolveAiExecution(prisma: PrismaClient, input: AiScopeInp
 
   const requestedModel = input.modelName
     ? await prisma.aiModel.findFirst({
-        where: { OR: [{ modelId: input.modelName }, { name: input.modelName }, { id: input.modelName }] },
+        where: {
+          isSelfHosted: false,
+          OR: [{ modelId: input.modelName }, { name: input.modelName }, { id: input.modelName }],
+        },
       })
     : null;
 
   const model = requestedModel || agent?.model || await prisma.aiModel.findFirst({
-    where: { status: "active" },
+    where: { status: "active", isSelfHosted: false },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
   });
 

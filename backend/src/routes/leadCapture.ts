@@ -8,11 +8,171 @@ import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { ensureDefaultSalesPipeline, getInitialSalesStage } from "../services/crmPipeline.js";
 import { pickBestDecisionMaker, upsertDecisionMakersFromLead } from "../services/prospectingAutomation.js";
 import { enrollCapturedLeadsInFunnel } from "./prospectingFunnels.js";
+import { imageAI } from "../services/imageAI.js";
 
 function normalizeDocument(value: unknown) {
   if (typeof value !== "string") return value;
   const digits = value.replace(/\D/g, "");
   return digits || null;
+}
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80) || "site";
+}
+
+async function ensureUniqueLandingSlug(prisma: PrismaClient, baseSlug: string): Promise<string> {
+  const trySlug = async (slug: string, attempt: number): Promise<string> => {
+    const existing = await prisma.landingPage.findUnique({ where: { slug } });
+    if (!existing) return slug;
+    return trySlug(`${baseSlug}-${attempt}`, attempt + 1);
+  };
+  return trySlug(baseSlug, 1);
+}
+
+function appendNote(existing: string | null | undefined, note: string): string {
+  return [existing, note].filter(Boolean).join("\n\n");
+}
+
+function cleanPhone(value?: string | null) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function resolveSalesTheme(category?: string | null) {
+  const normalized = String(category || "").toLowerCase();
+  if (/psic|terap|sa[uú]de|clinic|medic|odont/.test(normalized)) {
+    return { primaryColor: "#0f766e", secondaryColor: "#115e59", accentColor: "#f59e0b", fontFamily: "'Inter', system-ui, sans-serif" };
+  }
+  if (/adv|jur|direito/.test(normalized)) {
+    return { primaryColor: "#1e293b", secondaryColor: "#b45309", accentColor: "#f59e0b", fontFamily: "'Inter', system-ui, sans-serif" };
+  }
+  if (/rest|bar|lanch|pizza|food|comida/.test(normalized)) {
+    return { primaryColor: "#b91c1c", secondaryColor: "#7f1d1d", accentColor: "#f97316", fontFamily: "'Inter', system-ui, sans-serif" };
+  }
+  if (/imob|constr|arquitet|engenh/.test(normalized)) {
+    return { primaryColor: "#2563eb", secondaryColor: "#0f172a", accentColor: "#14b8a6", fontFamily: "'Inter', system-ui, sans-serif" };
+  }
+  return { primaryColor: "#4f46e5", secondaryColor: "#111827", accentColor: "#10b981", fontFamily: "'Inter', system-ui, sans-serif" };
+}
+
+function buildProspectingSalesCopy(lead: any, publicUrl: string) {
+  const category = lead.category ? ` (${lead.category})` : "";
+  return [
+    `Oi, tudo bem? Encontrei a ${lead.businessName}${category} no Google e vi uma oportunidade simples: ainda nao aparece um site vinculado.`,
+    `Montei uma previa publicada para voce visualizar como ficaria uma pagina profissional com WhatsApp, provas de confianca e chamada para novos clientes: ${publicUrl}`,
+    "A ideia e usar esse link no Perfil da Empresa do Google para transformar mais buscas em contatos. Posso ajustar textos, fotos, identidade visual e deixar com a cara da empresa."
+  ].join("\n\n");
+}
+
+function buildProspectingSiteSections(lead: any, heroImage: string, publicUrl: string) {
+  const category = lead.category || "servicos profissionais";
+  const location = [lead.city, lead.state].filter(Boolean).join("/") || "sua regiao";
+  const ratingText = lead.rating ? `${Number(lead.rating).toFixed(1)} estrelas no Google` : "presenca local no Google";
+  const reviewsText = lead.reviewsCount ? `${lead.reviewsCount} avaliacoes` : "historico de atendimento local";
+  const phone = cleanPhone(lead.phoneNormalized || lead.phone);
+  const waNumber = phone.startsWith("55") ? phone : `55${phone}`;
+  const ctaUrl = phone
+    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Ola, vim pelo site ${publicUrl} e quero mais informacoes.`)}`
+    : "#form";
+
+  return [
+    {
+      type: "HeroBlock",
+      props: {
+        headline: `${lead.businessName}: ${category} em ${location}`,
+        subheadline: "Uma pagina direta, profissional e preparada para transformar visitas do Google em conversas pelo WhatsApp.",
+        ctaText: "Falar pelo WhatsApp",
+        ctaUrl,
+        imageUrl: heroImage,
+        alignment: "center",
+        visible: true
+      }
+    },
+    {
+      type: "ProblemBlock",
+      props: {
+        title: "Clientes pesquisam antes de chamar",
+        description: "Quando uma empresa aparece no Google sem site, parte da confianca fica no caminho. Esta pagina organiza informacoes, diferenciais, prova social e contato em uma experiencia clara.",
+        visible: true
+      }
+    },
+    {
+      type: "BenefitsBlock",
+      props: {
+        title: "O que este site resolve",
+        items: [
+          { icon: "Check", title: "Mais credibilidade", description: `${ratingText} e ${reviewsText} destacados de forma profissional.` },
+          { icon: "Check", title: "Contato sem atrito", description: "Botao de WhatsApp e formulario para facilitar o primeiro contato." },
+          { icon: "Check", title: "Presenca local", description: `Conteudo alinhado para quem busca ${category} em ${location}.` }
+        ],
+        visible: true
+      }
+    },
+    {
+      type: "HowItWorksBlock",
+      props: {
+        title: "Como o cliente chega ate voce",
+        steps: [
+          { step: "1", title: "Encontra no Google", description: "O perfil local desperta o interesse na busca." },
+          { step: "2", title: "Acessa o site", description: "A pagina apresenta servicos, confianca e caminho de contato." },
+          { step: "3", title: "Chama no WhatsApp", description: "A conversa comeca com menos duvida e mais intencao." }
+        ],
+        visible: true
+      }
+    },
+    {
+      type: "SocialProofBlock",
+      props: {
+        title: "Sinais de confianca",
+        testimonials: [
+          {
+            name: "Perfil no Google",
+            role: lead.category || "Empresa local",
+            text: `${lead.businessName} aparece com ${ratingText} e ${reviewsText}.`,
+            photoUrl: ""
+          }
+        ],
+        visible: true
+      }
+    },
+    {
+      type: "FAQBlock",
+      props: {
+        title: "Perguntas frequentes",
+        items: [
+          { question: "Este site pode ir no Perfil da Empresa do Google?", answer: "Sim. Ele foi pensado para ser usado como link oficial no perfil e em campanhas locais." },
+          { question: "Da para trocar textos, cores e fotos?", answer: "Sim. A pagina e uma previa comercial e pode ser personalizada com identidade, fotos reais e servicos." },
+          { question: "Preciso ter dominio proprio?", answer: "Nao para comecar. A previa ja fica publicada em URL temporaria, e depois pode receber dominio proprio." }
+        ],
+        visible: true
+      }
+    },
+    {
+      type: "CTABlock",
+      props: {
+        headline: "Transforme buscas locais em conversas reais",
+        subheadline: "Um site simples e bem feito ajuda quem pesquisa no Google a confiar e chamar.",
+        ctaText: "Quero falar agora",
+        ctaUrl,
+        visible: true
+      }
+    },
+    {
+      type: "FormBlock",
+      props: {
+        title: "Solicite um contato",
+        description: "Preencha seus dados e receba retorno.",
+        buttonText: "Enviar mensagem",
+        fields: ["nome", "telefone", "email", "mensagem"],
+        visible: true
+      }
+    }
+  ];
 }
 
 export function leadCaptureRoutes(prisma: PrismaClient) {
@@ -205,6 +365,111 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       res.json(result);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  router.post("/leads/:id/generate-sales-site", async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      const lead = await prisma.capturedLead.findFirst({
+        where: { id: req.params.id, organizationId: orgId }
+      });
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+      if (lead.website && !req.body?.force) {
+        return res.status(409).json({
+          error: "LEAD_ALREADY_HAS_WEBSITE",
+          message: "Este lead ja tem site. Use force=true se quiser gerar uma previa mesmo assim."
+        });
+      }
+
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+      const slug = await ensureUniqueLandingSlug(prisma, generateSlug(`${lead.businessName}-site-pronto`));
+      const publicUrl = `${baseUrl}/lp/${slug}`;
+      const theme = resolveSalesTheme(lead.category);
+      const logoConcept = `${lead.businessName} - logo textual provisoria, estilo profissional, simples e memoravel`;
+      const heroPrompt = [
+        "professional website hero image",
+        lead.category || "local business",
+        lead.city || lead.state || "Brazil",
+        "clean commercial photography, trustworthy, modern, no text, no watermark"
+      ].join(", ");
+      const heroImage = await imageAI.generate(heroPrompt, req.body?.imageApiKey);
+      const sections = buildProspectingSiteSections(lead, heroImage, publicUrl);
+      const whatsappMessage = buildProspectingSalesCopy(lead, publicUrl);
+      const salesSitePackage = {
+        landingPageId: null as string | null,
+        url: publicUrl,
+        slug,
+        logoConcept,
+        heroPrompt,
+        heroImage,
+        generatedAt: new Date().toISOString(),
+        reason: "Lead sem site capturado na prospeccao."
+      };
+
+      const page = await prisma.landingPage.create({
+        data: {
+          name: `${lead.businessName} - Site Pronto`,
+          slug,
+          organizationId: orgId,
+          status: "published",
+          publishedAt: new Date(),
+          metaTitle: `${lead.businessName} | ${lead.category || "Atendimento profissional"}`,
+          metaDescription: `Conheca ${lead.businessName}, ${lead.category || "empresa local"} em ${[lead.city, lead.state].filter(Boolean).join("/") || "sua regiao"}.`,
+          headline: `${lead.businessName}: ${lead.category || "Atendimento profissional"}`,
+          heroImage,
+          sections,
+          wizardData: {
+            source: "lead-capture-sales-site",
+            capturedLeadId: lead.id,
+            businessName: lead.businessName,
+            category: lead.category,
+            city: lead.city,
+            state: lead.state,
+            phone: lead.phoneNormalized || lead.phone,
+            googleMapsUrl: lead.googleMapsUrl,
+            rating: lead.rating,
+            reviewsCount: lead.reviewsCount
+          },
+          theme: {
+            ...theme,
+            logoConcept,
+            generatedFor: "prospecting-sales-site"
+          }
+        }
+      });
+
+      salesSitePackage.landingPageId = page.id;
+      const packageNote = [
+        "[SITE PRONTO GERADO]",
+        `URL: ${publicUrl}`,
+        `LandingPageId: ${page.id}`,
+        `Logo/conceito: ${logoConcept}`,
+        `Imagem hero: ${heroPrompt}`,
+        "Copy WhatsApp:",
+        whatsappMessage
+      ].join("\n");
+
+      const updated = await prisma.capturedLead.update({
+        where: { id: lead.id },
+        data: {
+          suggestedOffer: `Site pronto publicado: ${publicUrl}`,
+          whatsappMessage,
+          notes: appendNote(lead.notes, packageNote)
+        }
+      });
+
+      emitAutomationEvent("landing_page.published", { organizationId: orgId, pageId: page.id, slug: page.slug, capturedLeadId: lead.id });
+      res.json({ lead: updated, landingPage: page, salesSite: salesSitePackage });
+    } catch (error: any) {
+      console.error("[GENERATE_LEAD_SALES_SITE_ERROR]", {
+        leadId: req.params.id,
+        error: error.message,
+        stack: error.stack
+      });
+      res.status(500).json({ error: "Erro ao gerar site do lead", details: error.message });
     }
   });
 

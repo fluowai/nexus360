@@ -47,6 +47,8 @@ interface Lead {
   cnpj?: string;
   owners?: string;
   managementTeam?: string;
+  suggestedOffer?: string;
+  whatsappMessage?: string;
 }
 
 const toneTemplates: Record<string, string> = {
@@ -54,6 +56,12 @@ const toneTemplates: Record<string, string> = {
   direct: "Oi, tudo bem? Aqui e o Paulo. Consegue me ajudar a falar com o socio, proprietario ou responsavel comercial da {businessName}?",
   friendly: "Oi, tudo bem? Aqui e o Paulo. Quem e a melhor pessoa para eu falar sobre a area comercial da {businessName}?"
 };
+
+function extractGeneratedSiteUrl(lead: Lead) {
+  const text = `${lead.suggestedOffer || ''}\n${lead.notes || ''}`;
+  const match = text.match(/(?:Site pronto publicado|URL):\s*(https?:\/\/[^\s]+)/i);
+  return match?.[1] || null;
+}
 
 type SendToCrmResult = {
   ok: boolean;
@@ -77,6 +85,8 @@ export default function LeadCapture() {
   const [boards, setBoards] = useState<any[]>([]);
   const [selectedBoardId, setSelectedBoardId] = useState<string>('');
   const [selectedLeadForModal, setSelectedLeadForModal] = useState<Lead | null>(null);
+  const [generatingSiteIds, setGeneratingSiteIds] = useState<string[]>([]);
+  const [siteGenerationMessage, setSiteGenerationMessage] = useState<string | null>(null);
 
   // Estados da Prospecção Ativa & Agenda Própria
   const [showProspectingModal, setShowProspectingModal] = useState(false);
@@ -236,6 +246,73 @@ export default function LeadCapture() {
     }
   };
 
+  const handleGenerateSalesSite = async (id: string) => {
+    const lead = leads.find(item => item.id === id);
+    if (!lead) return;
+    if (lead.website) {
+      setSearchError('Este lead ja tem site. Foque a geracao automatica em empresas sem site.');
+      return;
+    }
+
+    setGeneratingSiteIds(prev => [...prev, id]);
+    setSearchError(null);
+    setSiteGenerationMessage(null);
+    try {
+      const res = await apiFetch(`/api/lead-capture/leads/${id}/generate-sales-site`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        setSearchError(data.message || data.error || 'Nao foi possivel gerar o site.');
+        return;
+      }
+      setLeads(prev => prev.map(l => l.id === id ? data.lead : l));
+      setSiteGenerationMessage(`Site publicado para ${lead.businessName}: ${data.salesSite?.url || ''}`);
+      setActiveScripts({ coldCallScript: `Site publicado: ${data.salesSite?.url || data.landingPage?.slug || ''}`, whatsappMessage: data.lead.whatsappMessage || '' });
+      setShowScriptsModal(true);
+    } catch (err: any) {
+      setSearchError(err.message || 'Erro ao gerar site do lead.');
+    } finally {
+      setGeneratingSiteIds(prev => prev.filter(item => item !== id));
+    }
+  };
+
+  const handleBulkGenerateSalesSites = async () => {
+    const targets = leads.filter(lead => selectedLeads.includes(lead.id) && !lead.website && !extractGeneratedSiteUrl(lead));
+    const skipped = selectedLeads.length - targets.length;
+    if (!targets.length) {
+      setSearchError('Nenhum lead selecionado esta elegivel. Selecione empresas sem site e sem previa gerada.');
+      return;
+    }
+
+    setLoading(true);
+    setSearchError(null);
+    setSiteGenerationMessage(null);
+    try {
+      let generated = 0;
+      for (const lead of targets) {
+        setGeneratingSiteIds(prev => [...prev, lead.id]);
+        const res = await apiFetch(`/api/lead-capture/leads/${lead.id}/generate-sales-site`, { method: 'POST' });
+        const data = await res.json();
+        setGeneratingSiteIds(prev => prev.filter(item => item !== lead.id));
+        if (res.ok) {
+          generated += 1;
+          setLeads(prev => prev.map(item => item.id === lead.id ? data.lead : item));
+        } else {
+          setSearchError(data.message || data.error || `Falha ao gerar site para ${lead.businessName}.`);
+          break;
+        }
+      }
+      if (generated > 0) {
+        setSiteGenerationMessage(skipped > 0
+          ? `${generated} site(s) gerado(s). ${skipped} lead(s) ignorado(s) por ja terem site ou previa.`
+          : `${generated} site(s) gerado(s) com URL e copy de WhatsApp.`);
+      }
+      setSelectedLeads([]);
+    } finally {
+      setLoading(false);
+      setGeneratingSiteIds([]);
+    }
+  };
+
   const handleResearchManagement = async (id: string) => {
     setAnalyzingIds(prev => [...prev, id]);
     try {
@@ -274,7 +351,8 @@ export default function LeadCapture() {
     limit: 50,
     filters: {
       onlyWithPhone: true,
-      onlyWithWebsite: false
+      onlyWithWebsite: false,
+      onlyWithoutWebsite: false
     }
   });
   const [missionForm, setMissionForm] = useState({
@@ -632,6 +710,14 @@ export default function LeadCapture() {
               {loading ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
               Super Inteligência
             </button>
+            <button
+              onClick={handleBulkGenerateSalesSites}
+              disabled={loading}
+              className="px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-black transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-gray-900/10"
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+              Gerar Sites
+            </button>
           </motion.div>
         )}
       </header>
@@ -698,9 +784,18 @@ export default function LeadCapture() {
                 type="checkbox" 
                 className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
                 checked={searchParams.filters.onlyWithWebsite}
-                onChange={e => setSearchParams({...searchParams, filters: {...searchParams.filters, onlyWithWebsite: e.target.checked}})}
+                onChange={e => setSearchParams({...searchParams, filters: {...searchParams.filters, onlyWithWebsite: e.target.checked, onlyWithoutWebsite: e.target.checked ? false : searchParams.filters.onlyWithoutWebsite}})}
               />
               <span className="text-[11px] font-bold text-gray-500 group-hover:text-primary transition-colors">Apenas Site</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input
+                type="checkbox"
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                checked={searchParams.filters.onlyWithoutWebsite}
+                onChange={e => setSearchParams({...searchParams, filters: {...searchParams.filters, onlyWithoutWebsite: e.target.checked, onlyWithWebsite: e.target.checked ? false : searchParams.filters.onlyWithWebsite}})}
+              />
+              <span className="text-[11px] font-bold text-gray-500 group-hover:text-primary transition-colors">Sem Site</span>
             </label>
           </div>
 
@@ -788,6 +883,13 @@ export default function LeadCapture() {
           <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium flex items-center gap-2">
             <AlertCircle size={16} />
             {searchError}
+          </div>
+        )}
+
+        {siteGenerationMessage && (
+          <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-700 font-bold flex items-center gap-2">
+            <CheckCircle2 size={16} />
+            {siteGenerationMessage}
           </div>
         )}
 
@@ -905,7 +1007,9 @@ export default function LeadCapture() {
 
           <div className="grid grid-cols-1 gap-3">
             <AnimatePresence mode="popLayout">
-              {leads.map((lead) => (
+              {leads.map((lead) => {
+                const generatedSiteUrl = extractGeneratedSiteUrl(lead);
+                return (
                 <motion.div
                   key={lead.id}
                   layout
@@ -1025,7 +1129,36 @@ export default function LeadCapture() {
                               <Globe size={12} /> Website
                             </a>
                           )}
+                          {!lead.website && !generatedSiteUrl && (
+                            <span className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-50 text-amber-700 rounded-lg text-[11px] font-black">
+                              <Globe size={12} /> Sem site
+                            </span>
+                          )}
+                          {generatedSiteUrl && (
+                            <a href={generatedSiteUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-[11px] font-black hover:bg-emerald-100 transition-all shadow-sm">
+                              <ExternalLink size={12} /> Site Publicado
+                            </a>
+                          )}
                         </div>
+
+                        {generatedSiteUrl && lead.whatsappMessage && (
+                          <div className="w-full mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Copy pronta para vender o site</p>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard?.writeText(lead.whatsappMessage || '');
+                                }}
+                                className="text-[10px] font-black text-emerald-700 hover:underline"
+                              >
+                                Copiar
+                              </button>
+                            </div>
+                            <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-[11px] font-medium leading-relaxed text-gray-700">{lead.whatsappMessage}</p>
+                          </div>
+                        )}
 
                         {/* Notes Section */}
                         <div className="w-full mt-3">
@@ -1091,6 +1224,18 @@ export default function LeadCapture() {
                             {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
                             Scripts
                           </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleGenerateSalesSite(lead.id);
+                            }}
+                            disabled={Boolean(lead.website || generatedSiteUrl) || generatingSiteIds.includes(lead.id)}
+                            className="p-2 text-gray-900 hover:bg-gray-100 rounded-xl transition-all flex items-center gap-2 text-[11px] font-black disabled:opacity-30"
+                            title={generatedSiteUrl ? 'Site ja publicado' : lead.website ? 'Lead ja tem site' : 'Gerar site publicado com copy e imagem'}
+                          >
+                            {generatingSiteIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                            Gerar Site
+                          </button>
                           <button 
                             disabled={lead.sentToCrm || lead.cnpjStatus !== 'validated'}
                             onClick={() => handleSendToCrm(lead.id)}
@@ -1107,7 +1252,8 @@ export default function LeadCapture() {
                     </div>
                   </div>
                 </motion.div>
-              ))}
+                );
+              })}
             </AnimatePresence>
 
             {leads.length === 0 && !loading && (

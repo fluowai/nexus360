@@ -1,6 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 import { getInternalWorkspaceUrls } from "./domainConfig.js";
-import { logger } from "./logger.js";
 
 const RESERVED_WORKSPACE_SLUGS = new Set([
   "admin",
@@ -79,7 +78,7 @@ export async function findVerifiedTenantDomain(prisma: PrismaClient, hostValue: 
       organization: domain.organization,
     };
   } catch (error: any) {
-    logger.error("TenantHost", "Failed to resolve verified domain", {
+    console.error("[TENANT_HOST_DOMAIN_ERROR]", {
       host,
       code: error?.code,
       message: error?.message || error,
@@ -142,7 +141,7 @@ export async function findTenantDomainStatus(prisma: PrismaClient, hostValue: st
       select: { name: true, status: true, organizationId: true },
     });
   } catch (error: any) {
-    logger.error("TenantHost", "Failed to resolve domain status", {
+    console.error("[TENANT_HOST_STATUS_ERROR]", {
       host,
       code: error?.code,
       message: error?.message || error,

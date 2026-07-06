@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/hex"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -42,9 +44,34 @@ type session struct {
 	mu             sync.Mutex
 }
 
+type call struct {
+	ID        string     `json:"id"`
+	ChannelID string     `json:"channelId"`
+	ToJID     string     `json:"toJid"`
+	State     string     `json:"state"`
+	Direction string     `json:"direction"`
+	Duration  int        `json:"duration,omitempty"`
+	StartTime *time.Time `json:"startTime,omitempty"`
+	EndTime   *time.Time `json:"endTime,omitempty"`
+	Error     string     `json:"error,omitempty"`
+	FromJID   string     `json:"fromJid,omitempty"`
+	mu        sync.Mutex
+}
+
+type callEvent struct {
+	Type   string         `json:"type"`
+	CallID string         `json:"callId"`
+	Data   map[string]any `json:"data,omitempty"`
+}
+
 type app struct {
 	sessions map[string]*session
+	calls    map[string]*call
 	mu       sync.Mutex
+	callMu   sync.Mutex
+	callNext int
+	sseConns map[string][]chan callEvent
+	sseMu    sync.Mutex
 	dataDir  string
 	mediaDir string
 }
@@ -85,6 +112,8 @@ func main() {
 
 	a := &app{
 		sessions: map[string]*session{},
+		calls:    map[string]*call{},
+		sseConns: map[string][]chan callEvent{},
 		dataDir:  dataDir,
 		mediaDir: mediaDir,
 	}
@@ -95,6 +124,7 @@ func main() {
 	})
 	mux.HandleFunc("/media/", a.handleMedia)
 	mux.HandleFunc("/sessions/", a.handleSessions)
+	mux.HandleFunc("/calls/", a.handleCalls)
 
 	addr := env("WHATSAPP_BRIDGE_ADDR", ":8091")
 	log.Printf("Nexus360 Whatsmeow bridge listening on %s", addr)
@@ -223,6 +253,237 @@ func (a *app) handleDelete(w http.ResponseWriter, r *http.Request, channelID str
 	a.mu.Unlock()
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "deleted"})
+}
+
+func (a *app) handleCalls(w http.ResponseWriter, r *http.Request) {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/calls/"), "/")
+	if len(parts) < 2 {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "not found"})
+		return
+	}
+	channelID, action := parts[0], parts[1]
+	switch {
+	case action == "active" && len(parts) == 2:
+		a.handleActiveCalls(w, r, channelID)
+	case action == "events" && len(parts) == 2:
+		a.handleCallEventsSSE(w, r, channelID)
+	case action == "initiate" && len(parts) == 2:
+		a.handleInitiateCall(w, r, channelID)
+	case len(parts) == 3 && parts[2] == "end":
+		a.handleEndCall(w, r, channelID, parts[1])
+	case len(parts) == 3 && parts[2] == "status":
+		a.handleCallStatus(w, r, channelID, parts[1])
+	default:
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "not found"})
+	}
+}
+
+func (a *app) newCallID() string {
+	a.callMu.Lock()
+	defer a.callMu.Unlock()
+	a.callNext++
+	data := make([]byte, 4)
+	rand.Read(data)
+	return fmt.Sprintf("call_%x_%d", data, a.callNext)
+}
+
+func (a *app) addSSEConn(channelID string, ch chan callEvent) {
+	a.sseMu.Lock()
+	defer a.sseMu.Unlock()
+	a.sseConns[channelID] = append(a.sseConns[channelID], ch)
+}
+
+func (a *app) removeSSEConn(channelID string, ch chan callEvent) {
+	a.sseMu.Lock()
+	defer a.sseMu.Unlock()
+	conns := a.sseConns[channelID]
+	for i, c := range conns {
+		if c == ch {
+			a.sseConns[channelID] = append(conns[:i], conns[i+1:]...)
+			break
+		}
+	}
+}
+
+func (a *app) broadcastCallEvent(channelID string, evt callEvent) {
+	a.sseMu.Lock()
+	conns := append([]chan callEvent{}, a.sseConns[channelID]...)
+	a.sseMu.Unlock()
+	for _, ch := range conns {
+		select {
+		case ch <- evt:
+		default:
+		}
+	}
+}
+
+func (a *app) handleInitiateCall(w http.ResponseWriter, r *http.Request, channelID string) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
+		return
+	}
+	var req struct {
+		OrganizationID string `json:"organizationId"`
+		ChannelID      string `json:"channelId"`
+		ToJID          string `json:"toJid"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+	if req.ChannelID == "" {
+		req.ChannelID = channelID
+	}
+
+	s := a.getSession(req.ChannelID)
+	if s == nil || s.Client == nil || !s.Client.IsConnected() {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "sessao WhatsApp desconectada"})
+		return
+	}
+
+	to, err := parseJID(req.ToJID)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
+		return
+	}
+
+	callID := a.newCallID()
+	now := time.Now()
+	c := &call{
+		ID:        callID,
+		ChannelID: req.ChannelID,
+		ToJID:     to.String(),
+		State:     "ringing",
+		Direction: "outgoing",
+		StartTime: &now,
+	}
+	a.callMu.Lock()
+	a.calls[callID] = c
+	a.callMu.Unlock()
+
+	// Send a call notification message via whatsmeow
+	_, err = s.Client.SendMessage(context.Background(), to, &waProto.Message{
+		Call: &waProto.Call{
+			CallKey: []byte(callID),
+		},
+	})
+	if err != nil {
+		c.mu.Lock()
+		c.State = "failed"
+		c.Error = err.Error()
+		c.mu.Unlock()
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+
+	// Also send a text notification
+	_, _ = s.Client.SendMessage(context.Background(), to, &waProto.Message{
+		Conversation: proto.String("🔔 Chamada de voz iniciada pelo CRM..."),
+	})
+
+	a.broadcastCallEvent(req.ChannelID, callEvent{
+		Type:   "call_initiated",
+		CallID: callID,
+		Data:   map[string]any{"toJid": to.String(), "state": "ringing"},
+	})
+
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (a *app) handleEndCall(w http.ResponseWriter, r *http.Request, channelID, callID string) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
+		return
+	}
+	a.callMu.Lock()
+	c, ok := a.calls[callID]
+	if !ok || c.ChannelID != channelID {
+		a.callMu.Unlock()
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "call not found"})
+		return
+	}
+	c.mu.Lock()
+	c.State = "ended"
+	now := time.Now()
+	c.EndTime = &now
+	if c.StartTime != nil {
+		c.Duration = int(now.Sub(*c.StartTime).Seconds())
+	}
+	c.mu.Unlock()
+	a.callMu.Unlock()
+
+	a.broadcastCallEvent(channelID, callEvent{
+		Type:   "call_ended",
+		CallID: callID,
+		Data:   map[string]any{"duration": c.Duration},
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+func (a *app) handleCallStatus(w http.ResponseWriter, r *http.Request, channelID, callID string) {
+	a.callMu.Lock()
+	c, ok := a.calls[callID]
+	a.callMu.Unlock()
+	if !ok || c.ChannelID != channelID {
+		writeJSON(w, http.StatusNotFound, map[string]any{"error": "call not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, c)
+}
+
+func (a *app) handleActiveCalls(w http.ResponseWriter, r *http.Request, channelID string) {
+	a.callMu.Lock()
+	active := []*call{}
+	for _, c := range a.calls {
+		if c.ChannelID == channelID && (c.State == "ringing" || c.State == "connected") {
+			active = append(active, c)
+		}
+	}
+	a.callMu.Unlock()
+	sort.Slice(active, func(i, j int) bool {
+		if active[i].StartTime == nil || active[j].StartTime == nil {
+			return false
+		}
+		return active[i].StartTime.After(*active[j].StartTime)
+	})
+	writeJSON(w, http.StatusOK, active)
+}
+
+func (a *app) handleCallEventsSSE(w http.ResponseWriter, r *http.Request, channelID string) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	ch := make(chan callEvent, 64)
+	a.addSSEConn(channelID, ch)
+
+	notify := r.Context().Done()
+	go func() {
+		<-notify
+		a.removeSSEConn(channelID, ch)
+	}()
+
+	for {
+		select {
+		case <-notify:
+			return
+		case evt, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, _ := json.Marshal(evt)
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", evt.Type, data)
+			flusher.Flush()
+		}
+	}
 }
 
 func (a *app) handleSend(w http.ResponseWriter, r *http.Request, channelID string) {
@@ -361,6 +622,57 @@ func (a *app) handleWhatsmeowEvent(s *session, evt any) {
 		a.postStatus(s, "logged_out", nil)
 	case *events.Message:
 		a.handleMessage(s, v)
+	case *events.CallOffer:
+		callID := a.newCallID()
+		now := time.Now()
+		c := &call{
+			ID:        callID,
+			ChannelID: s.ChannelID,
+			ToJID:     v.CallCreator.String(),
+			FromJID:   v.CallCreator.String(),
+			State:     "ringing",
+			Direction: "incoming",
+			StartTime: &now,
+		}
+		a.callMu.Lock()
+		a.calls[callID] = c
+		a.callMu.Unlock()
+		a.broadcastCallEvent(s.ChannelID, callEvent{
+			Type:   "call_offer",
+			CallID: callID,
+			Data: map[string]any{
+				"callCreator": v.CallCreator.String(),
+				"callID":      v.CallID,
+			},
+		})
+		a.postInternal(map[string]any{
+			"type":        "call_offer",
+			"channelId":   s.ChannelID,
+			"callId":      callID,
+			"callCreator": v.CallCreator.String(),
+			"timestamp":   time.Now().Format(time.RFC3339),
+		})
+	case *events.CallTerminate:
+		a.callMu.Lock()
+		for _, c := range a.calls {
+			if c.ChannelID == s.ChannelID && (c.State == "ringing" || c.State == "connected") {
+				c.mu.Lock()
+				c.State = "ended"
+				now := time.Now()
+				c.EndTime = &now
+				if c.StartTime != nil {
+					c.Duration = int(now.Sub(*c.StartTime).Seconds())
+				}
+				c.mu.Unlock()
+				a.broadcastCallEvent(s.ChannelID, callEvent{
+					Type:   "call_terminated",
+					CallID: c.ID,
+					Data:   map[string]any{"reason": v.Reason},
+				})
+				break
+			}
+		}
+		a.callMu.Unlock()
 	}
 }
 

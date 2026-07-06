@@ -16,37 +16,37 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuth } from "./lib/useAuth";
 import { isCustomWorkspaceHost, workspacePath } from "./lib/workspaceRoute";
 
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/dashboard/Dashboard";
 import { useWhitelabel } from "./lib/useWhitelabel";
 
-const CRM = lazy(() => import("./pages/CRM"));
-const Content = lazy(() => import("./pages/Content"));
-const Projects = lazy(() => import("./pages/Projects"));
-const Team = lazy(() => import("./pages/Team"));
-const Reports = lazy(() => import("./pages/Reports"));
-const Settings = lazy(() => import("./pages/Settings"));
-const SuperAdmin = lazy(() => import("./pages/SuperAdmin"));
-const MarketingOps = lazy(() => import("./pages/MarketingOps"));
-const SalesMachine = lazy(() => import("./pages/SalesMachine"));
-const Proposals = lazy(() => import("./pages/Proposals"));
-const ClientsPage = lazy(() => import("./pages/Clients"));
-const ClientDetailPage = lazy(() => import("./pages/ClientDetail"));
-const SoldServicesPage = lazy(() => import("./pages/SoldServices"));
-const MeetingRoom = lazy(() => import("./pages/MeetingRoom"));
-const Onboarding = lazy(() => import("./pages/OnboardingWizard"));
-const OnboardingPreview = lazy(() => import("./pages/OnboardingPreview"));
-const WhitelabelDomainOnboarding = lazy(() => import("./pages/WhitelabelDomainOnboarding"));
-const WhitelabelOnboarding = lazy(() => import("./pages/WhitelabelOnboardingWizard"));
-const WhitelabelOnboardingPreview = lazy(() => import("./pages/WhitelabelOnboardingPreview"));
-const AgentsHub = lazy(() => import("./pages/AgentsHub"));
-const AISettings = lazy(() => import("./pages/AISettings"));
-const Finance = lazy(() => import("./pages/Finance"));
-const Tasks = lazy(() => import("./pages/Tasks"));
-const Calendar = lazy(() => import("./pages/Calendar"));
-const AdAccounts = lazy(() => import("./pages/AdsAccounts"));
-const AssetsLibrary = lazy(() => import("./pages/AssetsLibrary"));
-const LandingPages = lazy(() => import("./pages/LandingPages"));
-const QuizBuilder = lazy(() => import("./pages/QuizBuilder"));
+const CRM = lazy(() => import("./pages/crm/CRM"));
+const Content = lazy(() => import("./pages/marketing/Content"));
+const Projects = lazy(() => import("./pages/operations/Projects"));
+const Team = lazy(() => import("./pages/team/Team"));
+const Reports = lazy(() => import("./pages/reports/Reports"));
+const Settings = lazy(() => import("./pages/settings/Settings"));
+const SuperAdmin = lazy(() => import("./pages/super-admin/SuperAdmin"));
+const MarketingOps = lazy(() => import("./pages/marketing/MarketingOps"));
+const SalesMachine = lazy(() => import("./pages/sales/SalesMachine"));
+const Proposals = lazy(() => import("./pages/proposals/Proposals"));
+const ClientsPage = lazy(() => import("./pages/crm/Clients"));
+const ClientDetailPage = lazy(() => import("./pages/crm/ClientDetail"));
+const SoldServicesPage = lazy(() => import("./pages/crm/SoldServices"));
+const MeetingRoom = lazy(() => import("./pages/communication/MeetingRoom"));
+const Onboarding = lazy(() => import("./pages/auth/OnboardingWizard"));
+const OnboardingPreview = lazy(() => import("./pages/auth/OnboardingPreview"));
+const WhitelabelDomainOnboarding = lazy(() => import("./pages/auth/WhitelabelDomainOnboarding"));
+const WhitelabelOnboarding = lazy(() => import("./pages/auth/WhitelabelOnboardingWizard"));
+const WhitelabelOnboardingPreview = lazy(() => import("./pages/auth/WhitelabelOnboardingPreview"));
+const AgentsHub = lazy(() => import("./pages/settings/AgentsHub"));
+const AISettings = lazy(() => import("./pages/settings/AISettings"));
+const Finance = lazy(() => import("./pages/finance/Finance"));
+const Tasks = lazy(() => import("./pages/operations/Tasks"));
+const Calendar = lazy(() => import("./pages/operations/Calendar"));
+const AdAccounts = lazy(() => import("./pages/marketing/AdsAccounts"));
+const AssetsLibrary = lazy(() => import("./pages/marketing/AssetsLibrary"));
+const LandingPages = lazy(() => import("./pages/marketing/LandingPages"));
+const QuizBuilder = lazy(() => import("./pages/marketing/QuizBuilder"));
 const AdminAgencies = lazy(() => import("./pages/admin/Agencies"));
 const SystemTeam = lazy(() => import("./pages/admin/SystemTeam"));
 const AdminDomains = lazy(() => import("./pages/admin/Domains"));
@@ -60,35 +60,35 @@ const ReleaseControl = lazy(() => import("./pages/admin/ReleaseControl"));
 const AdminAcpManager = lazy(() => import("./pages/admin/AcpManager"));
 const AdminGoogleLocalManager = lazy(() => import("./pages/admin/GoogleLocalManager"));
 const AdminAIManager = lazy(() => import("./pages/admin/AIManager"));
-const LandingPage = lazy(() => import("./pages/LandingPage"));
-const LandingPageWizard = lazy(() => import("./pages/LandingPageWizard"));
-const LandingPageEditor = lazy(() => import("./pages/LandingPageEditor"));
-const PromptArchitect = lazy(() => import("./pages/PromptArchitect"));
-const LandingDemo = lazy(() => import("./pages/LandingDemo"));
-const LandingEditor = lazy(() => import("./pages/LandingTemplates/LandingEditor"));
-const PublicProposal = lazy(() => import("./pages/PublicProposal"));
+const LandingPage = lazy(() => import("./pages/marketing/LandingPage"));
+const LandingPageWizard = lazy(() => import("./pages/marketing/LandingPageWizard"));
+const LandingPageEditor = lazy(() => import("./pages/marketing/LandingPageEditor"));
+const PromptArchitect = lazy(() => import("./pages/settings/PromptArchitect"));
+const LandingDemo = lazy(() => import("./pages/marketing/LandingDemo"));
+const LandingEditor = lazy(() => import("./pages/marketing/LandingTemplates/LandingEditor"));
+const PublicProposal = lazy(() => import("./pages/proposals/PublicProposal"));
 const LeadCapture = lazy(() => import("./pages/prospecting/LeadCapture"));
 const CapturedLists = lazy(() => import("./pages/prospecting/CapturedLists"));
 const ProspectingFunnels = lazy(() => import("./pages/prospecting/ProspectingFunnels"));
 const MissionsList = lazy(() => import("./pages/prospecting/MissionsList"));
 const FunnelBuilder = lazy(() => import("./pages/prospecting/FunnelBuilder"));
-const WhatsApp = lazy(() => import("./pages/WhatsApp"));
-const ClientPortal = lazy(() => import("./pages/ClientPortal"));
-const ClientResults = lazy(() => import("./pages/ClientResults"));
-const LegalPage = lazy(() => import("./pages/LegalPage"));
-const Login = lazy(() => import("./pages/Login"));
-const CRMSalesPage = lazy(() => import("./pages/CRMSalesPage"));
-const AcpHub = lazy(() => import("./pages/AcpHub"));
-const GoogleLocal = lazy(() => import("./pages/GoogleLocal"));
+const WhatsApp = lazy(() => import("./pages/communication/WhatsApp"));
+const ClientPortal = lazy(() => import("./pages/client-portal/ClientPortal"));
+const ClientResults = lazy(() => import("./pages/client-portal/ClientResults"));
+const LegalPage = lazy(() => import("./pages/legal/LegalPage"));
+const Login = lazy(() => import("./pages/auth/Login"));
+const CRMSalesPage = lazy(() => import("./pages/crm/CRMSalesPage"));
+const AcpHub = lazy(() => import("./pages/settings/AcpHub"));
+const GoogleLocal = lazy(() => import("./pages/marketing/GoogleLocal"));
 
-const AutomationBuilder = lazy(() => import("./pages/AutomationBuilder"));
-const NotificationsCenter = lazy(() => import("./pages/NotificationsCenter"));
-const DeliveryKanban = lazy(() => import("./pages/DeliveryKanban"));
-const ServiceCatalog = lazy(() => import("./pages/ServiceCatalog"));
-const TimeTracking = lazy(() => import("./pages/TimeTracking"));
-const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
-const ClientHealthDashboard = lazy(() => import("./pages/ClientHealthDashboard"));
-const Billing = lazy(() => import("./pages/Billing"));
+const AutomationBuilder = lazy(() => import("./pages/settings/AutomationBuilder"));
+const NotificationsCenter = lazy(() => import("./pages/settings/NotificationsCenter"));
+const DeliveryKanban = lazy(() => import("./pages/operations/DeliveryKanban"));
+const ServiceCatalog = lazy(() => import("./pages/operations/ServiceCatalog"));
+const TimeTracking = lazy(() => import("./pages/operations/TimeTracking"));
+const KnowledgeBase = lazy(() => import("./pages/operations/KnowledgeBase"));
+const ClientHealthDashboard = lazy(() => import("./pages/reports/ClientHealthDashboard"));
+const Billing = lazy(() => import("./pages/finance/Billing"));
 
 const RESERVED_WORDS = new Set([
   'admin', 'site', 'vendas', 'login', 'onboarding', 'meet',
@@ -290,15 +290,15 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
 
     const onboardingDone = localStorage.getItem('nexus_onboarding_done') === 'true';
 
-    if (pathname === '/') {
-      if (isSuperAdmin && !selectedClientId) {
-        navigate('/admin', { replace: true });
-      } else {
-        const savedSlug = localStorage.getItem('nexus_org_slug');
-        navigate(workspacePath('/dashboard', savedSlug), { replace: true });
+      if (pathname === '/') {
+        if (isSuperAdmin && !selectedClientId) {
+          navigate('/admin', { replace: true });
+        } else {
+          const savedSlug = localStorage.getItem('nexus_org_slug');
+          navigate(workspacePath('/dashboard', savedSlug || ''), { replace: true });
+        }
+        return;
       }
-      return;
-    }
 
     if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin') && pathname !== '/acp') {
       navigate('/admin', { replace: true });

@@ -1,7 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"go.mau.fi/whatsmeow/types"
 )
@@ -97,5 +101,47 @@ func TestParseJID(t *testing.T) {
 				t.Errorf("parseJID(%q) usuario = %q; quer %q", tt.input, res.User, tt.expectedUser)
 			}
 		})
+	}
+}
+
+func TestCallStatusAndEndRoutesUseCallIDFromPath(t *testing.T) {
+	now := time.Now().Add(-2 * time.Minute)
+	a := &app{
+		calls: map[string]*call{
+			"call-123": {
+				ID:        "call-123",
+				ChannelID: "channel-1",
+				ToJID:     "5511999998888@s.whatsapp.net",
+				State:     "ringing",
+				Direction: "outgoing",
+				StartTime: &now,
+			},
+		},
+		sseConns: map[string][]chan callEvent{},
+	}
+
+	statusReq := httptest.NewRequest(http.MethodGet, "/calls/channel-1/call-123/status", nil)
+	statusRes := httptest.NewRecorder()
+	a.handleCalls(statusRes, statusReq)
+	if statusRes.Code != http.StatusOK {
+		t.Fatalf("status route code = %d; quer %d", statusRes.Code, http.StatusOK)
+	}
+
+	var status call
+	if err := json.NewDecoder(statusRes.Body).Decode(&status); err != nil {
+		t.Fatalf("decode status response: %v", err)
+	}
+	if status.ID != "call-123" {
+		t.Fatalf("status ID = %q; quer call-123", status.ID)
+	}
+
+	endReq := httptest.NewRequest(http.MethodPost, "/calls/channel-1/call-123/end", nil)
+	endRes := httptest.NewRecorder()
+	a.handleCalls(endRes, endReq)
+	if endRes.Code != http.StatusOK {
+		t.Fatalf("end route code = %d; quer %d", endRes.Code, http.StatusOK)
+	}
+	if a.calls["call-123"].State != "ended" {
+		t.Fatalf("call state = %q; quer ended", a.calls["call-123"].State)
 	}
 }

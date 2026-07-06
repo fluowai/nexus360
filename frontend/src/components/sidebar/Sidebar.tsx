@@ -49,10 +49,39 @@ import { ClientSelector } from './ClientSelector';
 import { useAccess } from '../../lib/access';
 import { apiFetch } from '../../lib/api';
 import { isCustomWorkspaceHost, workspacePath } from '../../lib/workspaceRoute';
+import type { User } from '../../types';
 import './Sidebar.css';
 
+type IconComponent = React.ComponentType<{ size: number; className?: string }>;
+
+interface MenuItem {
+  module: string;
+  icon: IconComponent;
+  label: string;
+  path: string;
+  active?: (path: string) => boolean;
+  startsWith?: boolean;
+  isAi?: boolean;
+  badge?: string;
+}
+
+interface MenuGroupChild {
+  module: string;
+  icon: IconComponent;
+  label: string;
+  items: { path: string; label: string }[];
+}
+
+interface MenuGroup {
+  label: string;
+  icon: IconComponent;
+  modules: string[];
+  items: MenuItem[];
+  children?: MenuGroupChild[];
+}
+
 interface SidebarItemProps {
-  icon: any;
+  icon: IconComponent;
   label: string;
   path?: string;
   isActive?: boolean;
@@ -76,7 +105,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   const location = useLocation();
 
   const isChildActive = React.Children.toArray(children).some((child) =>
-    React.isValidElement(child) && (child.props as any)?.path === location.pathname
+    React.isValidElement<SidebarItemProps>(child) && child.props.path === location.pathname
   );
 
   useEffect(() => {
@@ -131,7 +160,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 
 const SidebarGroup: React.FC<{
   label: string;
-  icon?: any;
+  icon?: IconComponent;
   count?: number;
   children: React.ReactNode;
   collapsed?: boolean;
@@ -173,14 +202,14 @@ const SidebarGroup: React.FC<{
 
 export const Sidebar: React.FC<{
   onLogout: () => void;
-  user: any;
+  user: User | null;
   isMobileOpen?: boolean;
   setIsMobileOpen?: (open: boolean) => void;
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
-  whiteLabel?: any;
+  whiteLabel?: { logoUrl?: string; name?: string };
 }> = ({
   onLogout,
   user,
@@ -228,7 +257,7 @@ export const Sidebar: React.FC<{
     : isSuper || access.hasModule(moduleKey);
   const canSeeAny = (moduleKeys: string[]) => isSuper || access.hasAnyModule(moduleKeys);
 
-  const menuGroups: any[] = [
+  const menuGroups: MenuGroup[] = [
     {
       label: 'Dashboard',
       icon: LayoutDashboard,
@@ -319,7 +348,7 @@ export const Sidebar: React.FC<{
     },
   ];
 
-  const renderMenuItem = (item: any) => {
+  const renderMenuItem = (item: MenuItem) => {
     if (!canSeeModule(item.module)) return null;
     const path = getPath(item.path);
     const comparablePath = path.split('?')[0];
@@ -422,11 +451,11 @@ export const Sidebar: React.FC<{
               {menuGroups.map((group) => {
                 if (!canSeeAny(group.modules)) return null;
                 const groupHasActiveItem = group.items.some((item) => location.pathname.startsWith(getPath(item.path).split('?')[0]));
-                const groupHasActiveChild = group.children?.some((child: any) =>
-                  child.items.some((subItem: any) => location.pathname === getPath(subItem.path))
+                const groupHasActiveChild = group.children?.some((child) =>
+                  child.items.some((subItem) => location.pathname === getPath(subItem.path))
                 );
                 const visibleItemsCount = group.items.filter((item) => canSeeModule(item.module)).length +
-                  (group.children || []).reduce((total: number, child: any) => (
+                  (group.children || []).reduce((total: number, child) => (
                     canSeeModule(child.module) ? total + child.items.length : total
                   ), 0);
                 return (
@@ -440,11 +469,11 @@ export const Sidebar: React.FC<{
                     defaultOpen={group.label === 'Dashboard' || Boolean(groupHasActiveItem || groupHasActiveChild)}
                   >
                     {group.items.map(renderMenuItem)}
-                    {group.children?.map((child: any) => {
+                    {group.children?.map((child) => {
                       if (!canSeeModule(child.module)) return null;
                       return (
                         <SidebarItem key={child.module} icon={child.icon} label={child.label} collapsed={collapsed}>
-                          {child.items.map((subItem: any) => (
+                          {child.items.map((subItem) => (
                             <SidebarItem
                               key={subItem.path}
                               icon={ChevronRight}

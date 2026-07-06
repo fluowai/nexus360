@@ -24,68 +24,15 @@ import {
   mergeProspectingAgentMemory,
   updateDispatchAttempt,
 } from "../services/prospectingAutomation.js";
-
-const WHATSAPP_PROVIDER = "WHATS_MEOW";
-
-function bridgeBaseUrl() {
-  return process.env.WHATSAPP_BRIDGE_URL || "http://localhost:8091";
-}
-
-function bridgeSecret() {
-  return process.env.WHATSAPP_BRIDGE_SECRET || "dev-whatsapp-bridge-secret";
-}
-
-function normalizeInstanceName(value?: string | null) {
-  return String(value || "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .slice(0, 80);
-}
-
-function instanceIdentifier(name: string) {
-  const slug = name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-  return `instance:${slug || "whatsmeow"}`;
-}
-
-async function callBridge(path: string, body: any) {
-  const res = await fetch(`${bridgeBaseUrl()}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-whatsapp-bridge-secret": bridgeSecret(),
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || `WhatsApp bridge error ${res.status}`);
-  }
-  return data;
-}
-
-async function callBridgeGet(path: string) {
-  const res = await fetch(`${bridgeBaseUrl()}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-whatsapp-bridge-secret": bridgeSecret(),
-    },
-    body: JSON.stringify({}),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || `WhatsApp bridge error ${res.status}`);
-  }
-  return data;
-}
+import {
+  bridgeBaseUrl,
+  bridgeSecret,
+  callBridge,
+  callBridgeGet,
+  instanceIdentifier,
+  normalizeInstanceName,
+  whatsappProvider,
+} from "../services/whatsappBridge.js";
 
 async function ensureWhatsAppInbox(prisma: PrismaClient, organizationId: string, name = "WhatsApp") {
   const existing = await prisma.inbox.findFirst({ where: { organizationId, name } });
@@ -161,7 +108,7 @@ async function recordOutboundProspectingMessage(prisma: PrismaClient, input: {
     displayPhone: phone.display,
     displayName: input.run.leadName || phone.display,
     prospectingRunId: input.run.id,
-    provider: WHATSAPP_PROVIDER,
+    provider: whatsappProvider(),
   };
 
   if (!conversation) {
@@ -503,7 +450,7 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
     participants,
     mentionedJids,
     prospectingRunId: prospectingRun?.id || null,
-    provider: WHATSAPP_PROVIDER,
+    provider: whatsappProvider(),
   };
 
   if (!conversation) {
@@ -694,7 +641,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.get("/connections", async (req: AuthRequest, res, next) => {
     try {
       const channels = await prisma.channel.findMany({
-        where: { provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
         include: { inbox: { select: { id: true, name: true } } },
         orderBy: { createdAt: "desc" },
       });
@@ -715,14 +662,14 @@ export function whatsappRoutes(prisma: PrismaClient) {
 
       const inbox = await ensureWhatsAppInbox(prisma, orgId, req.body.inboxName || label);
       const existing = await prisma.channel.findFirst({
-        where: { provider: WHATSAPP_PROVIDER, identifier, inbox: { organizationId: orgId } },
+        where: { provider: whatsappProvider(), identifier, inbox: { organizationId: orgId } },
       });
       if (existing) return res.json(existing);
 
       const channel = await prisma.channel.create({
         data: {
           type: "WHATSAPP",
-          provider: WHATSAPP_PROVIDER,
+          provider: whatsappProvider(),
           identifier,
           inboxId: inbox.id,
           config: {
@@ -747,7 +694,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.patch("/connections/:id", async (req: AuthRequest, res, next) => {
     try {
       const channel = await prisma.channel.findFirst({
-        where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { id: req.params.id, provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
         include: { inbox: true },
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
@@ -782,7 +729,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.post("/connections/:id/status", async (req: AuthRequest, res, next) => {
     try {
       const channel = await prisma.channel.findFirst({
-        where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { id: req.params.id, provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
 
@@ -794,7 +741,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.get("/connections/:id/logs", async (req: AuthRequest, res, next) => {
     try {
       const channel = await prisma.channel.findFirst({
-        where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { id: req.params.id, provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
 
@@ -810,7 +757,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.post("/connections/:id/connect", async (req: AuthRequest, res, next) => {
     try {
       const channel = await prisma.channel.findFirst({
-        where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { id: req.params.id, provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
 
@@ -855,7 +802,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.post("/connections/:id/disconnect", async (req: AuthRequest, res, next) => {
     try {
       const channel = await prisma.channel.findFirst({
-        where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { id: req.params.id, provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
 
@@ -871,7 +818,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.delete("/connections/:id", async (req: AuthRequest, res, next) => {
     try {
       const channel = await prisma.channel.findFirst({
-        where: { id: req.params.id, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { id: req.params.id, provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
       });
       if (!channel) return res.status(404).json({ error: "Conexao WhatsApp nao encontrada" });
 
@@ -897,7 +844,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
       const conversations = await prisma.conversation.findMany({
         where: {
           inbox: { organizationId: orgId },
-          channel: { provider: WHATSAPP_PROVIDER },
+          channel: { provider: whatsappProvider() },
           ...(req.query.channelId ? { channelId: String(req.query.channelId) } : {}),
           ...(req.query.status ? { status: String(req.query.status) } : {}),
           ...(kind === "groups" ? { contactId: { endsWith: "@g.us" } } : {}),
@@ -926,7 +873,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
             profilePictureUrl: null,
             group: null,
             participants: [],
-            provider: WHATSAPP_PROVIDER,
+            provider: whatsappProvider(),
           },
         };
       });
@@ -940,7 +887,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.get("/conversations/:id/messages", async (req: AuthRequest, res, next) => {
     try {
       const conversation = await prisma.conversation.findFirst({
-        where: { id: req.params.id, inbox: { organizationId: req.user!.orgId }, channel: { provider: WHATSAPP_PROVIDER } },
+        where: { id: req.params.id, inbox: { organizationId: req.user!.orgId }, channel: { provider: whatsappProvider() } },
         select: { id: true },
       });
       if (!conversation) return res.status(404).json({ error: "Conversa nao encontrada" });
@@ -992,7 +939,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
   router.post("/conversations/:id/messages", async (req: AuthRequest, res, next) => {
     try {
       const conversation = await prisma.conversation.findFirst({
-        where: { id: req.params.id, inbox: { organizationId: req.user!.orgId }, channel: { provider: WHATSAPP_PROVIDER } },
+        where: { id: req.params.id, inbox: { organizationId: req.user!.orgId }, channel: { provider: whatsappProvider() } },
         include: { channel: true },
       });
       if (!conversation) return res.status(404).json({ error: "Conversa nao encontrada" });
@@ -1027,7 +974,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
       if (!message) return res.status(400).json({ error: "Mensagem obrigatoria" });
 
       const channel = await prisma.channel.findFirst({
-        where: { id: channelId, provider: WHATSAPP_PROVIDER, inbox: { organizationId: req.user!.orgId } },
+        where: { id: channelId, provider: whatsappProvider(), inbox: { organizationId: req.user!.orgId } },
         include: { inbox: true },
       });
       if (!channel) return res.status(404).json({ error: "Canal WhatsApp nao encontrado" });
@@ -1082,7 +1029,7 @@ export function whatsappRoutes(prisma: PrismaClient) {
       const selectedChannelId = req.body.channelId ? String(req.body.channelId) : null;
       const channel = await prisma.channel.findFirst({
         where: {
-          provider: WHATSAPP_PROVIDER,
+          provider: whatsappProvider(),
           isActive: true,
           inbox: { organizationId: orgId },
           ...(selectedChannelId ? { id: selectedChannelId } : {}),

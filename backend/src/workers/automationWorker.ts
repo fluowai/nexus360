@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { EventEmitter } from "events";
+import { logger } from "../utils/logger.js";
+import { mutex } from "../utils/concurrency.js";
 
 export const automationEvents = new EventEmitter();
 automationEvents.setMaxListeners(100);
@@ -20,12 +22,13 @@ export class AutomationWorker {
 
   start() {
     this.running = true;
-    console.log("[AutomationWorker] Worker iniciado e escutando eventos...");
+    logger.info("AutomationWorker", "Worker iniciado e escutando eventos...");
   }
 
   stop() {
     this.running = false;
-    console.log("[AutomationWorker] Worker parado.");
+    automationEvents.removeAllListeners();
+    logger.info("AutomationWorker", "Worker parado.");
   }
 
   private registerListeners() {
@@ -69,21 +72,24 @@ export class AutomationWorker {
   private async processEvent(event: string, data: Record<string, any>) {
     if (!this.running) return;
 
-    try {
-      const automations = await this.prisma.automation.findMany({
-        where: {
-          organizationId: data.organizationId,
-          triggerType: event,
-          isActive: true,
-        },
-      });
+    const lockKey = `automation:${data.organizationId}:${event}`;
+    await mutex.acquire(lockKey, async () => {
+      try {
+        const automations = await this.prisma.automation.findMany({
+          where: {
+            organizationId: data.organizationId,
+            triggerType: event,
+            isActive: true,
+          },
+        });
 
-      for (const automation of automations) {
-        await this.executeAutomation(automation, event, data);
+        for (const automation of automations) {
+          await this.executeAutomation(automation, event, data);
+        }
+      } catch (error: any) {
+        logger.error("AutomationWorker", `Error processing event ${event}`, { error: error?.message });
       }
-    } catch (error) {
-      console.error(`[AutomationWorker] Error processing event ${event}:`, error);
-    }
+    });
   }
 
   private async executeAutomation(automation: any, event: string, data: Record<string, any>) {
@@ -290,7 +296,7 @@ export class AutomationWorker {
 export function emitAutomationEvent(event: string, data: Record<string, any>) {
   try {
     automationEvents.emit(event, data);
-  } catch (error) {
-    console.error(`[AutomationEvents] Error emitting ${event}:`, error);
+  } catch (error: any) {
+      logger.error("AutomationEvents", `Error emitting ${event}`, { error: error?.message || error });
   }
 }

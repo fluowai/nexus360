@@ -86,7 +86,7 @@ services:
     restart: unless-stopped
     environment:
       WHATSAPP_BRIDGE_ADDR: ":8091"
-      WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-dev-whatsapp-bridge-secret}
+      WHATSAPP_BRIDGE_SECRET: ${WHATSAPP_BRIDGE_SECRET:-}
       WHATSAPP_BRIDGE_PUBLIC_URL: ${WHATSAPP_BRIDGE_PUBLIC_URL:-http://localhost:8091}
       NEXUS_BACKEND_URL: ${NEXUS_BACKEND_URL:-http://backend:10000}
     volumes:
@@ -99,6 +99,23 @@ services:
     networks:
       - nexus360
 
+  redis:
+    image: redis:7-alpine
+    container_name: nexus360-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - nexus360
+
 networks:
   nexus360:
     driver: bridge
@@ -106,3 +123,4 @@ networks:
 volumes:
   whatsapp_bridge_data:
   google_maps_scraper_data:
+  redis_data:

@@ -1,7 +1,6 @@
 import axios from "axios";
 import { PrismaClient } from "@prisma/client";
 import { runAiCoreChat } from "./aiCoreClient.js";
-import { runGovernedAiText } from "./aiExecution.js";
 
 type ResolvedPartner = {
   name: string;
@@ -153,7 +152,7 @@ export class CompanyResolverService {
             }
           }
         }
-      } catch { }
+      } catch { /* ignore */ }
     }
 
     return candidates;
@@ -177,7 +176,7 @@ export class CompanyResolverService {
         const { data } = await provider();
         const registry = this.normalizeRegistry(data);
         if (registry) return registry;
-      } catch { }
+      } catch { /* ignore */ }
     }
 
     return null;

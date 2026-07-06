@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import axios from "axios";
 import { runGovernedAiText } from "../services/aiExecution.js";
 import { convertProspectingRunToCrm } from "../services/prospectingCrm.js";
 import {
@@ -11,6 +10,8 @@ import {
   normalizeText,
 } from "../services/prospectingAutomation.js";
 import { OutboundDispatcherService } from "../services/outboundDispatcher.js";
+import { logger } from "../utils/logger.js";
+import { mutex } from "../utils/concurrency.js";
 
 const DEFAULT_BUFFER_MS = 12000;
 
@@ -82,43 +83,49 @@ export class SdrAgentWorker {
   start(intervalMs = Number(process.env.PROSPECTING_SDR_INTERVAL_MS || 15000)) {
     if (this.running) return;
     this.running = true;
-    console.log(`[SdrAgentWorker] iniciado. Intervalo: ${intervalMs}ms.`);
+    logger.info("SdrAgentWorker", `iniciado. Intervalo: ${intervalMs}ms.`);
     this.interval = setInterval(() => this.processActiveRuns(), intervalMs);
   }
 
   stop() {
     this.running = false;
-    if (this.interval) clearInterval(this.interval);
-    this.interval = null;
-    console.log("[SdrAgentWorker] parado.");
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+    }
+    logger.info("SdrAgentWorker", "parado.");
   }
+
+  get isProcessing(): boolean { return this.processing; }
 
   private async processActiveRuns() {
     if (!this.running || this.processing) return;
     this.processing = true;
 
-    try {
-      const now = new Date();
-      const runs = await this.prisma.prospectingRun.findMany({
-        where: {
-          status: "active",
-          nextAction: { in: ["lead_replied_buffering", "lead_replied_continue_agent"] },
-        },
-        include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
-        orderBy: { updatedAt: "asc" },
-        take: Number(process.env.PROSPECTING_SDR_BATCH_SIZE || 5),
-      });
+    await mutex.acquire("sdr-agent-worker", async () => {
+      try {
+        const now = new Date();
+        const runs = await this.prisma.prospectingRun.findMany({
+          where: {
+            status: "active",
+            nextAction: { in: ["lead_replied_buffering", "lead_replied_continue_agent"] },
+          },
+          include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
+          orderBy: { updatedAt: "asc" },
+          take: Number(process.env.PROSPECTING_SDR_BATCH_SIZE || 5),
+        });
 
-      for (const run of runs) {
-        const qualification = asRecord(run.qualification);
-        if (run.nextAction === "lead_replied_buffering" && !bufferReady(qualification, now)) continue;
-        await this.handleAgentResponse(run);
+        for (const run of runs) {
+          const qualification = asRecord(run.qualification);
+          if (run.nextAction === "lead_replied_buffering" && !bufferReady(qualification, now)) continue;
+          await this.handleAgentResponse(run);
+        }
+      } catch (error: any) {
+        logger.error("SdrAgentWorker", "erro ao processar fila", { error: error?.message || error });
+      } finally {
+        this.processing = false;
       }
-    } catch (error) {
-      console.error("[SdrAgentWorker] erro ao processar fila:", error);
-    } finally {
-      this.processing = false;
-    }
+    });
   }
 
   private async buildAiResponse(run: any, leadMessage: string, intent: { wantsHuman: boolean; wantsMeeting: boolean }) {
@@ -239,7 +246,7 @@ export class SdrAgentWorker {
       }
 
       let aiResponse = await this.buildAiResponse(run, leadMessage, intent).catch((error: any) => {
-        console.warn("[SdrAgentWorker] IA indisponivel:", error?.message || error);
+        logger.warn("SdrAgentWorker", "IA indisponivel", { error: error?.message || error });
         return intent.wantsHuman
           ? "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui."
           : "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
@@ -340,11 +347,11 @@ export class SdrAgentWorker {
           summary,
           conversationId: dispatch.conversationId || lastConversationId,
         }).catch((error: any) => {
-          console.error("[SdrAgentWorker] falha ao converter para CRM:", error?.message || error);
+          logger.error("SdrAgentWorker", "falha ao converter para CRM", { error: error?.message || error });
         });
       }
     } catch (err: any) {
-      console.error("[SdrAgentWorker] erro critico no handler:", err?.message || err);
+      logger.error("SdrAgentWorker", "erro critico no handler", { error: err?.message || err });
       await this.prisma.prospectingRun.update({
         where: { id: run.id },
         data: { nextAction: "lead_replied_continue_agent" },

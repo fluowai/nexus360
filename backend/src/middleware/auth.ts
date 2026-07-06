@@ -5,11 +5,15 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     email?: string;
+    name?: string;
     agencyId?: string;
     orgId: string;
+    orgSlug?: string;
+    orgType?: string;
     workspaceId?: string;
     role: string;
-    permissions?: any;
+    permissions?: Record<string, string | string[]>;
+    whitelabelOnboarding?: { complete: boolean; step: number };
   };
 }
 

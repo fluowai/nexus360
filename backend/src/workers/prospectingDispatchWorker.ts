@@ -1,5 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { processProspectingDispatchQueue } from "../services/prospectingDispatch.js";
+import { logger } from "../utils/logger.js";
+import { mutex } from "../utils/concurrency.js";
 
 export class ProspectingDispatchWorker {
   private prisma: PrismaClient;
@@ -14,7 +16,7 @@ export class ProspectingDispatchWorker {
   start(intervalMs = Number(process.env.PROSPECTING_DISPATCH_INTERVAL_MS || 30000)) {
     if (this.running) return;
     this.running = true;
-    console.log(`[ProspectingDispatchWorker] iniciado. Intervalo: ${intervalMs}ms.`);
+    logger.info("ProspectingDispatchWorker", `iniciado. Intervalo: ${intervalMs}ms.`);
     this.interval = setInterval(() => this.tick(), intervalMs);
     this.tick();
   }
@@ -23,25 +25,25 @@ export class ProspectingDispatchWorker {
     this.running = false;
     if (this.interval) clearInterval(this.interval);
     this.interval = null;
-    console.log("[ProspectingDispatchWorker] parado.");
+    logger.info("ProspectingDispatchWorker", "parado.");
   }
 
   private async tick() {
     if (!this.running || this.processing) return;
     this.processing = true;
 
-    try {
-      const limit = Number(process.env.PROSPECTING_DISPATCH_BATCH_SIZE || 5);
-      const result = await processProspectingDispatchQueue(this.prisma, { limit, automated: true });
-      if (result.sent.length || result.failed.length) {
-        console.log(
-          `[ProspectingDispatchWorker] enviados=${result.sent.length} falhas=${result.failed.length} prontos=${result.ready} inspecionados=${result.inspected}`
-        );
+    await mutex.acquire("prospecting-dispatch-worker", async () => {
+      try {
+        const limit = Number(process.env.PROSPECTING_DISPATCH_BATCH_SIZE || 5);
+        const result = await processProspectingDispatchQueue(this.prisma, { limit, automated: true });
+        if (result.sent.length || result.failed.length) {
+          logger.info("ProspectingDispatchWorker", `enviados=${result.sent.length} falhas=${result.failed.length} prontos=${result.ready} inspecionados=${result.inspected}`);
+        }
+      } catch (error: any) {
+        logger.error("ProspectingDispatchWorker", "erro ao processar fila", { error: error?.message || error });
+      } finally {
+        this.processing = false;
       }
-    } catch (error: any) {
-      console.error("[ProspectingDispatchWorker] erro ao processar fila:", error?.message || error);
-    } finally {
-      this.processing = false;
-    }
+    });
   }
 }

@@ -8,6 +8,8 @@ import {
   updateDispatchAttempt,
 } from "../services/prospectingAutomation.js";
 import { OutboundDispatcherService } from "../services/outboundDispatcher.js";
+import { logger } from "../utils/logger.js";
+import { mutex } from "../utils/concurrency.js";
 
 export class FollowUpWorker {
   private prisma: PrismaClient;
@@ -21,7 +23,7 @@ export class FollowUpWorker {
   }
 
   start(intervalMs = 5 * 60 * 1000) {
-    console.log("[FollowUpWorker] Worker iniciado (check a cada 5 min)...");
+    logger.info("FollowUpWorker", "Worker iniciado (check a cada 5 min)...");
     this.check();
     this.interval = setInterval(() => this.check(), intervalMs);
   }
@@ -31,7 +33,7 @@ export class FollowUpWorker {
       clearInterval(this.interval);
       this.interval = null;
     }
-    console.log("[FollowUpWorker] Worker parado.");
+    logger.info("FollowUpWorker", "Worker parado.");
   }
 
   private async check() {
@@ -69,12 +71,12 @@ export class FollowUpWorker {
       }
 
       if (pending.length > 0) {
-        console.log(`[FollowUpWorker] ${pending.length} follow-up(s) notificado(s)`);
+        logger.info("FollowUpWorker", `${pending.length} follow-up(s) notificado(s)`);
       }
 
       await this.checkProspectingFollowUps();
-    } catch (error) {
-      console.error("[FollowUpWorker] Error checking follow-ups:", error);
+    } catch (error: any) {
+      logger.error("FollowUpWorker", "Error checking follow-ups", { error: error?.message });
     }
   }
 
@@ -82,22 +84,23 @@ export class FollowUpWorker {
     if (this.processingProspecting) return;
     this.processingProspecting = true;
 
-    try {
-      const now = new Date();
-      const afterMinutes = Number(process.env.PROSPECTING_FOLLOWUP_AFTER_MINUTES || 1440);
-      const cutoff = new Date(now.getTime() - afterMinutes * 60 * 1000);
-      const maxPerTick = Number(process.env.PROSPECTING_FOLLOWUP_BATCH_SIZE || 5);
-      const runs = await this.prisma.prospectingRun.findMany({
-        where: {
-          channel: "WHATSAPP",
-          status: { in: ["sent", "active"] },
-          nextAction: "wait_lead_reply",
-          lastContactAt: { lte: cutoff },
-        },
-        include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
-        orderBy: { lastContactAt: "asc" },
-        take: maxPerTick,
-      });
+    await mutex.acquire("follow-up-worker:prospecting", async () => {
+      try {
+        const now = new Date();
+        const afterMinutes = Number(process.env.PROSPECTING_FOLLOWUP_AFTER_MINUTES || 1440);
+        const cutoff = new Date(now.getTime() - afterMinutes * 60 * 1000);
+        const maxPerTick = Number(process.env.PROSPECTING_FOLLOWUP_BATCH_SIZE || 5);
+        const runs = await this.prisma.prospectingRun.findMany({
+          where: {
+            channel: "WHATSAPP",
+            status: { in: ["sent", "active"] },
+            nextAction: "wait_lead_reply",
+            lastContactAt: { lte: cutoff },
+          },
+          include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
+          orderBy: { lastContactAt: "asc" },
+          take: maxPerTick,
+        });
 
       for (const run of runs) {
         const qualification = (run.qualification as any) || {};
@@ -181,10 +184,13 @@ export class FollowUpWorker {
       }
 
       if (runs.length > 0) {
-        console.log(`[FollowUpWorker] prospecting follow-ups avaliados=${runs.length}`);
+        logger.info("FollowUpWorker", `prospecting follow-ups avaliados=${runs.length}`);
       }
+    } catch (error: any) {
+      logger.error("FollowUpWorker", "Error in prospecting follow-ups", { error: error?.message });
     } finally {
       this.processingProspecting = false;
     }
+    });
   }
 }

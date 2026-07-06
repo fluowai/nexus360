@@ -2473,6 +2473,36 @@ model WhatsappWebhookLog {
   @@index([status])
 }
 
+model WhatsAppCall {
+  id             String    @id @default(uuid())
+  organizationId String
+
+  channelId      String?
+
+  callBridgeId   String?
+  conversationId String?
+  leadId         String?
+
+  direction      String    // outgoing, incoming
+  state          String    // ringing, connected, ended, failed, missed
+  toJid          String?
+  fromJid        String?
+  duration       Int       @default(0)
+  errorMessage   String?   @db.Text
+  metadata       Json?
+
+  startedAt      DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@index([channelId])
+  @@index([conversationId])
+  @@index([leadId])
+  @@index([state])
+}
+
 // ==================== SEGURANÇA E AUTH ====================
 
 model RefreshToken {

@@ -2,7 +2,7 @@ import Redis from "ioredis";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 const DEFAULT_TTL_MS = Number(process.env.CACHE_TTL_MS || 60000);
-const MAX_MEMORY_CACHE_ITEMS = Number(process.env.MAX_CACHE_ITEMS || 5000);
+export const MAX_MEMORY_CACHE_ITEMS = Number(process.env.MAX_CACHE_ITEMS || 5000);
 
 type CacheEntry<T> = { value: T; expiresAt: number };
 

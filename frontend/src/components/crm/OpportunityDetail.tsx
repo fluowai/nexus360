@@ -119,10 +119,10 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
   };
 
   const TABS = [
-    { id: "note", label: "ANOTAÇÃO", icon: <MessageSquare size={14} /> },
-    { id: "call", label: "LIGAÇÃO", icon: <Phone size={14} /> },
-    { id: "meeting", label: "REUNIÃO", icon: <Video size={14} /> },
-    { id: "email", label: "E-MAIL", icon: <Mail size={14} /> },
+    { id: "note", label: "Nota", icon: <MessageSquare size={14} /> },
+    { id: "call", label: "Ligacao", icon: <Phone size={14} /> },
+    { id: "meeting", label: "Reuniao", icon: <Video size={14} /> },
+    { id: "email", label: "E-mail", icon: <Mail size={14} /> },
   ];
 
   const activityLabel = (type?: string) => ({
@@ -139,7 +139,7 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
   if (loading && !opportunity) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-end">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -148,60 +148,63 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
         className="absolute inset-0 bg-[var(--nexus-nav-dark)]/40 backdrop-blur-sm"
       />
       <motion.div
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="bg-[var(--nexus-background-light)] w-full max-w-2xl h-screen relative z-10 flex flex-col shadow-[var(--nexus-shadow-floating)]"
+        initial={{ opacity: 0, scale: 0.96, y: 24 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 24 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        style={{ fontFamily: '"Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui, sans-serif' }}
+        className="relative z-10 flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-[var(--nexus-background)] shadow-[0_24px_70px_rgba(15,23,42,0.22)] ring-1 ring-white/70 sm:max-h-[calc(100vh-3rem)]"
       >
-        <div className="p-8 border-b border-[var(--nexus-card-border)] flex justify-between items-center bg-white">
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 bg-[var(--nexus-background-soft)] rounded-2xl flex items-center justify-center text-[var(--nexus-primary)] border border-[var(--nexus-card-border)] shadow-sm">
-              <Target size={28} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-[var(--nexus-text-primary)] tracking-tight">
-                {opportunity?.title || "Carregando..."}
-              </h2>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[10px] font-black text-[var(--nexus-success-dark)] bg-[var(--nexus-success-soft)] px-2 py-1 rounded-md border border-[var(--nexus-success)]/10">
-                  {opportunity?.value?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </span>
-                <span className="text-[10px] font-black text-[var(--nexus-text-muted)] bg-[var(--nexus-background-soft)] px-2 py-1 rounded-md border border-[var(--nexus-card-border)] uppercase tracking-wider">
-                  {opportunity?.status}
-                </span>
+        <div className="border-b border-[var(--nexus-card-border)] bg-white px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[var(--nexus-card-border)] bg-[var(--nexus-background-soft)] text-[var(--nexus-primary)] shadow-sm">
+                <Target size={24} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="truncate text-xl font-semibold tracking-tight text-[var(--nexus-text-primary)] sm:text-2xl">
+                  {opportunity?.title || "Carregando..."}
+                </h2>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-[var(--nexus-success)]/10 bg-[var(--nexus-success-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--nexus-success-dark)]">
+                    {opportunity?.value?.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </span>
+                  <span className="rounded-md border border-[var(--nexus-card-border)] bg-[var(--nexus-background-soft)] px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--nexus-text-muted)]">
+                    {opportunity?.status}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setWinModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[var(--nexus-success)] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[var(--nexus-success)]/20 hover:scale-105 active:scale-95 transition-all"
-            >
-              <Trophy size={14} />
-              Ganhar
-            </button>
-            <button
-              onClick={() => setLoseModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-red-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-red-500/20 hover:scale-105 active:scale-95 transition-all"
-            >
-              <AlertCircle size={14} />
-              Perder
-            </button>
-            <button onClick={handleDelete} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all">
-              <Trash2 size={20} />
-            </button>
-            <button onClick={onClose} className="p-2.5 text-[var(--nexus-text-muted)] hover:bg-[var(--nexus-background-soft)] rounded-xl transition-all">
-              <X size={24} />
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setWinModal(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--nexus-success-dark)] px-4 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#266a58] active:scale-95"
+              >
+                <Trophy size={15} />
+                Ganhar
+              </button>
+              <button
+                onClick={() => setLoseModal(true)}
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-red-500 px-4 text-xs font-semibold text-white shadow-sm transition-all hover:bg-red-600 active:scale-95"
+              >
+                <AlertCircle size={15} />
+                Perder
+              </button>
+              <button onClick={handleDelete} className="flex h-10 w-10 items-center justify-center rounded-lg text-red-500 transition-all hover:bg-red-50">
+                <Trash2 size={19} />
+              </button>
+              <button onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--nexus-text-muted)] transition-all hover:bg-[var(--nexus-background-soft)] hover:text-[var(--nexus-text-primary)]">
+                <X size={22} />
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8 custom-scrollbar">
+        <div className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-5 sm:p-6">
           {/* Stage Selector */}
           {opportunity?.pipeline?.stages && (
-            <div className="bg-white rounded-2xl border border-[var(--nexus-card-border)] p-4 shadow-sm">
-              <p className="text-[10px] font-black text-[var(--nexus-text-muted)] uppercase tracking-widest mb-3">Etapa Atual</p>
+            <div className="rounded-xl border border-[var(--nexus-card-border)] bg-white p-4 shadow-sm">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--nexus-text-muted)]">Etapa Atual</p>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {opportunity.pipeline.stages.map((stage: any) => {
                   const isCurrent = stage.id === opportunity.stageId;
@@ -209,7 +212,7 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
                     <button
                       key={stage.id}
                       onClick={() => handleStageChange(stage.id)}
-                      className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                      className={`flex-shrink-0 rounded-lg border px-4 py-2 text-xs font-semibold transition-all ${
                         isCurrent
                           ? "bg-[var(--nexus-primary)] text-white border-[var(--nexus-primary)] shadow-md"
                           : "bg-[var(--nexus-background-soft)] text-[var(--nexus-text-secondary)] border-transparent hover:border-gray-200"
@@ -224,7 +227,7 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
           )}
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               { icon: <Mail size={18} />, label: "E-mail", color: "bg-blue-50 text-blue-500", onClick: () => window.location.href = `mailto:${opportunity?.client?.email || ""}` },
               { icon: <Phone size={18} />, label: "WhatsApp", color: "bg-green-50 text-green-500", onClick: () => opportunity?.client?.phone && window.open(`https://wa.me/${String(opportunity.client.phone).replace(/\D/g, "")}`, "_blank") },
@@ -234,23 +237,23 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
               <button
                 key={i}
                 onClick={action.onClick}
-                className="flex flex-col items-center justify-center gap-2 p-4 bg-white rounded-2xl border border-[var(--nexus-card-border)] shadow-sm hover:border-[var(--nexus-primary)]/40 hover:shadow-md transition-all group"
+                className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-[var(--nexus-card-border)] bg-white p-4 shadow-sm transition-all hover:border-[var(--nexus-primary)]/40 hover:shadow-md"
               >
                 <div className={`p-2 rounded-lg ${action.color} group-hover:scale-110 transition-transform`}>
                   {action.icon}
                 </div>
-                <span className="text-[9px] font-black text-[var(--nexus-text-secondary)] uppercase">{action.label}</span>
+                <span className="text-xs font-semibold text-[var(--nexus-text-secondary)]">{action.label}</span>
               </button>
             ))}
           </div>
 
           {/* Key Info */}
-          <div className="bg-white border border-[var(--nexus-card-border)] p-6 rounded-[24px] shadow-sm space-y-4">
-            <h3 className="text-xs font-black text-[var(--nexus-text-primary)] uppercase tracking-widest flex items-center gap-2">
+          <div className="space-y-4 rounded-xl border border-[var(--nexus-card-border)] bg-white p-5 shadow-sm">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--nexus-text-primary)]">
               <Sparkles size={14} className="text-indigo-500" />
               Informações da Oportunidade
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {[
                 { label: "Pipeline", value: opportunity?.pipeline?.name },
                 { label: "Etapa", value: opportunity?.stageObj?.name },
@@ -258,28 +261,28 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
                 { label: "Previsão", value: opportunity?.expectedCloseDate ? new Date(opportunity.expectedCloseDate).toLocaleDateString("pt-BR") : "Não definida" },
               ].map((item, i) => (
                 <div key={i} className="flex flex-col gap-1">
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{item.label}</label>
-                  <p className="text-sm font-bold text-[var(--nexus-text-primary)]">{item.value || "-"}</p>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">{item.label}</label>
+                  <p className="text-sm font-semibold text-[var(--nexus-text-primary)]">{item.value || "-"}</p>
                 </div>
               ))}
             </div>
             {opportunity?.description && (
               <div className="flex flex-col gap-1">
                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Descrição</label>
-                <p className="text-sm text-[var(--nexus-text-secondary)]">{opportunity.description}</p>
+                <p className="text-sm leading-relaxed text-[var(--nexus-text-secondary)]">{opportunity.description}</p>
               </div>
             )}
           </div>
 
           {/* Tasks */}
           {opportunity?.tasks && opportunity.tasks.length > 0 && (
-            <div className="bg-white border border-[var(--nexus-card-border)] p-6 rounded-[24px] shadow-sm space-y-3">
-              <h3 className="text-xs font-black text-[var(--nexus-text-primary)] uppercase tracking-widest">Tarefas</h3>
+            <div className="space-y-3 rounded-xl border border-[var(--nexus-card-border)] bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-[var(--nexus-text-primary)]">Tarefas</h3>
               {opportunity.tasks.map((task: any) => (
                 <div key={task.id} className="flex items-center gap-3 p-3 rounded-xl bg-[var(--nexus-background-soft)]">
                   <div className={`w-2 h-2 rounded-full ${task.status === "concluida" ? "bg-green-400" : "bg-orange-400"}`} />
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-[var(--nexus-text-primary)]">{task.title}</p>
+                    <p className="text-sm font-semibold text-[var(--nexus-text-primary)]">{task.title}</p>
                     {task.dueDate && (
                       <p className="text-[10px] text-gray-500 mt-0.5">Vence: {new Date(task.dueDate).toLocaleDateString("pt-BR")}</p>
                     )}
@@ -290,16 +293,16 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
           )}
 
           {/* Activity Log */}
-          <div className="bg-white border border-[var(--nexus-card-border)] p-6 rounded-[24px] shadow-sm space-y-4">
-            <h3 className="text-xs font-black text-[var(--nexus-text-primary)] uppercase tracking-widest">Atividades</h3>
+          <div className="space-y-4 rounded-xl border border-[var(--nexus-card-border)] bg-white p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-[var(--nexus-text-primary)]">Atividades</h3>
             <form onSubmit={addActivity} className="space-y-3">
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[10px] font-black transition-all ${
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                       activeTab === tab.id
                         ? "bg-[var(--nexus-primary)] text-white"
                         : "bg-[var(--nexus-background-soft)] text-[var(--nexus-text-muted)] hover:bg-gray-200"
@@ -310,17 +313,17 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
                   </button>
                 ))}
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                   placeholder="Adicionar atividade..."
-                  className="flex-1 px-4 py-3 bg-[var(--nexus-background-soft)] border border-[var(--nexus-card-border)] rounded-xl outline-none text-sm"
+                  className="flex-1 rounded-lg border border-[var(--nexus-card-border)] bg-[var(--nexus-background-soft)] px-4 py-3 text-sm outline-none focus:border-[var(--nexus-primary)] focus:ring-2 focus:ring-[var(--nexus-primary)]/15"
                   value={newActivity.content}
                   onChange={e => setNewActivity({ content: e.target.value })}
                 />
                 <button
                   type="submit"
                   disabled={!newActivity.content || submitting}
-                  className="px-5 py-3 bg-[var(--nexus-primary)] text-white rounded-xl text-xs font-bold disabled:opacity-50"
+                  className="rounded-lg bg-[var(--nexus-primary)] px-5 py-3 text-xs font-semibold text-white disabled:opacity-50"
                 >
                   {submitting ? "..." : "Salvar"}
                 </button>
@@ -330,7 +333,7 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
               {(opportunity?.activities || []).map((activity: any) => (
                 <div key={activity.id} className="rounded-xl border border-[var(--nexus-card-border)] bg-[var(--nexus-background-soft)] p-4">
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[var(--nexus-text-secondary)]">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-white px-2 py-1 text-xs font-semibold text-[var(--nexus-text-secondary)]">
                       {String(activity.type).toUpperCase() === "CALL" ? <Phone size={12} /> : <MessageSquare size={12} />}
                       {activityLabel(activity.type)}
                     </span>
@@ -338,7 +341,7 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
                       {activity.createdAt ? new Date(activity.createdAt).toLocaleString("pt-BR") : ""}
                     </span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm font-medium leading-relaxed text-[var(--nexus-text-secondary)]">
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--nexus-text-secondary)]">
                     {activity.description}
                   </p>
                 </div>
@@ -352,9 +355,9 @@ export default function OpportunityDetail({ opportunityId, onClose, onUpdate, on
           </div>
 
           {opportunity?.client && (
-            <div className="bg-white border border-[var(--nexus-card-border)] p-6 rounded-[24px] shadow-sm space-y-3">
-              <h3 className="text-xs font-black text-[var(--nexus-text-primary)] uppercase tracking-widest">Cliente</h3>
-              <p className="font-bold text-[var(--nexus-text-primary)]">{opportunity.client.corporateName || opportunity.client.tradeName}</p>
+            <div className="space-y-3 rounded-xl border border-[var(--nexus-card-border)] bg-white p-5 shadow-sm">
+              <h3 className="text-sm font-semibold text-[var(--nexus-text-primary)]">Cliente</h3>
+              <p className="font-semibold text-[var(--nexus-text-primary)]">{opportunity.client.corporateName || opportunity.client.tradeName}</p>
               {opportunity.client.email && <p className="text-sm text-[var(--nexus-text-secondary)]">{opportunity.client.email}</p>}
               {opportunity.client.phone && <p className="text-sm text-[var(--nexus-text-secondary)]">{opportunity.client.phone}</p>}
             </div>

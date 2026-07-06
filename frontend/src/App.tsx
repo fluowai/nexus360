@@ -12,9 +12,11 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 import { Sidebar } from "./components/sidebar/Sidebar";
+import { SectionNav } from "./components/navigation/SectionNav";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { useAuth } from "./lib/useAuth";
 import { isCustomWorkspaceHost, workspacePath } from "./lib/workspaceRoute";
+import { RESERVED_WORKSPACE_SEGMENTS, useAppNavigation } from "./lib/appNavigation";
 
 import Dashboard from "./pages/dashboard/Dashboard";
 import { useWhitelabel } from "./lib/useWhitelabel";
@@ -90,13 +92,6 @@ const KnowledgeBase = lazy(() => import("./pages/operations/KnowledgeBase"));
 const ClientHealthDashboard = lazy(() => import("./pages/reports/ClientHealthDashboard"));
 const Billing = lazy(() => import("./pages/finance/Billing"));
 
-const RESERVED_WORDS = new Set([
-  'admin', 'site', 'vendas', 'login', 'onboarding', 'meet',
-  'dashboard', 'crm', 'finance', 'settings', 'team', 'projects',
-  'reports', 'api', 'automations', 'notifications', 'delivery',
-  'service-catalog', 'time-tracking', 'knowledge-base', 'client-health', 'whatsapp', 'acp', 'google-local'
-]);
-
 function isPublicPath(pathname: string) {
   return (
     pathname === '/login' ||
@@ -115,7 +110,7 @@ function isPublicPath(pathname: string) {
 
 function hasUrlSlug(pathname: string) {
   const firstPart = pathname.split('/').filter(Boolean)[0] || '';
-  return firstPart && !RESERVED_WORDS.has(firstPart);
+  return firstPart && !RESERVED_WORKSPACE_SEGMENTS.has(firstPart);
 }
 
 const Layout = ({ 
@@ -136,7 +131,7 @@ const Layout = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigation = useAppNavigation(user);
 
   if (isPublicPath(location.pathname)) {
     return <>{children}</>;
@@ -153,10 +148,11 @@ const Layout = ({
         setCollapsed={setIsCollapsed}
         selectedClientId={selectedClientId}
         onSelectClient={onSelectClient}
+        navigation={navigation}
         whiteLabel={whiteLabel}
       />
       
-      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[80px]' : 'md:pl-[324px]'}`}>
+      <main className={`flex-1 transition-all duration-300 ${isCollapsed ? 'md:pl-[var(--sidebar-collapsed-width)]' : 'md:pl-[var(--sidebar-width)]'}`}>
         <header className="hidden md:flex sticky top-0 z-40 h-[80px] items-center justify-between border-b border-[#E2E8F0] bg-white/95 px-8 backdrop-blur-xl">
           <div className="flex items-center gap-3 min-w-[240px]">
             {whiteLabel?.logoUrl ? (
@@ -223,6 +219,12 @@ const Layout = ({
             <Menu size={24} />
           </button>
         </div>
+
+        <SectionNav
+          navigation={navigation}
+          user={user}
+          selectedClientId={selectedClientId}
+        />
 
         <div className="p-4 md:p-8 max-w-[1800px] mx-auto">
           <ErrorBoundary>

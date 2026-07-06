@@ -2,83 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  LayoutDashboard,
-  CalendarDays,
-  Wallet,
-  Users,
-  FileText,
-  Zap,
-  Globe,
-  FolderKanban,
-  KanbanSquare,
-  UsersRound,
-  BarChart3,
-  Search,
-  Sparkles,
-  Settings,
   Shield,
   ChevronDown,
   X,
   LogOut,
   ChevronRight,
-  Monitor,
-  Ticket,
-  CreditCard,
-  Building2,
-  Rocket,
-  Bell,
-  Truck,
-  Package,
-  Clock,
-  BookOpen,
-  Activity,
-  GitBranch,
-  MessageCircle,
-  Brain,
-  Palette,
-  PlugZap,
-  Target,
-  Megaphone,
-  Bot,
-  LockKeyhole,
-  KeyRound,
-  MapPinned,
-  Cpu
+  Monitor
 } from 'lucide-react';
 import { ClientSelector } from './ClientSelector';
-import { useAccess } from '../../lib/access';
-import { apiFetch } from '../../lib/api';
-import { isCustomWorkspaceHost, workspacePath } from '../../lib/workspaceRoute';
+import type {
+  AdminMenuCluster,
+  AdminMenuItem,
+  AppNavigationModel,
+  IconComponent,
+  MenuItem
+} from '../../lib/appNavigation';
 import type { User } from '../../types';
 import './Sidebar.css';
-
-type IconComponent = React.ComponentType<{ size: number; className?: string }>;
-
-interface MenuItem {
-  module: string;
-  icon: IconComponent;
-  label: string;
-  path: string;
-  active?: (path: string) => boolean;
-  startsWith?: boolean;
-  isAi?: boolean;
-  badge?: string;
-}
-
-interface MenuGroupChild {
-  module: string;
-  icon: IconComponent;
-  label: string;
-  items: { path: string; label: string }[];
-}
-
-interface MenuGroup {
-  label: string;
-  icon: IconComponent;
-  modules: string[];
-  items: MenuItem[];
-  children?: MenuGroupChild[];
-}
 
 interface SidebarItemProps {
   icon: IconComponent;
@@ -113,7 +53,10 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   }, [isChildActive]);
 
   const content = (
-    <div className={`sidebar-item ${isActive || isChildActive ? 'active' : ''} ${isAi ? 'sidebar-item-ai' : ''}`}>
+    <div
+      className={`sidebar-item ${isActive || isChildActive ? 'active' : ''} ${isAi ? 'sidebar-item-ai' : ''}`}
+      title={collapsed ? label : undefined}
+    >
       <Icon size={21} className="sidebar-item-icon" />
       {!collapsed && (
         <>
@@ -209,6 +152,7 @@ export const Sidebar: React.FC<{
   setCollapsed: (collapsed: boolean) => void;
   selectedClientId: string | null;
   onSelectClient: (clientId: string | null) => void;
+  navigation: AppNavigationModel;
   whiteLabel?: { logoUrl?: string; name?: string };
 }> = ({
   onLogout,
@@ -219,159 +163,50 @@ export const Sidebar: React.FC<{
   setCollapsed,
   selectedClientId,
   onSelectClient,
+  navigation,
   whiteLabel
 }) => {
   const location = useLocation();
-  const access = useAccess(user);
-  const isSuper = user?.role === 'SUPER_ADMIN';
-  const [googleLocalEnabled, setGoogleLocalEnabled] = useState(isSuper);
-
-  useEffect(() => {
-    if (isSuper) {
-      setGoogleLocalEnabled(true);
-      return;
-    }
-    apiFetch('/api/google-local/access')
-      .then((response) => response.ok ? response.json() : null)
-      .then((data) => setGoogleLocalEnabled(Boolean(data?.enabled)))
-      .catch(() => setGoogleLocalEnabled(false));
-  }, [isSuper, user?.id]);
-
-  const getSlugFromPath = () => {
-    if (isCustomWorkspaceHost()) return '';
-
-    const parts = location.pathname.split('/').filter(Boolean);
-    const firstPart = parts[0] || '';
-    const reserved = ['admin', 'site', 'login', 'onboarding', 'meet', 'dashboard', 'crm', 'finance', 'settings', 'team', 'projects', 'reports'];
-    if (firstPart && !reserved.includes(firstPart)) return firstPart;
-    return localStorage.getItem('nexus_org_slug') || '';
-  };
-
-  const currentSlug = getSlugFromPath();
-  const getPath = (basePath: string) => {
-    return workspacePath(basePath, currentSlug);
-  };
-
-  const canSeeModule = (moduleKey: string) => moduleKey === 'google_local'
-    ? googleLocalEnabled
-    : isSuper || access.hasModule(moduleKey);
-  const canSeeAny = (moduleKeys: string[]) => isSuper || access.hasAnyModule(moduleKeys);
-
-  const menuGroups: MenuGroup[] = [
-    {
-      label: 'Dashboard',
-      icon: LayoutDashboard,
-      modules: ['dashboard'],
-      items: [
-        { module: 'dashboard', icon: LayoutDashboard, label: 'Dashboard Executivo', path: '/dashboard', active: (path: string) => path === getPath('/dashboard') || path === '/' },
-      ],
-    },
-    {
-      label: 'Prospeccao',
-      icon: Target,
-      modules: ['prospecting', 'whatsapp_funnels', 'sales'],
-      items: [
-        { module: 'prospecting', icon: Target, label: 'Captacao de Leads', path: '/prospecting/capture' },
-        { module: 'prospecting', icon: CalendarDays, label: 'Missoes Agendadas', path: '/prospecting/missions' },
-        { module: 'sales', icon: Zap, label: 'Sales Machine', path: '/sales-machine' },
-        { module: 'whatsapp_funnels', icon: BarChart3, label: 'Funis IA WhatsApp', path: '/prospecting/funnels' },
-      ],
-    },
-    {
-      label: 'CRM',
-      icon: UsersRound,
-      modules: ['crm', 'whatsapp'],
-      items: [
-        { module: 'crm', icon: Users, label: 'CRM & Pipelines', path: '/crm', startsWith: true },
-        { module: 'crm', icon: Building2, label: 'Clientes', path: '/clients', startsWith: true },
-        { module: 'whatsapp', icon: MessageCircle, label: 'Mensagens', path: '/whatsapp?tab=messages' },
-        { module: 'whatsapp', icon: PlugZap, label: 'Conexoes WhatsApp', path: '/whatsapp?tab=instances' },
-        { module: 'crm', icon: KanbanSquare, label: 'Kanban', path: '/crm?tab=funil' },
-      ],
-    },
-    {
-      label: 'Marketing',
-      icon: Megaphone,
-      modules: ['ads', 'landing_pages', 'assets', 'proposals', 'google_local'],
-      items: [
-        { module: 'ads', icon: Megaphone, label: 'Trafego Pago', path: '/ad-accounts' },
-        { module: 'assets', icon: Palette, label: 'Criativos & Assets', path: '/assets' },
-        { module: 'landing_pages', icon: Globe, label: 'Landing Pages', path: '/landing-pages' },
-        { module: 'proposals', icon: FileText, label: 'Propostas', path: '/proposals' },
-        { module: 'google_local', icon: MapPinned, label: 'Google Local', path: '/google-local' },
-      ],
-    },
-    {
-      label: 'Operacao',
-      icon: FolderKanban,
-      modules: ['projects', 'delivery', 'time_tracking', 'service_catalog'],
-      items: [
-        { module: 'projects', icon: FolderKanban, label: 'Projetos', path: '/projects', startsWith: true },
-        { module: 'delivery', icon: Truck, label: 'Entregas', path: '/delivery' },
-        { module: 'time_tracking', icon: Clock, label: 'Apontamento de Horas', path: '/time-tracking' },
-        { module: 'service_catalog', icon: Package, label: 'Catalogo de Servicos', path: '/service-catalog' },
-      ],
-    },
-    {
-      label: 'IA ACP',
-      icon: Bot,
-      modules: ['ai', 'prompt_architect', 'knowledge_base'],
-      items: [
-        { module: 'ai', icon: Bot, label: 'Agentes de IA', path: '/agents-hub', isAi: true },
-        { module: 'prompt_architect', icon: Brain, label: 'Arquiteto de Prompts', path: '/prompt-architect', isAi: true },
-        { module: 'ai', icon: Zap, label: 'Orquestrador ACP', path: '/acp', isAi: true, badge: 'v2' },
-        { module: 'knowledge_base', icon: BookOpen, label: 'Base de Conhecimento', path: '/knowledge-base' },
-      ],
-    },
-    {
-      label: 'Gestao',
-      icon: BarChart3,
-      modules: ['reports', 'finance', 'health_score', 'agenda', 'notifications'],
-      items: [
-        { module: 'reports', icon: BarChart3, label: 'Relatorios', path: '/reports' },
-        { module: 'finance', icon: Wallet, label: 'Financeiro', path: '/finance' },
-        { module: 'health_score', icon: Activity, label: 'Health Score', path: '/client-health' },
-        { module: 'agenda', icon: CalendarDays, label: 'Agenda', path: '/calendar' },
-        { module: 'notifications', icon: Bell, label: 'Notificacoes', path: '/notifications' },
-      ],
-    },
-    {
-      label: 'Configuracoes',
-      icon: Settings,
-      modules: ['settings', 'team', 'integrations'],
-      items: [
-        { module: 'settings', icon: Settings, label: 'Administracao', path: '/settings' },
-        { module: 'team', icon: UsersRound, label: 'Usuarios', path: '/team' },
-        { module: 'team', icon: LockKeyhole, label: 'Permissoes', path: '/team?tab=permissions' },
-        { module: 'settings', icon: KeyRound, label: 'Integracoes', path: '/settings?tab=integrations' },
-      ],
-    },
-  ];
 
   const renderMenuItem = (item: MenuItem) => {
-    if (!canSeeModule(item.module)) return null;
-    const path = getPath(item.path);
-    const comparablePath = path.split('?')[0];
-    const active = item.active
-      ? item.active(location.pathname)
-      : item.path.includes('?')
-        ? `${location.pathname}${location.search}` === path
-        : item.startsWith
-          ? location.pathname.startsWith(comparablePath)
-          : location.pathname === comparablePath;
+    const path = navigation.getPath(item.path);
     return (
       <SidebarItem
         key={`${item.module}-${item.path}`}
         icon={item.icon}
         label={item.label}
         path={path}
-        isActive={active}
+        isActive={navigation.isItemActive(item)}
         isAi={item.isAi}
         badge={item.badge}
         collapsed={collapsed}
       />
     );
   };
+
+  const renderAdminItem = (item: AdminMenuItem) => (
+    <SidebarItem
+      key={item.path}
+      icon={item.icon}
+      label={item.label}
+      path={item.path}
+      isActive={navigation.isAdminItemActive(item)}
+      collapsed={collapsed}
+      badge={item.badge}
+      isAi={item.isAi}
+    />
+  );
+
+  const renderAdminCluster = (cluster: AdminMenuCluster) => (
+    <SidebarItem
+      key={cluster.label}
+      icon={cluster.icon}
+      label={cluster.label}
+      collapsed={collapsed}
+    >
+      {cluster.items.map(renderAdminItem)}
+    </SidebarItem>
+  );
 
   return (
     <>
@@ -430,47 +265,23 @@ export const Sidebar: React.FC<{
 
           {user?.role === 'SUPER_ADMIN' && !selectedClientId ? (
             <SidebarGroup label="Menu Super Admin" collapsed={collapsed}>
-              <SidebarItem icon={LayoutDashboard} label="Dashboard" path="/admin" isActive={location.pathname === '/admin'} collapsed={collapsed} />
-              <SidebarItem icon={Zap} label="Monitoramento" path="/admin/monitor" isActive={location.pathname === '/admin/monitor'} collapsed={collapsed} />
-              <SidebarItem icon={Building2} label="Clientes" path="/admin/agencies" isActive={location.pathname === '/admin/agencies'} collapsed={collapsed} />
-              <SidebarItem icon={Palette} label="White-label" path="/admin/whitelabel" isActive={location.pathname === '/admin/whitelabel'} collapsed={collapsed} />
-              <SidebarItem icon={Users} label="Equipe Sistema" path="/admin/team" isActive={location.pathname === '/admin/team'} collapsed={collapsed} />
-              <SidebarItem icon={Ticket} label="Planos SaaS" path="/admin/plans" isActive={location.pathname === '/admin/plans'} collapsed={collapsed} />
-              <SidebarItem icon={FileText} label="Log de Auditoria" path="/admin/audit" isActive={location.pathname === '/admin/audit'} collapsed={collapsed} />
-              <SidebarItem icon={CreditCard} label="Faturas SaaS" path="/admin/billing" isActive={location.pathname === '/admin/billing'} collapsed={collapsed} />
-              <SidebarItem icon={Ticket} label="Chamados Globais" path="/admin/tickets" isActive={location.pathname === '/admin/tickets'} collapsed={collapsed} />
-              <SidebarItem icon={Globe} label="Dominios" path="/admin/domains" isActive={location.pathname === '/admin/domains'} collapsed={collapsed} />
-              <SidebarItem icon={Rocket} label="Controle de Lancamento" path="/admin/releases" isActive={location.pathname === '/admin/releases'} collapsed={collapsed} />
-              <SidebarItem icon={Brain} label="Orquestrador ACP" path="/acp" isActive={location.pathname === '/acp'} collapsed={collapsed} badge="v2" />
-              <SidebarItem icon={Cpu} label="AI Core" path="/admin/ai" isActive={location.pathname === '/admin/ai'} collapsed={collapsed} />
-              <SidebarItem icon={Brain} label="ACP - Liberação" path="/admin/acp" isActive={location.pathname === '/admin/acp'} collapsed={collapsed} />
-              <SidebarItem icon={MapPinned} label="Google Local" path="/admin/google-local" isActive={location.pathname === '/admin/google-local'} collapsed={collapsed} />
+              {navigation.adminClusters.map(renderAdminCluster)}
             </SidebarGroup>
           ) : (
             <>
-              {menuGroups.map((group) => {
-                if (!canSeeAny(group.modules)) return null;
-                const groupHasActiveItem = group.items.some((item) => location.pathname.startsWith(getPath(item.path).split('?')[0]));
-                const groupHasActiveChild = group.children?.some((child) =>
-                  child.items.some((subItem) => location.pathname === getPath(subItem.path))
-                );
-                const visibleItemsCount = group.items.filter((item) => canSeeModule(item.module)).length +
-                  (group.children || []).reduce((total: number, child) => (
-                    canSeeModule(child.module) ? total + child.items.length : total
-                  ), 0);
+              {navigation.visibleMenuGroups.map((group) => {
                 return (
                   <SidebarGroup
                     key={group.label}
                     label={group.label}
                     icon={group.icon}
-                    count={visibleItemsCount}
+                    count={group.visibleCount}
                     collapsed={collapsed}
                     collapsible
-                    defaultOpen={group.label === 'Dashboard' || Boolean(groupHasActiveItem || groupHasActiveChild)}
+                    defaultOpen={group.isActive}
                   >
-                    {group.items.map(renderMenuItem)}
-                    {group.children?.map((child) => {
-                      if (!canSeeModule(child.module)) return null;
+                    {group.visibleItems.map(renderMenuItem)}
+                    {group.visibleChildren.map((child) => {
                       return (
                         <SidebarItem key={child.module} icon={child.icon} label={child.label} collapsed={collapsed}>
                           {child.items.map((subItem) => (
@@ -478,8 +289,9 @@ export const Sidebar: React.FC<{
                               key={subItem.path}
                               icon={ChevronRight}
                               label={subItem.label}
-                              path={getPath(subItem.path)}
-                              isActive={location.pathname === getPath(subItem.path)}
+                              path={navigation.getPath(subItem.path)}
+                              isActive={location.pathname === navigation.getPath(subItem.path).split('?')[0]}
+                              collapsed={collapsed}
                             />
                           ))}
                         </SidebarItem>

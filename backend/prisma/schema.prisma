@@ -156,6 +156,9 @@ model Organization {
   businessDescription String?  // Descrição livre do que o cliente vende
 
   onboardingResponse OnboardingResponse?
+  organizationExperience OrganizationExperience?
+  organizationModules OrganizationModule[]
+  provisioningRuns ProvisioningRun[]
 
   customFields          CustomField[]
   lostReasons           LostReason[]
@@ -2839,6 +2842,96 @@ model BusinessTemplate {
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// ==================== EXPERIENCIA MODULAR ====================
+
+model ExperienceBlueprint {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+  vertical    String
+  version     Int      @default(1)
+  isActive    Boolean  @default(true)
+
+  config      Json
+
+  organizationExperiences OrganizationExperience[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([vertical])
+  @@index([isActive])
+}
+
+model OrganizationExperience {
+  id             String       @id @default(uuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  blueprintId    String?
+  template       ExperienceBlueprint? @relation(fields: [blueprintId], references: [id])
+
+  vertical       String
+  label          String
+  status         String       @default("active") // draft, active, archived
+  source         String       @default("onboarding") // onboarding, manual, ai, template
+  version        Int          @default(1)
+
+  answers        Json?
+  blueprint      Json
+  moduleKeys     Json
+  vocabulary     Json?
+
+  appliedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([vertical])
+  @@index([status])
+}
+
+model OrganizationModule {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  moduleKey      String
+  isEnabled      Boolean      @default(true)
+  source         String       @default("experience") // experience, plan, manual
+  settings       Json?
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizationId, moduleKey])
+  @@index([organizationId])
+  @@index([moduleKey])
+}
+
+model ProvisioningRun {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  userId         String?
+  source         String       @default("onboarding")
+  status         String       @default("running") // running, success, failed
+
+  input          Json?
+  output         Json?
+  createdItems   Json?
+  errorMessage   String?      @db.Text
+
+  startedAt      DateTime     @default(now())
+  finishedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([status])
 }
 
 // ==================== CAMPOS PERSONALIZADOS ====================

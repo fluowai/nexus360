@@ -306,6 +306,7 @@ export function useAppNavigation(user: User | null): AppNavigationModel {
   const access = useAccess(user);
   const isSuper = user?.role === 'SUPER_ADMIN';
   const [googleLocalEnabled, setGoogleLocalEnabled] = useState(isSuper);
+  const [experienceModules, setExperienceModules] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     if (isSuper) {
@@ -319,6 +320,21 @@ export function useAppNavigation(user: User | null): AppNavigationModel {
       .catch(() => setGoogleLocalEnabled(false));
   }, [isSuper, user?.id]);
 
+  useEffect(() => {
+    if (!user?.id || isSuper) {
+      setExperienceModules(null);
+      return;
+    }
+
+    apiFetch('/api/experience/navigation')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => {
+        const modules = Array.isArray(data?.modules) ? data.modules.filter(Boolean) : [];
+        setExperienceModules(data?.provisioned && modules.length ? new Set(modules) : null);
+      })
+      .catch(() => setExperienceModules(null));
+  }, [isSuper, user?.id]);
+
   const currentSlug = useMemo(() => getSlugFromPath(location.pathname), [location.pathname]);
 
   const getPath = useCallback((basePath: string) => {
@@ -326,9 +342,11 @@ export function useAppNavigation(user: User | null): AppNavigationModel {
   }, [currentSlug]);
 
   const canSeeModule = useCallback((moduleKey: string) => {
+    const enabledByExperience = !experienceModules || experienceModules.has(moduleKey);
+    if (!enabledByExperience) return false;
     if (moduleKey === 'google_local') return googleLocalEnabled;
     return isSuper || access.hasModule(moduleKey);
-  }, [access, googleLocalEnabled, isSuper]);
+  }, [access, experienceModules, googleLocalEnabled, isSuper]);
 
   const isItemActive = useCallback((item: MenuItem) => {
     const path = getPath(item.path);

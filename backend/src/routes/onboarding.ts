@@ -2,6 +2,10 @@ import { Router } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { OnboardingAIService } from "../services/onboardingAI.js";
+import {
+  getOrganizationExperienceState,
+  provisionExperienceFromOnboardingResponse,
+} from "../services/experienceProvisioning.js";
 
 function buildOrgSlug(value: unknown) {
   return String(value || "")
@@ -209,18 +213,35 @@ export function onboardingRoutes(prisma: PrismaClient) {
       }
 
       if (response.appliedAt) {
-        return res.json({ success: true, message: "Ambiente comercial ja estava configurado." });
+        const state = await getOrganizationExperienceState(prisma, orgId);
+        const experienceResult = state.provisioned
+          ? null
+          : await provisionExperienceFromOnboardingResponse(prisma, orgId, userId);
+
+        return res.json({
+          success: true,
+          message: "Ambiente comercial ja estava configurado.",
+          experienceProvisioned: Boolean(experienceResult),
+          experience: state.experience || experienceResult?.experience || null,
+          modules: state.moduleKeys.length ? state.moduleKeys : experienceResult?.moduleKeys || [],
+        });
       }
 
       const diagnosis = response.aiDiagnosis as any;
       await aiService.applyDiagnosis(orgId, diagnosis, userId);
+      const experienceResult = await provisionExperienceFromOnboardingResponse(prisma, orgId, userId);
 
       await prisma.onboardingResponse.update({
         where: { id: response.id },
         data: { appliedAt: new Date() },
       });
 
-      res.json({ success: true, message: "Ambiente comercial configurado com sucesso!" });
+      res.json({
+        success: true,
+        message: "Ambiente comercial configurado com sucesso!",
+        experience: experienceResult.experience,
+        modules: experienceResult.moduleKeys,
+      });
     } catch (error) {
       next(error);
     }

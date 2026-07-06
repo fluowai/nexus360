@@ -84,6 +84,7 @@ import { googleLocalRoutes } from "./routes/googleLocal.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { whatsappCallRoutes } from "./routes/whatsappCalls.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
+import { experienceRoutes } from "./routes/experience.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -377,6 +378,7 @@ const protectedRoutes = [
   { path: "/api/google-local", router: googleLocalRoutes },
   { path: "/api/webhooks", router: webhookRoutes },
   { path: "/api/dashboard", router: dashboardRoutes },
+  { path: "/api/experience", router: experienceRoutes },
   { path: "/api/whatsapp/calls", router: whatsappCallRoutes },
   { path: "/api/admin/storage", router: adminStorageRoutes },
 ];

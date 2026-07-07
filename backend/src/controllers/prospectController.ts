@@ -269,6 +269,7 @@ export const getMissionLeads = async (req: any, res: Response, next: NextFunctio
       googleReviewsCount: cl.reviewsCount,
       status: cl.cnpjStatus === "validated" ? "aprovado_para_contato" : cl.cnpjStatus === "rejected" ? "descartado" : "validado",
       captureDate: cl.createdAt,
+      createdAt: cl.createdAt,
       _capturedLead: true,
       validation: {
         cnpj: cl.cnpj,

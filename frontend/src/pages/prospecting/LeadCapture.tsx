@@ -340,174 +340,165 @@ function CaptureIntelligenceCard({
 
   return (
     <div className="w-full mt-3 rounded-2xl border border-indigo-100 bg-white shadow-sm overflow-hidden">
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px]">
-        <div className="p-4 lg:p-5 space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_180px] gap-4">
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700">
-                  <Brain size={12} />
-                  Card de Captação IA
-                </span>
-                <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                  Groq
-                </span>
-                <span className="rounded-lg bg-purple-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-purple-700">
-                  {lead.category || 'Segmento não informado'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
-                <SignalPill ok={lead.cnpjStatus === 'validated' || Boolean(lead.cnpj)} okText={lead.cnpj || 'CNPJ validado'} badText="CNPJ não encontrado" />
-                <SignalPill ok={Boolean(lead.website)} okText="Site detectado" badText="Sem site" />
-                <SignalPill ok={false} okText="Tráfego pago ativo" badText="Tráfego pago não detectado" />
-                <SignalPill ok={Number(lead.rating || 0) >= 4.2} okText={`Google ${lead.rating || 'N/A'}`} badText="Avaliações fracas" />
-              </div>
+      <div className="p-4 lg:p-5 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_180px] gap-4">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700">
+                <Brain size={12} />
+                Card de Captação IA
+              </span>
+              <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                Groq
+              </span>
+              <span className="rounded-lg bg-purple-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-purple-700">
+                {lead.category || 'Segmento não informado'}
+              </span>
             </div>
 
-            <div className="flex items-center justify-center lg:justify-end gap-4 border-t border-gray-100 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
-              <div
-                className="h-28 w-28 rounded-full p-3"
-                style={{ background: `conic-gradient(${scoreColor} ${score * 3.6}deg, #eef2ff 0deg)` }}
-              >
-                <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
-                  <span className="text-3xl font-black text-gray-950">{score}%</span>
-                  <span className="text-xs font-black" style={{ color: scoreColor }}>{scoreLabel}</span>
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+              <SignalPill ok={lead.cnpjStatus === 'validated' || Boolean(lead.cnpj)} okText={lead.cnpj || 'CNPJ validado'} badText="CNPJ não encontrado" />
+              <SignalPill ok={Boolean(lead.website)} okText="Site detectado" badText="Sem site" />
+              <SignalPill ok={false} okText="Tráfego pago ativo" badText="Tráfego pago não detectado" />
+              <SignalPill ok={Number(lead.rating || 0) >= 4.2} okText={`Google ${lead.rating || 'N/A'}`} badText="Avaliações fracas" />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            <InfoPanel icon={<Brain size={16} />} title="Recomendação IA" accent="text-indigo-600">
-              <p className="text-sm font-semibold leading-relaxed text-gray-800">{card.recomendacao_ia}</p>
-            </InfoPanel>
-
-            <InfoPanel icon={<DollarSign size={16} />} title="Oportunidade Estimada" accent="text-emerald-600">
-              <MetricRow label="Ticket médio" value={card.oportunidade.ticket_estimado} strong />
-              <MetricRow label="Maturidade digital" value={normalizeClassification(card.oportunidade.maturidade_digital)} />
-              <MetricRow label="Fit ICP" value={card.oportunidade.fit_icp} />
-              <MetricRow label="Potencial" value={normalizeClassification(card.oportunidade.nivel)} />
-            </InfoPanel>
-
-            <InfoPanel icon={<Target size={16} />} title="Resumo do Score" accent="text-blue-600">
-              <div className="space-y-1.5">
-                {scoreRows.map((row, idx) => (
-                  <div key={`${row.label}-${idx}`} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="flex items-center gap-1.5 text-gray-700">
-                      {row.value === null ? <Target size={12} className="text-indigo-500" /> : row.value >= 0 ? <Check size={12} className="text-emerald-500" /> : <X size={12} className="text-red-500" />}
-                      {row.label}
-                    </span>
-                    {row.value === null ? (
-                      <span className="text-sm font-black text-emerald-600">{score}/100</span>
-                    ) : (
-                      <span className={row.value >= 0 ? 'font-black text-emerald-600' : 'font-black text-red-500'}>
-                        {row.value > 0 ? '+' : ''}{row.value}
-                      </span>
-                    )}
-                  </div>
-                ))}
+          <div className="flex items-center justify-center lg:justify-end gap-4 border-t border-gray-100 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+            <div
+              className="h-28 w-28 rounded-full p-3"
+              style={{ background: `conic-gradient(${scoreColor} ${score * 3.6}deg, #eef2ff 0deg)` }}
+            >
+              <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
+                <span className="text-3xl font-black text-gray-950">{score}%</span>
+                <span className="text-xs font-black" style={{ color: scoreColor }}>{scoreLabel}</span>
               </div>
-            </InfoPanel>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-3">
-            <InfoPanel icon={<ClipboardList size={16} />} title="Diagnóstico IA" accent="text-purple-600">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                <div>
-                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Resumo</p>
-                  <p className="font-medium leading-relaxed text-gray-700">{card.diagnostico.resumo}</p>
-                </div>
-                <ListBlock title="Dores identificadas" items={card.diagnostico.dores} tone="red" />
-                <ListBlock title="Oportunidades" items={card.diagnostico.oportunidades} tone="emerald" />
-              </div>
-            </InfoPanel>
-
-            <InfoPanel icon={<Target size={16} />} title="Estratégia de Abordagem" accent="text-indigo-600">
-              <MetricRow label="Canal prioritário" value={card.estrategia_abordagem.canal_prioritario} strong />
-              <MetricRow label="Melhor horário" value={card.estrategia_abordagem.melhor_horario} />
-              <MetricRow label="Ângulo" value={card.estrategia_abordagem.angulo} />
-              <MetricRow label="Gatilho" value={card.estrategia_abordagem.gatilho} />
-            </InfoPanel>
-          </div>
-
-          <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-3">
-            <InfoPanel icon={<MessageCircle size={16} />} title="Script SDR Sugerido" accent="text-blue-600">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                {[
-                  ['1. Abertura', card.script_sdr.abertura],
-                  ['2. Conexão', card.script_sdr.conexao],
-                  ['3. Oferta', card.script_sdr.oferta],
-                  ['4. CTA', card.script_sdr.cta],
-                ].map(([title, text]) => (
-                  <div key={title} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-                    <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-indigo-600">{title}</p>
-                    <p className="text-xs font-medium leading-relaxed text-gray-700">{text}</p>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigator.clipboard?.writeText(copiedText);
-                }}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100"
-              >
-                <Copy size={14} />
-                Copiar script completo
-              </button>
-            </InfoPanel>
-
-            <InfoPanel icon={<ClipboardList size={16} />} title="Ações Recomendadas" accent="text-emerald-600">
-              <div className="space-y-2">
-                {card.acoes_recomendadas.map((action, idx) => (
-                  <div key={`${action}-${idx}`} className="flex items-start gap-2 text-xs font-medium text-gray-700">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-black text-indigo-700">{idx + 1}</span>
-                    <span>{action}</span>
-                  </div>
-                ))}
-              </div>
-            </InfoPanel>
+            </div>
           </div>
         </div>
 
-        <aside className="border-t border-gray-100 bg-gray-50/70 p-4 xl:border-l xl:border-t-0">
-          <div className="space-y-4">
-            <div>
-              <p className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-700">
-                <Users size={15} className="text-indigo-600" />
-                Decisores identificados
-              </p>
-              <div className="space-y-2">
-                {card.decisores.slice(0, 4).map((person, idx) => (
-                  <div key={`${person.nome}-${idx}`} className="flex items-center justify-between gap-2 rounded-xl bg-white p-3 shadow-sm">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-black text-white">
-                        {(person.nome || '?').slice(0, 1).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-black text-gray-900">{person.nome}</p>
-                        <p className="truncate text-[10px] font-medium text-gray-500">{person.cargo}</p>
-                      </div>
-                    </div>
-                    <span className="rounded-lg bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">{person.nivel_influencia}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <InfoPanel icon={<Brain size={16} />} title="Recomendação IA" accent="text-indigo-600">
+            <p className="text-sm font-semibold leading-relaxed text-gray-800">{card.recomendacao_ia}</p>
+          </InfoPanel>
 
-            <div>
-              <p className="mb-3 text-xs font-black uppercase tracking-widest text-gray-700">Ações rápidas</p>
-              <div className="space-y-2">
-                <QuickAction icon={<MessageCircle size={14} />} label="Iniciar abordagem SDR" tone="indigo" href={lead.phone ? `https://wa.me/${lead.phone.replace(/\D/g, '')}` : undefined} />
-                <QuickAction icon={<Wand2 size={14} />} label="Gerar script personalizado" tone="emerald" onClick={() => onGenerateScripts?.(lead.id)} />
-                <QuickAction icon={<Target size={14} />} label="Ver estratégia de ataque" tone="orange" />
-                <QuickAction icon={<RefreshCcw size={14} />} label="Reprocessar IA" tone="gray" onClick={() => onRefresh?.(lead.id)} />
-              </div>
+          <InfoPanel icon={<DollarSign size={16} />} title="Oportunidade Estimada" accent="text-emerald-600">
+            <MetricRow label="Ticket médio" value={card.oportunidade.ticket_estimado} strong />
+            <MetricRow label="Maturidade digital" value={normalizeClassification(card.oportunidade.maturidade_digital)} />
+            <MetricRow label="Fit ICP" value={card.oportunidade.fit_icp} />
+            <MetricRow label="Potencial" value={normalizeClassification(card.oportunidade.nivel)} />
+          </InfoPanel>
+
+          <InfoPanel icon={<Target size={16} />} title="Resumo do Score" accent="text-blue-600">
+            <div className="space-y-1.5">
+              {scoreRows.map((row, idx) => (
+                <div key={`${row.label}-${idx}`} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="flex items-center gap-1.5 text-gray-700">
+                    {row.value === null ? <Target size={12} className="text-indigo-500" /> : row.value >= 0 ? <Check size={12} className="text-emerald-500" /> : <X size={12} className="text-red-500" />}
+                    {row.label}
+                  </span>
+                  {row.value === null ? (
+                    <span className="text-sm font-black text-emerald-600">{score}/100</span>
+                  ) : (
+                    <span className={row.value >= 0 ? 'font-black text-emerald-600' : 'font-black text-red-500'}>
+                      {row.value > 0 ? '+' : ''}{row.value}
+                    </span>
+                  )}
+                </div>
+              ))}
             </div>
-          </div>
-        </aside>
+          </InfoPanel>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-3">
+          <InfoPanel icon={<ClipboardList size={16} />} title="Diagnóstico IA" accent="text-purple-600">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div>
+                <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Resumo</p>
+                <p className="font-medium leading-relaxed text-gray-700">{card.diagnostico.resumo}</p>
+              </div>
+              <ListBlock title="Dores identificadas" items={card.diagnostico.dores} tone="red" />
+              <ListBlock title="Oportunidades" items={card.diagnostico.oportunidades} tone="emerald" />
+            </div>
+          </InfoPanel>
+
+          <InfoPanel icon={<Target size={16} />} title="Estratégia de Abordagem" accent="text-indigo-600">
+            <MetricRow label="Canal prioritário" value={card.estrategia_abordagem.canal_prioritario} strong />
+            <MetricRow label="Melhor horário" value={card.estrategia_abordagem.melhor_horario} />
+            <MetricRow label="Ângulo" value={card.estrategia_abordagem.angulo} />
+            <MetricRow label="Gatilho" value={card.estrategia_abordagem.gatilho} />
+          </InfoPanel>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-3">
+          <InfoPanel icon={<MessageCircle size={16} />} title="Script SDR Sugerido" accent="text-blue-600">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+              {[
+                ['1. Abertura', card.script_sdr.abertura],
+                ['2. Conexão', card.script_sdr.conexao],
+                ['3. Oferta', card.script_sdr.oferta],
+                ['4. CTA', card.script_sdr.cta],
+              ].map(([title, text]) => (
+                <div key={title} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-indigo-600">{title}</p>
+                  <p className="text-xs font-medium leading-relaxed text-gray-700">{text}</p>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard?.writeText(copiedText);
+              }}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100"
+            >
+              <Copy size={14} />
+              Copiar script completo
+            </button>
+          </InfoPanel>
+
+          <InfoPanel icon={<ClipboardList size={16} />} title="Ações Recomendadas" accent="text-emerald-600">
+            <div className="space-y-2">
+              {card.acoes_recomendadas.map((action, idx) => (
+                <div key={`${action}-${idx}`} className="flex items-start gap-2 text-xs font-medium text-gray-700">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-black text-indigo-700">{idx + 1}</span>
+                  <span>{action}</span>
+                </div>
+              ))}
+            </div>
+          </InfoPanel>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3">
+          <InfoPanel icon={<Users size={16} />} title="Decisores Identificados" accent="text-indigo-600">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {card.decisores.slice(0, 4).map((person, idx) => (
+                <div key={`${person.nome}-${idx}`} className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-black text-white">
+                      {(person.nome || '?').slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-black text-gray-900">{person.nome}</p>
+                      <p className="truncate text-[10px] font-medium text-gray-500">{person.cargo}</p>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-lg bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">{person.nivel_influencia}</span>
+                </div>
+              ))}
+            </div>
+          </InfoPanel>
+
+          <InfoPanel icon={<Zap size={16} />} title="Ações Rápidas" accent="text-indigo-600">
+            <div className="space-y-2">
+              <QuickAction icon={<MessageCircle size={14} />} label="Iniciar abordagem SDR" tone="indigo" href={lead.phone ? `https://wa.me/${lead.phone.replace(/\D/g, '')}` : undefined} />
+              <QuickAction icon={<Wand2 size={14} />} label="Gerar script personalizado" tone="emerald" onClick={() => onGenerateScripts?.(lead.id)} />
+              <QuickAction icon={<Target size={14} />} label="Ver estratégia de ataque" tone="orange" />
+              <QuickAction icon={<RefreshCcw size={14} />} label="Reprocessar IA" tone="gray" onClick={() => onRefresh?.(lead.id)} />
+            </div>
+          </InfoPanel>
+        </div>
       </div>
     </div>
   );

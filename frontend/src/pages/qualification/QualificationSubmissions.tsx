@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Search, Filter, CheckCircle, XCircle,
-  Calendar, ChevronDown, ExternalLink, Clock,
-  UserCheck, Target, Mail, Phone, FileText, MessageSquare
+  Calendar, Clock, UserCheck, Mail, Phone, FileText
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../../lib/api";
@@ -76,13 +75,16 @@ export function QualificationSubmissions({ forms }: Props) {
 
   useEffect(() => {
     fetchSubmissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, filters.formId, filters.routedTo]);
 
   const handleApprove = async (sub: Submission) => {
     try {
       await apiFetch(`/api/qualification/submissions/${sub.id}/approve`, { method: "POST", body: JSON.stringify({}) });
       fetchSubmissions();
-    } catch {}
+    } catch (err) {
+      console.error("Erro ao aprovar submissão", err);
+    }
   };
 
   const handleReject = async (sub: Submission) => {
@@ -90,7 +92,9 @@ export function QualificationSubmissions({ forms }: Props) {
     try {
       await apiFetch(`/api/qualification/submissions/${sub.id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
       fetchSubmissions();
-    } catch {}
+    } catch (err) {
+      console.error("Erro ao rejeitar submissão", err);
+    }
   };
 
   const handleSchedule = async () => {
@@ -102,7 +106,9 @@ export function QualificationSubmissions({ forms }: Props) {
       });
       setScheduleModal({ open: false, submission: null, date: "", notes: "" });
       fetchSubmissions();
-    } catch {}
+    } catch (err) {
+      console.error("Erro ao agendar", err);
+    }
   };
 
   const filtered = submissions.filter((s) => {

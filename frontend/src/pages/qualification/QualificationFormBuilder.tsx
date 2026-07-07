@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  ArrowLeft, Plus, Trash2, GripVertical, Save, AlertCircle,
-  ToggleLeft, ToggleRight, ChevronDown, ArrowUp, ArrowDown
+  ArrowLeft, Plus, Trash2, Save, AlertCircle,
+  ToggleLeft, ToggleRight, ArrowUp, ArrowDown
 } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 

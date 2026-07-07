@@ -228,7 +228,7 @@ const Layout = ({
           selectedClientId={selectedClientId}
         />
 
-        <div className="p-4 md:p-8 max-w-[1800px] mx-auto">
+        <div className="p-4 md:p-8 ">
           <ErrorBoundary>
             <Suspense fallback={
             <div className="flex items-center justify-center h-[60vh]">

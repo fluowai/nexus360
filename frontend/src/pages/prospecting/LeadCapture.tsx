@@ -340,8 +340,8 @@ function CaptureIntelligenceCard({
 
   return (
     <div className="w-full mt-3 rounded-2xl border border-indigo-100 bg-white shadow-sm overflow-hidden">
-      <div className="p-4 lg:p-5 space-y-4">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_180px] gap-4">
+      <div className="py-4 lg:py-5 space-y-4">
+        <div className="px-4 lg:px-5 grid grid-cols-1 lg:grid-cols-[1fr_180px] gap-4">
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700">

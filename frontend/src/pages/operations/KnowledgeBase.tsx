@@ -24,69 +24,19 @@ import {
   Trash2,
   TrendingUp,
   X,
+  Zap,
 } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
-const DEFAULT_CATEGORIES = [
-  { name: "Comercial", count: 28, icon: TrendingUp },
-  { name: "Marketing", count: 26, icon: Sparkles },
-  { name: "Operacao", count: 32, icon: Layers3 },
-  { name: "IA ACP", count: 24, icon: BookOpen },
-  { name: "Financeiro", count: 15, icon: FileText },
-  { name: "Produto", count: 12, icon: Grid2X2 },
-  { name: "Onboarding", count: 8, icon: Calendar },
-];
-
-const SAMPLE_ARTICLES = [
-  {
-    id: "sample-sdr-flow",
-    title: "Fluxo Completo de SDR IA",
-    content: "Entenda o fluxo completo de qualificacao, abordagem e agendamento automatizado.",
-    category: "Comercial",
-    tags: ["SDR", "IA", "Vendas"],
-    author: "Mariana Silva",
-    updatedAt: "2024-05-18T12:00:00.000Z",
-    views: 118,
-    isPublished: true,
-    isSample: true,
-  },
-  {
-    id: "sample-acp-campaigns",
-    title: "Como criar campanhas ACP de alta conversao",
-    content: "Aprenda o passo a passo para criar campanhas utilizando o Orquestrador ACP.",
-    category: "IA ACP",
-    tags: ["ACP", "Campanhas"],
-    author: "Gabriel Alves",
-    updatedAt: "2024-05-20T12:00:00.000Z",
-    views: 142,
-    isPublished: true,
-    isSample: true,
-  },
-  {
-    id: "sample-onboarding",
-    title: "Processo de onboarding de clientes",
-    content: "Boas praticas e checklist para um onboarding eficiente.",
-    category: "Onboarding",
-    tags: ["Onboarding", "Processos", "Clientes"],
-    author: "Joao Pedro",
-    updatedAt: "2024-05-15T12:00:00.000Z",
-    views: 86,
-    isPublished: true,
-    isSample: true,
-  },
-  {
-    id: "sample-playbook",
-    title: "Playbook de vendas consultivas",
-    content: "Roteiro completo para conduzir vendas consultivas de ponta a ponta.",
-    category: "Comercial",
-    tags: ["Vendas", "Playbook", "Comercial"],
-    author: "Gabriel Alves",
-    updatedAt: "2024-05-10T12:00:00.000Z",
-    views: 74,
-    isPublished: true,
-    isSample: true,
-  },
-];
+const CATEGORY_ICONS: Record<string, any> = {
+  "IA ACP": Zap,
+  "Comercial": TrendingUp,
+  "Marketing": Sparkles,
+  "Operacao": Layers3,
+  "Financeiro": FileText,
+  "Produto": Grid2X2,
+  "Onboarding": Calendar,
+};
 
 function parseTags(tags: unknown): string[] {
   if (Array.isArray(tags)) return tags.filter(Boolean);
@@ -108,16 +58,25 @@ function normalizeCategoryName(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+function extractAcpPhase(tags: string[], title: string): string | null {
+  const phaseMatch = title.match(/Fase (\d+)/i);
+  if (phaseMatch) return phaseMatch[0];
+  const phaseTag = tags.find(t => /^fase\s*\d+/i.test(t));
+  return phaseTag || null;
+}
+
 export default function KnowledgeBase() {
   const [articles, setArticles] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [sortBy, setSortBy] = useState("recent");
   const [filterBy, setFilterBy] = useState("all");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+  const [selectedArticle, setSelectedArticle] = useState<any>(null);
 
   const fetchArticles = async () => {
     try {
@@ -131,8 +90,10 @@ export default function KnowledgeBase() {
       ]);
       const artData = await artRes.json();
       const catData = await catRes.json();
-      setArticles(Array.isArray(artData) ? artData : artData.articles || []);
-      setCategories(Array.isArray(catData) ? catData : catData.categories || []);
+      const rawArticles = Array.isArray(artData) ? artData : artData.articles || [];
+      const rawCategories = Array.isArray(catData) ? catData : catData.categories || [];
+      setArticles(rawArticles);
+      setCategories(rawCategories);
     } catch (err) {
       console.error(err);
     } finally {
@@ -146,21 +107,29 @@ export default function KnowledgeBase() {
 
   const categoryItems = useMemo(() => {
     const apiCounts = new Map<string, number>();
-    categories.forEach((cat) => {
+    categories.forEach((cat: any) => {
       const name = typeof cat === "string" ? cat : cat.category || cat.name;
       if (!name) return;
-      apiCounts.set(name, cat._count?.id || cat.count || 0);
+      apiCounts.set(normalizeCategoryName(name), cat._count?.id || cat.count || 0);
     });
 
-    return DEFAULT_CATEGORIES.map((category) => ({
-      ...category,
-      count: apiCounts.get(category.name) ?? apiCounts.get(normalizeCategoryName(category.name)) ?? category.count,
-    }));
-  }, [categories]);
+    const uniqueNames = new Set<string>();
+    articles.forEach(a => {
+      if (a.category) uniqueNames.add(a.category);
+    });
+
+    return Array.from(uniqueNames).map(name => {
+      const icon = CATEGORY_ICONS[name] || BookOpen;
+      return {
+        name,
+        icon,
+        count: apiCounts.get(normalizeCategoryName(name)) || articles.filter(a => a.category === name).length,
+      };
+    }).sort((a, b) => b.count - a.count);
+  }, [categories, articles]);
 
   const normalizedArticles = useMemo(() => {
-    const source = articles.length > 0 ? articles : SAMPLE_ARTICLES;
-    const visible = source.filter((article) => {
+    const visible = articles.filter((article) => {
       const matchesSearch =
         !searchTerm ||
         article.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -176,9 +145,6 @@ export default function KnowledgeBase() {
     });
   }, [articles, filterBy, searchTerm, selectedCategory, sortBy]);
 
-  const hasRealArticles = articles.length > 0;
-  const shouldShowEmpty = hasRealArticles && normalizedArticles.length === 0;
-
   const handleDelete = async (id: string) => {
     if (!confirm("Excluir este artigo?")) return;
     try {
@@ -186,6 +152,22 @@ export default function KnowledgeBase() {
       fetchArticles();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleAcpSeed = async () => {
+    if (!confirm("Semear base de conhecimento com os 16 artigos do Método ACP v2.0?")) return;
+    setSeeding(true);
+    try {
+      const res = await apiFetch("/api/knowledge-base/acp-seed", { method: "POST" });
+      const data = await res.json();
+      alert(`${data.created} artigos ACP criados (${data.total} disponíveis).`);
+      fetchArticles();
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao semear artigos ACP.");
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -205,22 +187,32 @@ export default function KnowledgeBase() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-[40px] font-bold leading-tight tracking-normal text-[#0F172A]">Base de Conhecimento</h1>
-          <p className="mt-2 text-[18px] font-medium text-[#64748B]">Documentacao, processos e playbooks da operacao.</p>
+          <p className="mt-2 text-[18px] font-medium text-[#64748B]">Documentação, processos, playbooks e o método ACP v2.0 completo.</p>
         </div>
-        <button
-          onClick={() => { setEditing(null); setModalOpen(true); }}
-          className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-[#5B5CF0] px-6 text-[16px] font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5] active:scale-[0.98]"
-        >
-          <Plus size={20} />
-          Novo Artigo
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleAcpSeed}
+            disabled={seeding}
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-xl border border-[#5B5CF0] bg-white px-5 text-[14px] font-bold text-[#5B5CF0] transition-all duration-200 hover:bg-[#F4F5FF] disabled:opacity-50"
+          >
+            <Zap size={18} />
+            {seeding ? "Semear ACP..." : "Semear ACP"}
+          </button>
+          <button
+            onClick={() => { setEditing(null); setModalOpen(true); }}
+            className="inline-flex h-14 items-center justify-center gap-2 rounded-xl bg-[#5B5CF0] px-6 text-[16px] font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5] active:scale-[0.98]"
+          >
+            <Plus size={20} />
+            Novo Artigo
+          </button>
+        </div>
       </div>
 
       <div className="relative">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={24} />
         <input
           className="h-16 w-full rounded-xl border border-[#E2E8F0] bg-white pl-16 pr-24 text-[18px] text-[#0F172A] shadow-sm outline-none transition-all duration-200 placeholder:text-[#94A3B8] focus:border-[#5B5CF0] focus:ring-4 focus:ring-[#5B5CF0]/10"
-          placeholder="Buscar artigos, processos, documentacoes..."
+          placeholder="Buscar artigos, processos, documentações..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -240,7 +232,7 @@ export default function KnowledgeBase() {
               active={!selectedCategory}
               icon={BookOpen}
               label="Todas Categorias"
-              count={hasRealArticles ? articles.length : 145}
+              count={articles.length}
               onClick={() => setSelectedCategory("")}
             />
             {categoryItems.map((category) => (
@@ -271,7 +263,7 @@ export default function KnowledgeBase() {
               </FilterSelect>
               <FilterSelect value={filterBy} onChange={setFilterBy}>
                 <option value="all">Todos</option>
-                <option value="favorites">Favoritos</option>
+                <option value="favorites">Mais acessados (100+)</option>
               </FilterSelect>
             </div>
             <div className="flex items-center gap-2">
@@ -284,22 +276,27 @@ export default function KnowledgeBase() {
             </div>
           </div>
 
-          {shouldShowEmpty ? (
-            <EmptyState onCreate={() => { setEditing(null); setModalOpen(true); }} />
+          {normalizedArticles.length === 0 ? (
+            <EmptyState onCreate={() => { setEditing(null); setModalOpen(true); }} articlesCount={articles.length} />
           ) : (
             <div className="flex flex-col gap-4">
-              {normalizedArticles.map((article) => (
-                <ArticleCard
-                  key={article.id}
-                  article={article}
-                  onEdit={() => {
-                    if (article.isSample) return;
-                    setEditing(article);
-                    setModalOpen(true);
-                  }}
-                  onDelete={() => !article.isSample && handleDelete(article.id)}
-                />
-              ))}
+              {normalizedArticles.map((article) => {
+                const tags = parseTags(article.tags);
+                const acpPhase = extractAcpPhase(tags, article.title);
+                return (
+                  <ArticleCard
+                    key={article.id}
+                    article={article}
+                    acpPhase={acpPhase}
+                    onView={() => setSelectedArticle(article)}
+                    onEdit={() => {
+                      setEditing(article);
+                      setModalOpen(true);
+                    }}
+                    onDelete={() => handleDelete(article.id)}
+                  />
+                );
+              })}
             </div>
           )}
         </section>
@@ -311,7 +308,7 @@ export default function KnowledgeBase() {
             <BookOpen size={27} />
           </div>
           <div>
-            <h3 className="text-[18px] font-bold text-[#0F172A]">Nao encontrou o que estava procurando?</h3>
+            <h3 className="text-[18px] font-bold text-[#0F172A]">Não encontrou o que estava procurando?</h3>
             <p className="text-[16px] font-medium text-[#64748B]">Sugira um novo artigo para nossa base de conhecimento.</p>
           </div>
         </div>
@@ -321,6 +318,22 @@ export default function KnowledgeBase() {
         </button>
       </div>
 
+      {/* Article Detail Modal */}
+      <AnimatePresence>
+        {selectedArticle && (
+          <ArticleViewModal
+            article={selectedArticle}
+            onClose={() => setSelectedArticle(null)}
+            onEdit={() => {
+              setEditing(selectedArticle);
+              setModalOpen(true);
+              setSelectedArticle(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Create/Edit Modal */}
       <AnimatePresence>
         {modalOpen && (
           <ArticleModal
@@ -366,14 +379,15 @@ function FilterSelect({ value, onChange, children }: { value: string; onChange: 
   );
 }
 
-function ArticleCard({ article, onEdit, onDelete }: { article: any; onEdit: () => void; onDelete: () => void }) {
+function ArticleCard({ article, acpPhase, onView, onEdit, onDelete }: { article: any; acpPhase: string | null; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   const tags = parseTags(article.tags);
-  const summary = article.content?.replace(/\s+/g, " ").slice(0, 120) || "Documentacao interna da operacao Nexus360.";
+  const summary = article.content?.replace(/\s+/g, " ").slice(0, 120) || "Documentação interna da operação Nexus360.";
 
   return (
     <motion.article
       layout
-      className="group flex flex-col gap-5 rounded-xl border border-[#E2E8F0] bg-white p-5 transition-all duration-200 hover:border-[#C7D2FE] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] lg:flex-row lg:items-center"
+      onClick={onView}
+      className="group flex cursor-pointer flex-col gap-5 rounded-xl border border-[#E2E8F0] bg-white p-5 transition-all duration-200 hover:border-[#C7D2FE] hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] lg:flex-row lg:items-center"
     >
       <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[#F4F5FF] text-[#5B5CF0]">
         <FileText size={28} />
@@ -381,6 +395,11 @@ function ArticleCard({ article, onEdit, onDelete }: { article: any; onEdit: () =
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-[19px] font-bold text-[#0F172A]">{article.title}</h3>
+          {acpPhase && (
+            <span className="rounded-full bg-[#EEF2FF] px-2.5 py-1 text-[11px] font-bold text-[#5B5CF0]">
+              {acpPhase}
+            </span>
+          )}
           {!article.isPublished && (
             <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-[12px] font-bold text-[#64748B]">Rascunho</span>
           )}
@@ -408,7 +427,7 @@ function ArticleCard({ article, onEdit, onDelete }: { article: any; onEdit: () =
             {article.views || 0} acessos
           </div>
         </div>
-        <div className="flex items-center gap-1 opacity-100 transition-opacity duration-200 lg:opacity-70 lg:group-hover:opacity-100">
+        <div className="flex items-center gap-1 opacity-100 transition-opacity duration-200 lg:opacity-70 lg:group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
           <button className="h-11 w-11 rounded-lg text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
             <Bookmark size={19} className="mx-auto" />
           </button>
@@ -424,7 +443,7 @@ function ArticleCard({ article, onEdit, onDelete }: { article: any; onEdit: () =
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate, articlesCount }: { onCreate: () => void; articlesCount: number }) {
   return (
     <div className="flex min-h-[420px] flex-col items-center justify-center rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC] px-6 text-center">
       <div className="relative mb-5">
@@ -434,8 +453,14 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
         </div>
         <Star className="absolute -right-3 -top-3 text-[#7C6CFF]" size={22} />
       </div>
-      <h3 className="text-[20px] font-bold text-[#0F172A]">Nenhum artigo encontrado.</h3>
-      <p className="mt-2 max-w-md text-[15px] font-medium leading-6 text-[#64748B]">Crie seu primeiro artigo ou ajuste os filtros.</p>
+      <h3 className="text-[20px] font-bold text-[#0F172A]">
+        {articlesCount > 0 ? "Nenhum artigo corresponde aos filtros." : "Nenhum artigo encontrado."}
+      </h3>
+      <p className="mt-2 max-w-md text-[15px] font-medium leading-6 text-[#64748B]">
+        {articlesCount > 0
+          ? "Tente ajustar os filtros ou termos de busca."
+          : "Clique em \"Semear ACP\" para popular com o método completo ou crie manualmente."}
+      </p>
       <button
         onClick={onCreate}
         className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-[#5B5CF0] px-5 text-[14px] font-bold text-white shadow-lg shadow-[#5B5CF0]/20 transition-all duration-200 hover:bg-[#4F46E5]"
@@ -447,13 +472,92 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   );
 }
 
+function ArticleViewModal({ article, onClose, onEdit }: { article: any; onClose: () => void; onEdit: () => void }) {
+  const tags = useMemo(() => parseTags(article.tags), [article.tags]);
+  const acpPhase = useMemo(() => {
+    const match = article.title?.match(/Fase \d+/i);
+    return match ? match[0] : null;
+  }, [article.title]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-[#0F172A]/50 backdrop-blur-sm" />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 16 }}
+        className="relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex items-start justify-between border-b border-[#E2E8F0] px-6 py-5">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-[#0F172A]">{article.title}</h2>
+              {acpPhase && (
+                <span className="rounded-full bg-[#EEF2FF] px-3 py-1 text-[12px] font-bold text-[#5B5CF0] shrink-0">
+                  {acpPhase}
+                </span>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-[14px] text-[#64748B]">
+              {article.category && <span>{article.category}</span>}
+              <span>{article.views || 0} acessos</span>
+              <span>{formatDate(article.updatedAt || article.createdAt)}</span>
+              {!article.isPublished && <span className="text-[#F59E0B]">Rascunho</span>}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 ml-4">
+            <button onClick={onEdit} className="h-9 w-9 rounded-xl text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+              <Edit3 size={18} className="mx-auto" />
+            </button>
+            <button onClick={onClose} className="h-9 w-9 rounded-xl text-[#64748B] transition-all duration-200 hover:bg-[#F4F5FF] hover:text-[#5B5CF0]">
+              <X size={20} className="mx-auto" />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {tags.length > 0 && (
+            <div className="mb-5 flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-[#E2E8F0] px-3 py-1.5 text-[13px] font-bold text-[#5B5CF0]">
+                  <Hash size={12} />
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="prose prose-lg max-w-none text-[16px] leading-8 text-[#334155]">
+            {article.content?.split("\n").map((line: string, i: number) => {
+              if (line.startsWith("# ")) return <h1 key={i} className="text-2xl font-bold text-[#0F172A] mt-8 mb-4">{line.slice(2)}</h1>;
+              if (line.startsWith("## ")) return <h2 key={i} className="text-xl font-bold text-[#0F172A] mt-6 mb-3">{line.slice(3)}</h2>;
+              if (line.startsWith("### ")) return <h3 key={i} className="text-lg font-bold text-[#0F172A] mt-5 mb-2">{line.slice(4)}</h3>;
+              if (line.startsWith("- **")) {
+                const boldMatch = line.match(/- \*\*(.+?)\*\*(.*)/);
+                if (boldMatch) return <p key={i} className="ml-4 mb-1"><strong>{boldMatch[1]}</strong>{boldMatch[2]}</p>;
+              }
+              if (line.startsWith("- ")) return <li key={i} className="ml-6 mb-1 list-disc">{line.slice(2)}</li>;
+              if (line.trim() === "") return <br key={i} />;
+              return <p key={i} className="mb-3">{line}</p>;
+            })}
+          </div>
+        </div>
+        <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
+          <span className="text-[13px] text-[#64748B]">Artigo #{article.id.slice(0, 8)}</span>
+          <button onClick={onClose} className="rounded-xl bg-[#0F172A] px-6 py-2.5 text-[14px] font-bold text-white transition-all duration-200 hover:bg-[#1E293B]">
+            Fechar
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 function ArticleModal({ onClose, onSuccess, initialData }: { onClose: () => void; onSuccess: () => void; initialData?: any }) {
   const [formData, setFormData] = useState({
     title: initialData?.title || "",
     content: initialData?.content || "",
     category: initialData?.category || "",
     tags: initialData?.tags ? parseTags(initialData.tags).join(", ") : "",
-    isPublished: initialData?.isPublished ?? false,
+    isPublished: initialData?.isPublished ?? true,
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -486,21 +590,21 @@ function ArticleModal({ onClose, onSuccess, initialData }: { onClose: () => void
         </div>
         <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Titulo</label>
+            <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Título</label>
             <input className="modal-input font-semibold" value={formData.title} onChange={(e) => setFormData({ ...formData, title: e.target.value })} required />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
               <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Categoria</label>
-              <input className="modal-input font-semibold" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="Ex: Onboarding, IA ACP" />
+              <input className="modal-input font-semibold" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} placeholder="Ex: IA ACP, Comercial" />
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Tags</label>
-              <input className="modal-input" value={formData.tags} onChange={(e) => setFormData({ ...formData, tags: e.target.value })} placeholder="SDR, IA, Vendas" />
+              <input className="modal-input" value={formData.tags} onChange={(e) => setFormData({ ...formData, tags: e.target.value })} placeholder="ACP, Fase 1, Diagnóstico" />
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Conteudo</label>
+            <label className="text-[12px] font-bold uppercase tracking-[1px] text-[#64748B]">Conteúdo</label>
             <textarea className="modal-input min-h-[250px] resize-none text-sm leading-6" value={formData.content} onChange={(e) => setFormData({ ...formData, content: e.target.value })} required />
           </div>
           <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#E2E8F0] p-3">

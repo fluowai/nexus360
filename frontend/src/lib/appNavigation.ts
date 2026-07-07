@@ -144,7 +144,8 @@ export const RESERVED_WORKSPACE_SEGMENTS = new Set([
   'client-portal',
   'client-results',
   'legal',
-  'whitelabel'
+  'whitelabel',
+  'qualification'
 ]);
 
 export const menuGroups: MenuGroup[] = [

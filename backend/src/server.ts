@@ -85,6 +85,7 @@ import { webhookRoutes } from "./routes/webhooks.js";
 import { whatsappCallRoutes } from "./routes/whatsappCalls.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { experienceRoutes } from "./routes/experience.js";
+import { qualificationRoutes, qualificationPublicRoutes } from "./routes/qualification.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -326,6 +327,9 @@ app.post("/api/public/proposals/:slug/accept", async (req, res, next) => {
 // Rotas Públicas de Landing Pages (HTML + Lead Capture)
 app.use("/", landingPagePublicRoutes(prisma));
 
+// Rotas Públicas de Qualificação (formulários embedáveis)
+app.use("/api/qualification", qualificationPublicRoutes(prisma));
+
 // ==================== ROTAS DE AUTH (Público + Refresh) ====================
 app.use("/api/auth", authLimiter, authRoutes(prisma));
 
@@ -379,6 +383,7 @@ const protectedRoutes = [
   { path: "/api/webhooks", router: webhookRoutes },
   { path: "/api/dashboard", router: dashboardRoutes },
   { path: "/api/experience", router: experienceRoutes },
+  { path: "/api/qualification", router: qualificationRoutes },
   { path: "/api/whatsapp/calls", router: whatsappCallRoutes },
   { path: "/api/admin/storage", router: adminStorageRoutes },
 ];

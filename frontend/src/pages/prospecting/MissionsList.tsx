@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Target, MapPin, Clock, Repeat, AlertCircle, Play, Pause, XCircle, ChevronDown, ChevronRight, Loader2, ExternalLink, CheckCircle2, Users, MessageSquare, Star } from 'lucide-react';
+import { Calendar, Target, MapPin, Clock, Repeat, AlertCircle, Play, Pause, XCircle, ChevronDown, ChevronRight, Loader2, ExternalLink, CheckCircle2, Users, MessageSquare, Star, X, Phone, Globe, Database, Search } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Mission {
   id: string;
@@ -24,6 +25,33 @@ interface Mission {
   };
 }
 
+interface ProspectLead {
+  id: string;
+  companyName: string;
+  category: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  website: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  googleRating: number | null;
+  googleReviewsCount: number | null;
+  status: string;
+  captureDate: string;
+  validation?: {
+    cnpj?: string;
+    owners?: string;
+    managementTeam?: string;
+    scoreOpportunity?: number;
+    opportunityLevel?: string;
+    aiDiagnosis?: string;
+  } | null;
+  dossier?: {
+    diagnosis?: string;
+  } | null;
+}
+
 const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
   agendada: { label: 'Agendada', color: 'text-blue-600', bg: 'bg-blue-100' },
   em_execucao: { label: 'Em Execução', color: 'text-emerald-600', bg: 'bg-emerald-100' },
@@ -31,6 +59,13 @@ const statusConfig: Record<string, { label: string; color: string; bg: string }>
   concluida: { label: 'Concluída', color: 'text-green-600', bg: 'bg-green-100' },
   erro: { label: 'Erro', color: 'text-red-600', bg: 'bg-red-100' },
   cancelada: { label: 'Cancelada', color: 'text-gray-600', bg: 'bg-gray-100' },
+};
+
+const leadStatusConfig: Record<string, { label: string; color: string; bg: string }> = {
+  captado: { label: 'Captado', color: 'text-blue-600', bg: 'bg-blue-100' },
+  validado: { label: 'Validado', color: 'text-emerald-600', bg: 'bg-emerald-100' },
+  aprovado_para_contato: { label: 'Aprovado', color: 'text-green-600', bg: 'bg-green-100' },
+  descartado: { label: 'Descartado', color: 'text-gray-600', bg: 'bg-gray-100' },
 };
 
 const recurrenceLabels: Record<string, string> = {
@@ -47,6 +82,10 @@ export default function MissionsList() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  const [leadsModal, setLeadsModal] = useState<{ open: boolean; mission: Mission | null; leads: ProspectLead[]; loading: boolean }>({
+    open: false, mission: null, leads: [], loading: false
+  });
 
   useEffect(() => {
     fetchMissions();
@@ -93,6 +132,22 @@ export default function MissionsList() {
       console.error('Failed to delete mission', err);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleViewLeads = async (mission: Mission) => {
+    setLeadsModal({ open: true, mission, leads: [], loading: true });
+    try {
+      const res = await apiFetch(`/api/nexus-prospect/missions/${mission.id}/leads`);
+      const data = await res.json();
+      if (data.success) {
+        setLeadsModal(prev => ({ ...prev, leads: data.data, loading: false }));
+      } else {
+        setLeadsModal(prev => ({ ...prev, loading: false }));
+      }
+    } catch (err) {
+      console.error('Failed to load mission leads', err);
+      setLeadsModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -205,10 +260,13 @@ export default function MissionsList() {
                   </div>
 
                   <div className="flex items-center gap-6 mt-4 pt-4 border-t border-gray-50">
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
+                    <button
+                      onClick={() => handleViewLeads(mission)}
+                      className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary/80 transition-all"
+                    >
                       <Users size={14} className="text-primary" />
                       <span>{mission._count.leads} leads</span>
-                    </div>
+                    </button>
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
                       <MessageSquare size={14} className="text-emerald-500" />
                       <span>{mission._count.messages} mensagens</span>
@@ -299,16 +357,6 @@ export default function MissionsList() {
                       <InfoBox label="Recorrência" value={recurrenceLabels[mission.recurrence] || mission.recurrence} />
                       <InfoBox label="Score Mínimo" value={`${mission.minScore}%`} />
                     </div>
-                    
-                    {mission._count.leads > 0 && (
-                      <button
-                        onClick={() => navigate(`/prospecting/capture`)}
-                        className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary/80 transition-all"
-                      >
-                        <ExternalLink size={14} />
-                        Ver leads desta missão na captação
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
@@ -316,6 +364,180 @@ export default function MissionsList() {
           })}
         </div>
       )}
+
+      {/* Leads Modal */}
+      <AnimatePresence>
+        {leadsModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setLeadsModal({ open: false, mission: null, leads: [], loading: false });
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden flex flex-col my-8 border border-gray-100"
+            >
+              <div className="px-6 py-5 border-b border-gray-200 flex items-start justify-between bg-gradient-to-r from-slate-50 to-slate-100">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <h2 className="text-2xl font-black text-gray-900 truncate">
+                      Leads da Missão
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary shrink-0">
+                      {leadsModal.leads.length}
+                    </span>
+                  </div>
+                  {leadsModal.mission && (
+                    <p className="text-sm font-medium text-gray-500">
+                      {leadsModal.mission.name} — {leadsModal.mission.city}, {leadsModal.mission.state}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setLeadsModal({ open: false, mission: null, leads: [], loading: false })}
+                  className="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-gray-600 shrink-0"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 max-h-[70vh]">
+                {leadsModal.loading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 className="animate-spin h-8 w-8 text-primary" />
+                  </div>
+                ) : leadsModal.leads.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-100">
+                    <Search size={40} className="text-gray-200 mb-2" />
+                    <p className="text-gray-500 font-bold text-sm">Nenhum lead captado nesta missão.</p>
+                    <p className="text-xs text-gray-400">Os leads aparecerão aqui após a execução da missão.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {leadsModal.leads.map((lead) => {
+                      const lsc = leadStatusConfig[lead.status] || { label: lead.status, color: 'text-gray-600', bg: 'bg-gray-100' };
+                      const score = lead.validation?.scoreOpportunity || 0;
+                      return (
+                        <div
+                          key={lead.id}
+                          className="bg-white p-4 rounded-2xl border border-gray-50 hover:shadow-lg hover:shadow-gray-200/40 transition-all"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-1">
+                                <h3 className="font-bold text-gray-900 truncate">{lead.companyName}</h3>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${lsc.bg} ${lsc.color} shrink-0`}>
+                                  {lsc.label}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-medium text-gray-400">
+                                {lead.category && (
+                                  <span className="flex items-center gap-1">
+                                    <Target size={11} className="text-gray-300" /> {lead.category}
+                                  </span>
+                                )}
+                                {(lead.city || lead.state) && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin size={11} className="text-gray-300" /> {lead.city}{lead.city && lead.state ? ', ' : ''}{lead.state}
+                                  </span>
+                                )}
+                                {lead.captureDate && (
+                                  <span className="flex items-center gap-1">
+                                    <Calendar size={11} className="text-gray-300" /> {formatDate(lead.captureDate)}
+                                  </span>
+                                )}
+                              </div>
+
+                              {(lead.validation?.cnpj || lead.validation?.owners || lead.validation?.managementTeam) && (
+                                <div className="mt-3 p-3 bg-gray-50/50 border border-gray-100 rounded-xl space-y-2">
+                                  {lead.validation?.cnpj && (
+                                    <div className="flex items-center gap-2">
+                                      <Database size={11} className="text-orange-500" />
+                                      <span className="text-[10px] font-bold text-gray-600 font-mono">{lead.validation.cnpj}</span>
+                                    </div>
+                                  )}
+                                  {lead.validation?.owners && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {lead.validation.owners.split(',').map((owner, idx) => (
+                                        <span key={idx} className="px-1.5 py-0.5 bg-blue-100/50 text-blue-700 text-[9px] font-bold rounded-md border border-blue-200/50">
+                                          {owner.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {lead.validation?.managementTeam && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {lead.validation.managementTeam.split(',').map((person, idx) => (
+                                        <span key={idx} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded-md border border-emerald-100">
+                                          {person.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex flex-col items-end gap-2 shrink-0">
+                              {score > 0 && (
+                                <div className={`flex flex-col items-center px-3 py-1.5 rounded-xl ${
+                                  score > 70 ? 'bg-green-50 text-green-600' :
+                                  score > 40 ? 'bg-orange-50 text-orange-600' : 'bg-gray-50 text-gray-400'
+                                }`}>
+                                  <span className="text-[10px] font-black leading-none">{score}%</span>
+                                  <span className="text-[7px] font-bold uppercase tracking-widest mt-0.5">Score</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-50 pt-3">
+                            {lead.phone && (
+                              <div className="flex items-center gap-1">
+                                <a href={`tel:${lead.phone}`} className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-colors">
+                                  <Phone size={11} /> Ligar
+                                </a>
+                                <a href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-600 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-colors">
+                                  <Phone size={11} className="rotate-90" /> WhatsApp
+                                </a>
+                              </div>
+                            )}
+                            {lead.website && (
+                              <a href={lead.website} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-colors">
+                                <Globe size={11} /> Site
+                              </a>
+                            )}
+                            {lead.dossier?.diagnosis && (
+                              <span className="flex items-center gap-1 px-2.5 py-1.5 bg-purple-50 text-purple-600 rounded-lg text-[10px] font-bold">
+                                <Database size={11} /> Com dossiê
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                <button
+                  onClick={() => setLeadsModal({ open: false, mission: null, leads: [], loading: false })}
+                  className="px-6 py-2.5 bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-all text-xs"
+                >
+                  Fechar
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

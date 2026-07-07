@@ -11,6 +11,7 @@ import {
   resumeMission,
   cancelMission,
   getLeads,
+  getMissionLeads,
   getDashboardMetrics
 } from "../controllers/prospectController.js";
 
@@ -36,6 +37,7 @@ export const prospectRoutes = (prisma: PrismaClient) => {
 
   // Leads
   router.get("/leads", (req, res, next) => getLeads(req, res, next, prisma));
+  router.get("/missions/:id/leads", (req, res, next) => getMissionLeads(req, res, next, prisma));
 
   return router;
 };

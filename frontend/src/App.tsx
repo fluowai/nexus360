@@ -83,6 +83,7 @@ const CRMSalesPage = lazy(() => import("./pages/crm/CRMSalesPage"));
 const AcpHub = lazy(() => import("./pages/settings/AcpHub"));
 const GoogleLocal = lazy(() => import("./pages/marketing/GoogleLocal"));
 
+const QualificationForms = lazy(() => import("./pages/qualification/QualificationForms"));
 const AutomationBuilder = lazy(() => import("./pages/settings/AutomationBuilder"));
 const NotificationsCenter = lazy(() => import("./pages/settings/NotificationsCenter"));
 const DeliveryKanban = lazy(() => import("./pages/operations/DeliveryKanban"));
@@ -371,6 +372,7 @@ export default function App() {
           <Route path="/prospecting/funnels" element={<ProspectingFunnels />} />
           <Route path="/prospecting/funnels/builder" element={<FunnelBuilder />} />
           <Route path="/prospecting/missions" element={<MissionsList />} />
+          <Route path="/qualification/forms" element={<QualificationForms />} />
           <Route path="/whatsapp" element={<WhatsApp />} />
           <Route path="/team" element={<Team />} />
           <Route path="/finance" element={<Finance />} />
@@ -451,6 +453,7 @@ export default function App() {
           <Route path="/:slug/prospecting/funnels" element={<ProspectingFunnels />} />
           <Route path="/:slug/prospecting/funnels/builder" element={<FunnelBuilder />} />
           <Route path="/:slug/prospecting/missions" element={<MissionsList />} />
+          <Route path="/:slug/qualification/forms" element={<QualificationForms />} />
           <Route path="/:slug/whatsapp" element={<WhatsApp />} />
           <Route path="/:slug/quiz" element={<QuizBuilder />} />
           <Route path="/:slug/content" element={<Content />} />

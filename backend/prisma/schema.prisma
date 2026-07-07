@@ -185,6 +185,10 @@ model Organization {
   // Whitelabel Sync Logs (Fase 3)
   whitelabelSyncLogs WhitelabelSyncLog[]
 
+  // Qualificação de Leads
+  qualificationForms       QualificationForm[]
+  qualificationSubmissions QualificationSubmission[]
+
   // Onboarding: Experiências Profissionais
   professionalExperiences ProfessionalExperience[]
 }
@@ -2042,6 +2046,7 @@ model Agenda {
   id             String         @id @default(uuid())
   name           String
   color          String?
+  type           String         @default("GERAL") // SDR, BDR, CLOSER, GERAL
   organizationId String
   organization   Organization   @relation(fields: [organizationId], references: [id])
   events         CalendarEvent[]
@@ -3770,4 +3775,83 @@ model ProfessionalExperience {
 
   @@index([organizationId])
   @@index([userId])
+}
+
+// ==================== QUALIFICAÇÃO DE LEADS (ICP + SDR/BDR/CLOSER) ====================
+
+model QualificationForm {
+  id              String       @id @default(uuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  isActive        Boolean      @default(true)
+
+  // Campos do formulário baseados em ICP
+  icpFields       Json         // [{ key, label, type, required, options, order }]
+
+  // Regras de roteamento: condições → SDR | BDR | CLOSER
+  routingRules    Json?        // [{ condition, target: "SDR"|"BDR"|"CLOSER", scoreMin, scoreMax }]
+
+  // Configuração de agendamento pós-qualificação
+  allowScheduling Boolean      @default(true)
+  schedulingMessage String?    // Mensagem exibida após qualificação
+  schedulingLeadTime Int       @default(60) // Minutos mínimos para agendar
+
+  // Lead capture config
+  createLead      Boolean      @default(true)
+  leadPipelineId  String?
+  leadStageId     String?
+
+  submissions     QualificationSubmission[]
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([isActive])
+}
+
+model QualificationSubmission {
+  id              String             @id @default(uuid())
+  formId          String
+  form            QualificationForm  @relation(fields: [formId], references: [id], onDelete: Cascade)
+  organizationId  String
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Lead vinculado
+  leadId          String?
+  leadName        String
+  leadEmail       String
+  leadPhone       String?
+  leadNotes       String?            @db.Text
+
+  // Respostas e pontuação
+  answers         Json
+  score           Int                @default(0)
+  maxScore        Int                @default(0)
+  scorePercent    Float              @default(0)
+
+  // Status da qualificação
+  status          String             @default("pending") // pending, approved, rejected, scheduled, converted
+
+  // Roteamento
+  routedTo        String?            // SDR, BDR, CLOSER
+  routedToUserId  String?
+  routedAt        DateTime?
+  routeReason     String?            @db.Text
+
+  // Agendamento
+  scheduledTo     DateTime?
+  calendarEventId String?
+  schedulingNotes String?            @db.Text
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([organizationId])
+  @@index([formId])
+  @@index([status])
+  @@index([routedTo])
 }

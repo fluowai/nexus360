@@ -219,3 +219,27 @@ export const getLeads = async (req: any, res: Response, next: NextFunction, pris
     next(error);
   }
 };
+
+export const getMissionLeads = async (req: any, res: Response, next: NextFunction, prisma: PrismaClient) => {
+  try {
+    const orgId = req.user.orgId;
+    const { id } = req.params;
+
+    const mission = await prisma.prospectMission.findFirst({
+      where: { id, organizationId: orgId }
+    });
+    if (!mission) return res.status(404).json({ error: "Missão não encontrada" });
+
+    const leads = await prisma.prospectLead.findMany({
+      where: { missionId: id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        validation: true,
+        dossier: true
+      }
+    });
+    res.json({ success: true, data: leads });
+  } catch (error) {
+    next(error);
+  }
+};

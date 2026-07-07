@@ -1572,36 +1572,72 @@ model LPForm {
 model Quiz {
   id             String           @id @default(uuid())
   name           String
+  slug           String           @unique
   description    String?
+  status         String           @default("draft") // draft, pending_approval, approved, published
+  isActive       Boolean          @default(true)
   organizationId String
   organization   Organization     @relation(fields: [organizationId], references: [id])
+
+  quizType       String?          // qualification, assessment, recommendation, diagnostic
+  scoringType    String?          // points, segments, binary
+  passScore      Int?
+  aiGenerated    Boolean          @default(false)
+  aiPrompt       String?          @db.Text
+
+  tracking       Json?            // GA4, Meta Pixel config
+  leadCapture    Json?            // Contact fields to capture (name, email, phone)
+  scoringRules   Json?            // Per-answer score mapping
+
+  metaTitle       String?
+  metaDescription String?
+  metaImage       String?
+
   questions      QuizQuestion[]
   submissions    QuizSubmission[]
+  publishedAt    DateTime?
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
   @@index([organizationId])
+  @@index([slug])
 }
 
 model QuizQuestion {
   id        String   @id @default(uuid())
   quizId    String
-  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   order     Int
   text      String
-  type      String // text, multiple_choice, single_choice
+  type      String   // text, multiple_choice, multiple_select, rating, email, phone
   options   Json?
+  points    Int      @default(1)
+  required  Boolean  @default(true)
   createdAt DateTime @default(now())
+
+  @@index([quizId])
 }
 
 model QuizSubmission {
-  id        String   @id @default(uuid())
-  quizId    String
-  quiz      Quiz     @relation(fields: [quizId], references: [id])
-  leadId    String?
-  lead      Lead?    @relation(fields: [leadId], references: [id])
-  answers   Json
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  quizId       String
+  quiz         Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  leadId       String?
+  lead         Lead?    @relation(fields: [leadId], references: [id])
+
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  answers      Json
+  score        Int?
+  maxScore     Int?
+  percentage   Float?
+  qualified    Boolean?
+  metadata     Json?    // UTM params, IP, userAgent
+  createdAt    DateTime @default(now())
+
+  @@index([quizId])
+  @@index([leadId])
 }
 
 model Automation {

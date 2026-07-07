@@ -87,6 +87,7 @@ import { dashboardRoutes } from "./routes/dashboard.js";
 import { experienceRoutes } from "./routes/experience.js";
 import { qualificationRoutes, qualificationPublicRoutes } from "./routes/qualification.js";
 import { closingRoutes } from "./routes/closing.js";
+import { quizRoutes, quizPublicRoutes } from "./routes/quizzes.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -331,6 +332,9 @@ app.use("/", landingPagePublicRoutes(prisma));
 // Rotas Públicas de Qualificação (formulários embedáveis)
 app.use("/api/qualification", qualificationPublicRoutes(prisma));
 
+// Rotas Públicas de Quizzes (HTML interativo + captura de leads)
+app.use("/", quizPublicRoutes(prisma));
+
 // ==================== ROTAS DE AUTH (Público + Refresh) ====================
 app.use("/api/auth", authLimiter, authRoutes(prisma));
 
@@ -388,6 +392,7 @@ const protectedRoutes = [
   { path: "/api/whatsapp/calls", router: whatsappCallRoutes },
   { path: "/api/admin/storage", router: adminStorageRoutes },
   { path: "/api/closing", router: closingRoutes },
+  { path: "/api", router: quizRoutes },
 ];
 
 // Rotas Administrativas de Planos

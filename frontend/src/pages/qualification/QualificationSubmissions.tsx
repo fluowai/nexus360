@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Loader2, Search, Filter, CheckCircle, XCircle,
-  Calendar, Clock, UserCheck, Mail, Phone, FileText
+  Calendar, Clock, UserCheck, Mail, Phone, FileText, Send
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { apiFetch } from "../../lib/api";
@@ -27,6 +27,12 @@ interface Submission {
   calendarEventId: string | null;
   createdAt: string;
   form: { name: string };
+}
+
+interface Funnel {
+  id: string;
+  name: string;
+  isDefault: boolean;
 }
 
 interface Props {
@@ -55,6 +61,11 @@ export function QualificationSubmissions({ forms }: Props) {
   const [scheduleModal, setScheduleModal] = useState<{ open: boolean; submission: Submission | null; date: string; notes: string }>({
     open: false, submission: null, date: "", notes: "",
   });
+  const [funnelModal, setFunnelModal] = useState<{ open: boolean; submission: Submission | null; funnelId: string }>({
+    open: false, submission: null, funnelId: "",
+  });
+  const [funnels, setFunnels] = useState<Funnel[]>([]);
+  const [funnelSending, setFunnelSending] = useState(false);
 
   const fetchSubmissions = async () => {
     setLoading(true);
@@ -78,6 +89,13 @@ export function QualificationSubmissions({ forms }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.status, filters.formId, filters.routedTo]);
 
+  useEffect(() => {
+    apiFetch("/api/prospecting-funnels/funnels")
+      .then((res) => res.json())
+      .then((data) => setFunnels(Array.isArray(data) ? data : []))
+      .catch(() => setFunnels([]));
+  }, []);
+
   const handleApprove = async (sub: Submission) => {
     try {
       await apiFetch(`/api/qualification/submissions/${sub.id}/approve`, { method: "POST", body: JSON.stringify({}) });
@@ -94,6 +112,23 @@ export function QualificationSubmissions({ forms }: Props) {
       fetchSubmissions();
     } catch (err) {
       console.error("Erro ao rejeitar submissão", err);
+    }
+  };
+
+  const handleFunnelEnroll = async () => {
+    if (!funnelModal.submission) return;
+    setFunnelSending(true);
+    try {
+      await apiFetch(`/api/qualification/submissions/${funnelModal.submission.id}/enroll-funnel`, {
+        method: "POST",
+        body: JSON.stringify({ funnelId: funnelModal.funnelId || undefined }),
+      });
+      setFunnelModal({ open: false, submission: null, funnelId: "" });
+      fetchSubmissions();
+    } catch (err) {
+      console.error("Erro ao enviar ao funil", err);
+    } finally {
+      setFunnelSending(false);
     }
   };
 
@@ -267,6 +302,13 @@ export function QualificationSubmissions({ forms }: Props) {
                           <Calendar size={14} />
                           Agendar
                         </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setFunnelModal({ open: true, submission: sub, funnelId: "" }); }}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-all"
+                        >
+                          <Send size={14} />
+                          Funil SDR IA
+                        </button>
                       </div>
                     )}
 
@@ -349,6 +391,60 @@ export function QualificationSubmissions({ forms }: Props) {
                   </button>
                   <button
                     onClick={() => setScheduleModal({ open: false, submission: null, date: "", notes: "" })}
+                    className="px-4 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all text-sm"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Funnel Modal */}
+      <AnimatePresence>
+        {funnelModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget) setFunnelModal({ open: false, submission: null, funnelId: "" }); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6"
+            >
+              <h3 className="font-black text-gray-900 text-lg mb-1">Enviar para Funil SDR IA</h3>
+              <p className="text-sm text-gray-500 mb-4">O lead será matriculado no funil de prospecção automatizada.</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Funil de Prospecção</label>
+                  <select
+                    value={funnelModal.funnelId}
+                    onChange={(e) => setFunnelModal({ ...funnelModal, funnelId: e.target.value })}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm bg-white"
+                  >
+                    <option value="">Funil padrão (WhatsApp SDR IA)</option>
+                    {funnels.filter((f) => !f.isDefault).map((f) => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleFunnelEnroll}
+                    disabled={funnelSending}
+                    className="flex items-center justify-center gap-1.5 flex-1 px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all text-sm disabled:opacity-50"
+                  >
+                    {funnelSending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    {funnelSending ? "Enviando..." : "Enviar para Funil"}
+                  </button>
+                  <button
+                    onClick={() => setFunnelModal({ open: false, submission: null, funnelId: "" })}
                     className="px-4 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all text-sm"
                   >
                     Cancelar

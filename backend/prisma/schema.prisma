@@ -686,9 +686,14 @@ model Client {
   leads         Lead[]
   npsSurveys            NpsSurvey[]
   renewalOpportunities  RenewalOpportunity[]
+  paymentTransactions   PaymentTransaction[]
+  checklistItems        CloserChecklistItem[]
 
   notes String?
   tags  String?
+
+  // Closing Flow
+  closerStatus String @default("pending") // pending_review, verified, contract_pending, contract_signed, payment_pending, payment_confirmed, onboarding
 
   // AI Context & History
   aiContext        ClientAIContext?
@@ -1013,6 +1018,8 @@ model Contract {
   aiComparison   String? // Comparação da IA se múltiplos modelos foram analisados
   fileUrl        String?
   invoices       Invoice[]
+  signatures     ContractSignature[]
+  paymentTransactions PaymentTransaction[]
   signedAt       DateTime?
   expiresAt      DateTime?
   createdAt      DateTime          @default(now())
@@ -3804,6 +3811,10 @@ model QualificationForm {
   leadPipelineId  String?
   leadStageId     String?
 
+  // Funnel auto-enroll config
+  createFunnelLead Boolean     @default(false)
+  funnelId         String?
+
   submissions     QualificationSubmission[]
 
   createdAt       DateTime     @default(now())
@@ -3854,4 +3865,75 @@ model QualificationSubmission {
   @@index([formId])
   @@index([status])
   @@index([routedTo])
+}
+
+// ==================== CLOSING FLOW (Closer → Contrato → Pagamento → Onboarding) ====================
+
+model ContractSignature {
+  id             String   @id @default(uuid())
+  contractId     String
+  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  organizationId String
+
+  signerName    String
+  signerCpf     String?
+  signerEmail   String?
+  signatureData String   @db.Text
+  signedAt      DateTime @default(now())
+  ip            String?
+  userAgent     String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([contractId])
+  @@index([organizationId])
+}
+
+model PaymentTransaction {
+  id             String   @id @default(uuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id])
+  contractId     String?
+  contract       Contract? @relation(fields: [contractId], references: [id])
+  organizationId String
+
+  provider       String   // ASAAS, MERCADO_PAGO, INTER
+  method         String   @default("PIX")
+  amount         Float
+  status         String   @default("pending")
+  externalId     String?
+  qrCode         String?  @db.Text
+  qrCodeBase64   String?  @db.Text
+  pixCopiaECola  String?  @db.Text
+  paidAt         DateTime?
+  expiresAt      DateTime?
+  metadata       Json?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([contractId])
+  @@index([organizationId])
+  @@index([externalId])
+  @@index([status])
+}
+
+model CloserChecklistItem {
+  id             String   @id @default(uuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  organizationId String
+
+  item        String
+  checked     Boolean  @default(false)
+  checkedBy   String?
+  checkedAt   DateTime?
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([organizationId])
 }

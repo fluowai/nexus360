@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { enrollCapturedLeadsInFunnel } from "../routes/prospectingFunnels.js";
 
 type RoutingTarget = "SDR" | "BDR" | "CLOSER";
 
@@ -139,7 +140,46 @@ export async function submitQualification(
     },
   });
 
-  return { submission, form: { allowScheduling: form.allowScheduling, schedulingMessage: form.schedulingMessage }, routed: !!routing, target };
+  let funnelResult = null;
+  if (form.createFunnelLead && form.funnelId && submission.leadPhone) {
+    try {
+      const phoneDigits = submission.leadPhone.replace(/\D/g, "");
+      const captured = await prisma.capturedLead.upsert({
+        where: {
+          organizationId_provider_externalId: {
+            organizationId: form.organizationId,
+            provider: "qualification_form",
+            externalId: `qualification-submission-${submission.id}`,
+          },
+        },
+        update: {
+          businessName: submission.leadName,
+          email: submission.leadEmail,
+          phone: submission.leadPhone,
+          phoneNormalized: phoneDigits,
+          notes: [`Score ICP: ${scorePercent}%`, submission.leadNotes].filter(Boolean).join("\n"),
+          crmStatus: "prospecting_funnel",
+        },
+        create: {
+          organizationId: form.organizationId,
+          provider: "qualification_form",
+          externalId: `qualification-submission-${submission.id}`,
+          businessName: submission.leadName,
+          email: submission.leadEmail,
+          phone: submission.leadPhone,
+          phoneNormalized: phoneDigits,
+          hasPhone: true,
+          crmStatus: "prospecting_funnel",
+          notes: [`Score ICP: ${scorePercent}%`, submission.leadNotes].filter(Boolean).join("\n"),
+        },
+      });
+      funnelResult = await enrollCapturedLeadsInFunnel(prisma, form.organizationId, [captured.id], form.funnelId);
+    } catch (err) {
+      console.warn("[Qualification] Erro ao enviar ao funil de prospecção:", err);
+    }
+  }
+
+  return { submission, form: { allowScheduling: form.allowScheduling, schedulingMessage: form.schedulingMessage, createFunnelLead: form.createFunnelLead }, routed: !!routing, target, funnelResult };
 }
 
 export async function getQualificationFormPublic(prisma: PrismaClient, formId: string) {
@@ -213,6 +253,61 @@ export async function scheduleQualification(
       schedulingNotes: data.notes || null,
     },
   });
+}
+
+export async function enrollQualificationInFunnel(
+  prisma: PrismaClient,
+  organizationId: string,
+  submissionId: string,
+  funnelId: string = "default",
+) {
+  const submission = await prisma.qualificationSubmission.findFirst({
+    where: { id: submissionId, organizationId },
+  });
+  if (!submission) throw new Error("Submissão não encontrada");
+  if (submission.status !== "approved") throw new Error("Lead precisa estar aprovado para enviar ao funil");
+
+  const phoneDigits = (submission.leadPhone || "").replace(/\D/g, "");
+  const captured = await prisma.capturedLead.upsert({
+    where: {
+      organizationId_provider_externalId: {
+        organizationId,
+        provider: "qualification_form",
+        externalId: `qualification-submission-${submission.id}`,
+      },
+    },
+    update: {
+      businessName: submission.leadName,
+      email: submission.leadEmail,
+      phone: submission.leadPhone,
+      phoneNormalized: phoneDigits,
+      notes: [`Score ICP: ${submission.scorePercent}%`, submission.leadNotes].filter(Boolean).join("\n"),
+      crmStatus: "prospecting_funnel",
+    },
+    create: {
+      organizationId,
+      provider: "qualification_form",
+      externalId: `qualification-submission-${submission.id}`,
+      businessName: submission.leadName,
+      email: submission.leadEmail,
+      phone: submission.leadPhone,
+      phoneNormalized: phoneDigits,
+      hasPhone: true,
+      crmStatus: "prospecting_funnel",
+      notes: [`Score ICP: ${submission.scorePercent}%`, submission.leadNotes].filter(Boolean).join("\n"),
+    },
+  });
+
+  const result = await enrollCapturedLeadsInFunnel(prisma, organizationId, [captured.id], funnelId);
+
+  await prisma.qualificationSubmission.update({
+    where: { id: submission.id },
+    data: {
+      status: result.enrolled > 0 ? "converted" : submission.status,
+    },
+  });
+
+  return { capturedLead: captured, funnelResult: result };
 }
 
 export async function getTeamAvailability(prisma: PrismaClient, organizationId: string) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft, Plus, Trash2, Save, AlertCircle,
   ToggleLeft, ToggleRight, ArrowUp, ArrowDown
@@ -27,6 +27,12 @@ interface RoutingRule {
   scoreMax?: number;
 }
 
+interface Funnel {
+  id: string;
+  name: string;
+  isDefault: boolean;
+}
+
 interface FormData {
   name: string;
   description: string;
@@ -38,6 +44,8 @@ interface FormData {
   createLead: boolean;
   leadPipelineId: string;
   leadStageId: string;
+  createFunnelLead: boolean;
+  funnelId: string;
 }
 
 const FIELD_TYPES: { value: IcpFieldType; label: string }[] = [
@@ -79,6 +87,15 @@ interface Props {
 }
 
 export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
+  const [funnels, setFunnels] = useState<Funnel[]>([]);
+
+  useEffect(() => {
+    apiFetch("/api/prospecting-funnels/funnels")
+      .then((res) => res.json())
+      .then((data) => setFunnels(Array.isArray(data) ? data : []))
+      .catch(() => setFunnels([]));
+  }, []);
+
   const [data, setData] = useState<FormData>(() => {
     if (form) {
       return {
@@ -92,6 +109,8 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
         createLead: form.createLead !== false,
         leadPipelineId: form.leadPipelineId || "",
         leadStageId: form.leadStageId || "",
+        createFunnelLead: form.createFunnelLead === true,
+        funnelId: form.funnelId || "",
       };
     }
     return {
@@ -105,6 +124,8 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
       createLead: true,
       leadPipelineId: "",
       leadStageId: "",
+      createFunnelLead: false,
+      funnelId: "",
     };
   });
 
@@ -477,6 +498,35 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
               {data.createLead ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
             </button>
           </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+            <div>
+              <p className="font-bold text-gray-900">Enviar ao Funil de Prospecção</p>
+              <p className="text-sm text-gray-500">Criar CapturedLead e matricular automaticamente no funil SDR IA</p>
+            </div>
+            <button
+              onClick={() => setData({ ...data, createFunnelLead: !data.createFunnelLead })}
+              className={`p-2 rounded-lg transition-all ${data.createFunnelLead ? "text-purple-600 bg-purple-50" : "text-gray-400 bg-gray-100"}`}
+            >
+              {data.createFunnelLead ? <ToggleRight size={28} /> : <ToggleLeft size={28} />}
+            </button>
+          </div>
+
+          {data.createFunnelLead && (
+            <div>
+              <label className="block text-sm font-bold text-gray-700 mb-2">Funil de Prospecção</label>
+              <select
+                value={data.funnelId}
+                onChange={(e) => setData({ ...data, funnelId: e.target.value })}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 outline-none text-sm bg-white"
+              >
+                <option value="">Funil padrão (WhatsApp SDR IA)</option>
+                {funnels.filter((f) => !f.isDefault).map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
 

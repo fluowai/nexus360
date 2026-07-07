@@ -131,14 +131,70 @@ export class MissionScheduler {
       const filtered = await this.filterAgent.run(mission.id);
       if (!filtered) throw new Error("Falha na filtragem");
 
-      if (capturedLeadIds.length > 0) {
-        await enrollCapturedLeadsInFunnel(this.prisma, mission.organizationId, capturedLeadIds, "default");
+      let allLeadIds = [...capturedLeadIds];
+
+      // Se o pipeline legado rodou (ProspectLead), converte aprovados para CapturedLead e matricula
+      if (capturedLeadIds.length === 0) {
+        const approvedLeads = await this.prisma.prospectLead.findMany({
+          where: {
+            missionId: mission.id,
+            status: "aprovado_para_contato",
+            whatsapp: { not: null }
+          },
+          include: { validation: true, dossier: true }
+        });
+
+        for (const lead of approvedLeads) {
+          const phoneDigits = (lead.whatsapp || lead.phone || "").replace(/\D/g, "");
+          if (phoneDigits.length < 10) continue;
+
+          const created = await this.prisma.capturedLead.upsert({
+            where: {
+              organizationId_provider_externalId: {
+                organizationId: mission.organizationId,
+                provider: "prospect_mission_legacy",
+                externalId: `prospect-lead-${lead.id}`
+              }
+            },
+            update: {
+              businessName: lead.companyName,
+              category: lead.category,
+              phone: lead.phone,
+              phoneNormalized: lead.whatsapp,
+              website: lead.website,
+              city: lead.city,
+              state: lead.state,
+              cnpjStatus: "validated",
+              crmStatus: "prospecting_funnel"
+            },
+            create: {
+              organizationId: mission.organizationId,
+              provider: "prospect_mission_legacy",
+              externalId: `prospect-lead-${lead.id}`,
+              businessName: lead.companyName,
+              category: lead.category,
+              phone: lead.phone,
+              phoneNormalized: lead.whatsapp,
+              website: lead.website,
+              city: lead.city,
+              state: lead.state,
+              hasPhone: true,
+              cnpjStatus: "validated",
+              crmStatus: "prospecting_funnel"
+            }
+          });
+          allLeadIds.push(created.id);
+        }
+      }
+
+      if (allLeadIds.length > 0) {
+        await enrollCapturedLeadsInFunnel(this.prisma, mission.organizationId, allLeadIds, "default");
         await this.logAgent(
           mission.id,
           "ProspectingFunnelAgent",
           "Matricula no Funil",
           "success",
-          `${capturedLeadIds.length} leads enviados ao funil SDR IA.`
+          `${allLeadIds.length} leads (${capturedLeadIds.length} CapturedLead + ${allLeadIds.length - capturedLeadIds.length} ProspectLead) enviados ao funil SDR IA.`
         );
       }
 

@@ -86,6 +86,7 @@ import { whatsappCallRoutes } from "./routes/whatsappCalls.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { experienceRoutes } from "./routes/experience.js";
 import { qualificationRoutes, qualificationPublicRoutes } from "./routes/qualification.js";
+import { closingRoutes } from "./routes/closing.js";
 
 const app = express();
 const __filename = fileURLToPath(import.meta.url);
@@ -386,6 +387,7 @@ const protectedRoutes = [
   { path: "/api/qualification", router: qualificationRoutes },
   { path: "/api/whatsapp/calls", router: whatsappCallRoutes },
   { path: "/api/admin/storage", router: adminStorageRoutes },
+  { path: "/api/closing", router: closingRoutes },
 ];
 
 // Rotas Administrativas de Planos

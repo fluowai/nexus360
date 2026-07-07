@@ -8,6 +8,7 @@ import {
   listSubmissions,
   scheduleQualification,
   getTeamAvailability,
+  enrollQualificationInFunnel,
 } from "../services/qualificationService.js";
 
 export function qualificationPublicRoutes(prisma: PrismaClient) {
@@ -69,7 +70,7 @@ export function qualificationRoutes(prisma: PrismaClient) {
   router.post("/forms", async (req: AuthRequest, res, next) => {
     try {
       const orgId = req.user!.orgId;
-      const { name, description, icpFields, routingRules, allowScheduling, schedulingMessage, schedulingLeadTime, createLead, leadPipelineId, leadStageId } = req.body;
+      const { name, description, icpFields, routingRules, allowScheduling, schedulingMessage, schedulingLeadTime, createLead, leadPipelineId, leadStageId, createFunnelLead, funnelId } = req.body;
       if (!name || !icpFields) {
         return res.status(400).json({ error: "name e icpFields são obrigatórios" });
       }
@@ -86,6 +87,8 @@ export function qualificationRoutes(prisma: PrismaClient) {
           createLead: createLead !== false,
           leadPipelineId: leadPipelineId || null,
           leadStageId: leadStageId || null,
+          createFunnelLead: createFunnelLead === true,
+          funnelId: funnelId || null,
         },
       });
       res.status(201).json({ success: true, form });
@@ -102,7 +105,7 @@ export function qualificationRoutes(prisma: PrismaClient) {
       });
       if (!existing) return res.status(404).json({ error: "Formulário não encontrado" });
 
-      const { name, description, icpFields, routingRules, allowScheduling, schedulingMessage, schedulingLeadTime, isActive, createLead, leadPipelineId, leadStageId } = req.body;
+      const { name, description, icpFields, routingRules, allowScheduling, schedulingMessage, schedulingLeadTime, isActive, createLead, leadPipelineId, leadStageId, createFunnelLead, funnelId } = req.body;
       const form = await prisma.qualificationForm.update({
         where: { id: req.params.id },
         data: {
@@ -117,6 +120,8 @@ export function qualificationRoutes(prisma: PrismaClient) {
           ...(createLead !== undefined && { createLead }),
           ...(leadPipelineId !== undefined && { leadPipelineId }),
           ...(leadStageId !== undefined && { leadStageId }),
+          ...(createFunnelLead !== undefined && { createFunnelLead }),
+          ...(funnelId !== undefined && { funnelId }),
         },
       });
       res.json({ success: true, form });
@@ -224,6 +229,17 @@ export function qualificationRoutes(prisma: PrismaClient) {
       res.json({ success: true, submission: result });
     } catch (error: any) {
       res.status(400).json({ error: error.message || "Erro ao agendar" });
+    }
+  });
+
+  router.post("/submissions/:id/enroll-funnel", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { funnelId } = req.body;
+      const result = await enrollQualificationInFunnel(prisma, orgId, req.params.id, funnelId || "default");
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Erro ao enviar ao funil" });
     }
   });
 

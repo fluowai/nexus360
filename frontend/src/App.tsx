@@ -30,6 +30,7 @@ const Settings = lazy(() => import("./pages/settings/Settings"));
 const SuperAdmin = lazy(() => import("./pages/super-admin/SuperAdmin"));
 const MarketingOps = lazy(() => import("./pages/marketing/MarketingOps"));
 const SalesMachine = lazy(() => import("./pages/sales/SalesMachine"));
+const CloserDashboard = lazy(() => import("./pages/sales/CloserDashboard"));
 const Proposals = lazy(() => import("./pages/proposals/Proposals"));
 const ClientsPage = lazy(() => import("./pages/crm/Clients"));
 const ClientDetailPage = lazy(() => import("./pages/crm/ClientDetail"));
@@ -393,6 +394,7 @@ export default function App() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/marketing" element={<MarketingOps />} />
           <Route path="/sales-machine" element={<SalesMachine />} />
+          <Route path="/closer" element={<CloserDashboard />} />
           <Route path="/proposals" element={<Proposals />} />
           <Route path="/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
           <Route path="/acp" element={<AcpHub selectedClientId={selectedClientId} />} />
@@ -463,6 +465,7 @@ export default function App() {
           <Route path="/:slug/reports" element={<Reports />} />
           <Route path="/:slug/marketing" element={<MarketingOps />} />
           <Route path="/:slug/sales-machine" element={<SalesMachine />} />
+          <Route path="/:slug/closer" element={<CloserDashboard />} />
           <Route path="/:slug/proposals" element={<Proposals />} />
           <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
           <Route path="/:slug/acp" element={<AcpHub selectedClientId={selectedClientId} />} />

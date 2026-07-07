@@ -293,7 +293,7 @@ export default function MissionsList() {
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Progresso da missao</p>
-                        <p className="text-xs font-bold text-gray-600">{mission.missionResult?.totalLeads ?? mission._count?.leads || 0} de {mission.leadQuantity || 0} leads captados</p>
+                        <p className="text-xs font-bold text-gray-600">{mission.missionResult?.totalLeads ?? mission._count?.leads ?? 0} de {mission.leadQuantity || 0} leads captados</p>
                       </div>
                       <span className="rounded-xl bg-white px-3 py-1 text-sm font-black text-primary shadow-sm">{progress}%</span>
                     </div>

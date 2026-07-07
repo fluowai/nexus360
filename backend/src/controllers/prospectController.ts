@@ -230,7 +230,8 @@ export const getMissionLeads = async (req: any, res: Response, next: NextFunctio
     });
     if (!mission) return res.status(404).json({ error: "Missão não encontrada" });
 
-    const leads = await prisma.prospectLead.findMany({
+    // 1. Busca os ProspectLead (pipeline legado)
+    const prospectLeads = await prisma.prospectLead.findMany({
       where: { missionId: id },
       orderBy: { createdAt: "desc" },
       include: {
@@ -238,7 +239,53 @@ export const getMissionLeads = async (req: any, res: Response, next: NextFunctio
         dossier: true
       }
     });
-    res.json({ success: true, data: leads });
+
+    // 2. Busca os CapturedLead (pipeline moderno) a partir do missionResult
+    let capturedLeads: any[] = [];
+    const missionResult = mission.missionResult as any;
+    if (missionResult?.capturedLeadIds?.length) {
+      capturedLeads = await prisma.capturedLead.findMany({
+        where: {
+          id: { in: missionResult.capturedLeadIds },
+          organizationId: orgId
+        },
+        orderBy: { createdAt: "desc" }
+      });
+    }
+
+    // 3. Converte CapturedLead para o formato esperado pelo frontend (ProspectLead-like)
+    const phoneForDisplay = (cl: any) => cl.phoneNormalized || cl.phone;
+    const mappedCapturedLeads = capturedLeads.map(cl => ({
+      id: cl.id,
+      companyName: cl.businessName,
+      category: cl.category,
+      phone: phoneForDisplay(cl),
+      whatsapp: phoneForDisplay(cl),
+      website: cl.website,
+      address: null,
+      city: cl.city,
+      state: cl.state,
+      googleRating: cl.rating,
+      googleReviewsCount: cl.reviewsCount,
+      status: cl.cnpjStatus === "validated" ? "aprovado_para_contato" : cl.cnpjStatus === "rejected" ? "descartado" : "validado",
+      captureDate: cl.createdAt,
+      _capturedLead: true,
+      validation: {
+        cnpj: cl.cnpj,
+        owners: cl.owners,
+        managementTeam: cl.managementTeam,
+        scoreOpportunity: cl.scoreOpportunity,
+        opportunityLevel: cl.opportunityLevel,
+        aiDiagnosis: cl.aiDiagnosis
+      },
+      dossier: cl.aiDiagnosis ? { diagnosis: cl.aiDiagnosis } : null
+    }));
+
+    // 4. Junta e ordena por data decrescente
+    const allLeads = [...mappedCapturedLeads, ...prospectLeads]
+      .sort((a, b) => new Date(b.captureDate || b.createdAt).getTime() - new Date(a.captureDate || a.createdAt).getTime());
+
+    res.json({ success: true, data: allLeads });
   } catch (error) {
     next(error);
   }

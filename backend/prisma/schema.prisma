@@ -2760,6 +2760,8 @@ model ProspectMission {
   calendarId              String?   
   status                  String    @default("agendada") // agendada, em_execucao, pausada, concluida, erro, cancelada
   
+  missionResult           Json?     // Resultado: IDs dos CapturedLead + ProspectLead criados
+
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 

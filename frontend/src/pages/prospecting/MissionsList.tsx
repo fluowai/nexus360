@@ -18,6 +18,12 @@ interface Mission {
   status: string;
   createdAt: string;
   updatedAt: string;
+  missionResult?: {
+    capturedLeadIds: string[];
+    prospectLeadIds: string[];
+    completedAt: string;
+    totalLeads: number;
+  } | null;
   _count: {
     leads: number;
     messages: number;
@@ -163,7 +169,9 @@ export default function MissionsList() {
 
   const getMissionProgress = (mission: Mission) => {
     const total = Math.max(Number(mission.leadQuantity) || 0, 0);
-    const captured = Math.max(Number(mission._count?.leads) || 0, 0);
+    const captured = Math.max(
+      Number(mission.missionResult?.totalLeads ?? mission._count?.leads) || 0, 0
+    );
     if (!total) return mission.status === 'concluida' ? 100 : 0;
     return Math.min(100, Math.round((captured / total) * 100));
   };
@@ -265,7 +273,7 @@ export default function MissionsList() {
                       className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary/80 transition-all"
                     >
                       <Users size={14} className="text-primary" />
-                      <span>{mission._count.leads} leads</span>
+                      <span>{mission.missionResult?.totalLeads ?? mission._count.leads} leads</span>
                     </button>
                     <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
                       <MessageSquare size={14} className="text-emerald-500" />
@@ -285,7 +293,7 @@ export default function MissionsList() {
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Progresso da missao</p>
-                        <p className="text-xs font-bold text-gray-600">{mission._count?.leads || 0} de {mission.leadQuantity || 0} leads captados</p>
+                        <p className="text-xs font-bold text-gray-600">{mission.missionResult?.totalLeads ?? mission._count?.leads || 0} de {mission.leadQuantity || 0} leads captados</p>
                       </div>
                       <span className="rounded-xl bg-white px-3 py-1 text-sm font-black text-primary shadow-sm">{progress}%</span>
                     </div>

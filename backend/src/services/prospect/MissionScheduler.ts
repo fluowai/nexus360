@@ -6,6 +6,7 @@ import { FilterAgent } from "./FilterAgent.js";
 import { LeadCaptureService } from "../../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../../modules/lead-capture/lead-ai.service.js";
 import { enrollCapturedLeadsInFunnel } from "../../routes/prospectingFunnels.js";
+import { upsertDecisionMakersFromLead, pickBestDecisionMaker } from "../prospectingAutomation.js";
 
 export class MissionScheduler {
   private prisma: PrismaClient;
@@ -65,13 +66,13 @@ export class MissionScheduler {
       });
 
       for (const mission of missionsToRun) {
-        // Validação básica do horário (Time em formato "HH:mm")
         const [hours, minutes] = mission.executionTime.split(":").map(Number);
-        
+
         const missionDate = new Date(mission.executionDate);
         missionDate.setHours(hours, minutes, 0, 0);
 
-        if (now >= missionDate) {
+        const diffMs = now.getTime() - missionDate.getTime();
+        if (diffMs >= 0) {
           await this.executeMission(mission);
         }
       }
@@ -198,10 +199,24 @@ export class MissionScheduler {
         );
       }
 
-      // Conclusão
+      // Salva o resultado na missão (para consulta posterior de leads)
+      const nextState = this.getNextMissionState(mission);
       await this.prisma.prospectMission.update({
         where: { id: mission.id },
-        data: this.getNextMissionState(mission)
+        data: {
+          ...nextState,
+          missionResult: {
+            capturedLeadIds,
+            prospectLeadIds: capturedLeadIds.length === 0
+              ? (await this.prisma.prospectLead.findMany({
+                  where: { missionId: mission.id },
+                  select: { id: true }
+                })).map(l => l.id)
+              : [],
+            completedAt: new Date().toISOString(),
+            totalLeads: allLeadIds.length
+          }
+        }
       });
 
       await this.logAgent(mission.id, "MissionScheduler", "Fim", "success", "Missão concluída com sucesso no workflow atual");
@@ -285,7 +300,8 @@ export class MissionScheduler {
     const steps: Array<[string, () => Promise<any>]> = [
       ["enrichLead", () => this.leadAiService.enrichLead(leadId, orgId)],
       ["runDiagnosis", () => this.leadAiService.runDiagnosis(leadId, orgId)],
-      ["generateScripts", () => this.leadAiService.generateScripts(leadId, orgId)]
+      ["generateScripts", () => this.leadAiService.generateScripts(leadId, orgId)],
+      ["researchManagement", () => this.leadAiService.researchManagement(leadId, orgId)]
     ];
 
     for (const [step, loader] of steps) {
@@ -300,6 +316,20 @@ export class MissionScheduler {
           error.message
         );
       }
+    }
+
+    // Extrai decisores dos dados enriquecidos (CNPJ sócios + gestão LinkedIn)
+    try {
+      const lead = await this.prisma.capturedLead.findFirst({
+        where: { id: leadId, organizationId: orgId }
+      });
+      if (lead) {
+        await upsertDecisionMakersFromLead(this.prisma, lead);
+        await pickBestDecisionMaker(this.prisma, lead);
+        await this.logAgent(missionId, "LeadIntelligence", "upsertDecisionMakers", "success", "Decisores extraídos e salvos.");
+      }
+    } catch (error: any) {
+      await this.logAgent(missionId, "LeadIntelligence", "upsertDecisionMakers", "warning", error.message);
     }
   }
 

@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { runGovernedAiText } from "../../services/aiExecution.js";
+import { getOrgAIKeys } from "../../utils/aiKeys.js";
 import axios from "axios";
 
 type CnpjSearchCandidate = {
@@ -30,6 +30,46 @@ type MatchScore = {
   rejectionReason?: string;
 };
 
+type CaptureClassification = "Alta" | "Média" | "Media" | "Baixa";
+
+type CaptureCard = {
+  score: {
+    valor: number;
+    classificacao: CaptureClassification;
+    justificativa: string[];
+  };
+  recomendacao_ia: string;
+  oportunidade: {
+    nivel: CaptureClassification;
+    ticket_estimado: string;
+    maturidade_digital: CaptureClassification;
+    fit_icp: "Alto" | "Médio" | "Medio" | "Baixo";
+  };
+  diagnostico: {
+    resumo: string;
+    dores: string[];
+    oportunidades: string[];
+  };
+  decisores: Array<{
+    nome: string;
+    cargo: string;
+    nivel_influencia: "Alto" | "Médio" | "Medio" | "Baixo";
+  }>;
+  estrategia_abordagem: {
+    canal_prioritario: "WhatsApp" | "Ligação" | "Ligacao" | "Instagram";
+    melhor_horario: string;
+    angulo: string;
+    gatilho: string;
+  };
+  script_sdr: {
+    abertura: string;
+    conexao: string;
+    oferta: string;
+    cta: string;
+  };
+  acoes_recomendadas: string[];
+};
+
 export class LeadAiService {
   constructor(private prisma: PrismaClient) {}
 
@@ -40,80 +80,62 @@ export class LeadAiService {
 
     if (!lead) throw new Error("Lead not found");
 
-    const prompt = `
-      Você é um agente de análise comercial da Nexus360.
-      Analise a empresa abaixo como potencial cliente para uma solução de crescimento previsível, CRM, automação e estruturação comercial.
-      Esta análise é interna. Não transforme diagnóstico em primeira mensagem de WhatsApp.
+    return this.generateCaptureCardForLead(lead, orgId);
+  }
 
-      Dados da empresa:
-      Nome: ${lead.businessName}
-      Categoria: ${lead.category}
-      Cidade: ${lead.city}
-      Estado: ${lead.state}
-      Telefone: ${lead.phone}
-      Site: ${lead.website}
-      Nota Google: ${lead.rating}
-      Quantidade de avaliações: ${lead.reviewsCount}
 
-      Gere uma análise estruturada com:
-      1. Diagnóstico comercial provável
-      2. Diagnóstico de aquisição
-      3. Diagnóstico de presença digital
-      4. Pontos fracos aparentes
-      5. Oportunidades de melhoria
-      6. Oferta ideal para abordar esse cliente
-      7. Nível de prioridade comercial
-      8. Argumento principal para abordagem, sempre focado em estrutura comercial e mais dinheiro no caixa, nunca em "somos agência"
-      9. Objeções prováveis
-      10. Próxima ação recomendada
-
-      Responda EXCLUSIVAMENTE em JSON válido com os campos:
-      {
-        "diagnosis": "string",
-        "weaknesses": ["string"],
-        "opportunities": ["string"],
-        "suggested_offer": "string",
-        "priority_level": "string",
-        "main_argument": "string",
-        "probable_objections": ["string"],
-        "next_action": "string"
-      }
-    `;
-
-    let result = this.buildFallbackDiagnosis(lead);
-    let fallbackReason: string | null = null;
+  private async generateCaptureCardForLead(lead: any, orgId: string) {
+    let card = this.buildFallbackCaptureCard(lead);
 
     try {
-      const aiResult = await runGovernedAiText(this.prisma, {
-        system: "lead-diagnosis",
-        organizationId: orgId,
-        agentKey: "lead-diagnosis",
-        message: prompt,
+      const response = await this.runGroqChat(orgId, {
+        system: "Voce e uma IA especialista em inteligencia comercial, prospeccao B2B e analise de empresas locais. Responda somente JSON valido.",
+        message: this.buildCaptureCardPrompt(lead),
         temperature: 0.2,
-        maxTokens: 2048,
+        maxTokens: 3500,
       });
 
-      result = this.parseJsonObject(aiResult.result.response) || result;
+      const parsed = this.parseJsonObject(response);
+      if (parsed) {
+        card = this.normalizeCaptureCard(parsed, lead);
+      }
     } catch (error: any) {
-      fallbackReason = error?.message || "Falha ao gerar diagnostico com IA.";
-      console.warn("[LEAD_DIAGNOSIS_FALLBACK]", { leadId, reason: fallbackReason });
+      console.warn("[LEAD_CAPTURE_CARD_GROQ_FALLBACK]", {
+        leadId: lead.id,
+        reason: error?.message || "Groq unavailable",
+      });
     }
 
-    const aiDiagnosis = fallbackReason
-      ? `${result.diagnosis}\n\nNota interna: analise gerada por fallback porque a IA externa nao respondeu (${fallbackReason}).`
-      : result.diagnosis;
+    const score = this.calculateCaptureScore(lead);
+    card.score.valor = score.value;
+    card.score.classificacao = score.classification;
+    card.score.justificativa = score.justifications;
+    card.oportunidade.nivel = score.classification;
 
+    const aiDiagnosis = JSON.stringify(card, null, 2);
     const diagnosisData = {
       aiDiagnosis,
-      aiWeaknesses: Array.isArray(result.weaknesses) ? result.weaknesses : [],
-      aiOpportunities: Array.isArray(result.opportunities) ? result.opportunities : [],
-      suggestedOffer: result.suggested_offer || "Estruturacao comercial para aumentar previsibilidade e receita.",
-      opportunityLevel: result.priority_level || lead.opportunityLevel || "Media",
+      aiWeaknesses: card.diagnostico.dores as any,
+      aiOpportunities: card.diagnostico.oportunidades as any,
+      suggestedOffer: card.recomendacao_ia,
+      opportunityLevel: card.score.classificacao,
+      scoreOpportunity: card.score.valor,
+      coldCallScript: [
+        card.script_sdr.abertura,
+        card.script_sdr.conexao,
+        card.script_sdr.oferta,
+        card.script_sdr.cta,
+      ].filter(Boolean).join("\n\n"),
+      whatsappMessage: [
+        card.script_sdr.abertura,
+        card.script_sdr.conexao,
+        card.script_sdr.cta,
+      ].filter(Boolean).join(" "),
     };
 
     try {
       return await this.prisma.capturedLead.update({
-        where: { id: leadId },
+        where: { id: lead.id },
         data: diagnosisData
       });
     } catch (error: any) {
@@ -127,15 +149,20 @@ export class LeadAiService {
         throw error;
       }
 
-      console.warn("[LEAD_DIAGNOSIS_PARTIAL_SAVE]", {
-        leadId,
-        reason: "Banco de dados sem colunas auxiliares do diagnostico. Salvando apenas aiDiagnosis.",
+      console.warn("[LEAD_CAPTURE_CARD_PARTIAL_SAVE]", {
+        leadId: lead.id,
+        reason: "Banco sem colunas auxiliares do diagnostico. Salvando campos principais.",
         error: message
       });
 
       return await this.prisma.capturedLead.update({
-        where: { id: leadId },
-        data: { aiDiagnosis }
+        where: { id: lead.id },
+        data: {
+          aiDiagnosis,
+          suggestedOffer: diagnosisData.suggestedOffer,
+          opportunityLevel: diagnosisData.opportunityLevel,
+          scoreOpportunity: diagnosisData.scoreOpportunity,
+        }
       });
     }
   }
@@ -183,16 +210,18 @@ export class LeadAiService {
       }
     `;
 
-    const aiResult = await runGovernedAiText(this.prisma, {
-      system: "lead-scripts",
-      organizationId: orgId,
-      agentKey: "lead-scripts",
-      message: prompt,
-      temperature: 0.3,
-      maxTokens: 4096,
-    });
-
-    const result = JSON.parse(aiResult.result.response || "{}");
+    let result: any = {};
+    try {
+      const aiResponse = await this.runGroqChat(orgId, {
+        system: "Voce e especialista em SDR B2B. Responda somente JSON valido.",
+        message: prompt,
+        temperature: 0.3,
+        maxTokens: 4096,
+      });
+      result = this.parseJsonObject(aiResponse) || {};
+    } catch (error: any) {
+      console.warn("[LEAD_SCRIPTS_GROQ_FALLBACK]", { leadId, reason: error?.message });
+    }
     const ownerCandidate = String(lead.owners || "")
       .split(/[,;|\n]+/)
       .map(item => item.replace(/\([^)]*\)/g, "").trim())
@@ -224,57 +253,12 @@ export class LeadAiService {
   }
 
   async generateDossier(leadId: string, orgId: string) {
-    // Fetch lead and organization details
-    const [lead, org] = await Promise.all([
-      this.prisma.capturedLead.findFirst({ where: { id: leadId, organizationId: orgId } }),
-      this.prisma.organization.findUnique({ where: { id: orgId }, select: { name: true } })
-    ]);
+    const lead = await this.prisma.capturedLead.findFirst({ where: { id: leadId, organizationId: orgId } });
 
     if (!lead) throw new Error("Lead not found");
-    const agencyName = org?.name || "Nexus360";
-
-    const prompt = `
-      Você é um Consultor de Inteligência de Negócios Sênior da ${agencyName}, com foco em estrutura comercial.
-      Sua tarefa é gerar um DOSSIÊ COMPLETO e PROFUNDO sobre a empresa abaixo. 
-      Este dossiê é interno e só deve ser usado depois que houver abertura com decisor.
-      Não posicione a ${agencyName} como agência. Posicione como estrutura comercial para vender melhor e aumentar caixa.
-
-      Dados Disponíveis:
-      Nome: ${lead.businessName}
-      Categoria: ${lead.category}
-      Endereço: ${lead.address}
-      Site: ${lead.website}
-      Avaliações Google: ${lead.rating} (${lead.reviewsCount} reviews)
-
-      O Dossiê deve conter:
-      1. APRESENTAÇÃO INTERNA: perfil comercial provável do negócio...
-      2. PERFIL DA EMPRESA: Quem são, o que provavelemente fazem de melhor.
-      3. ANÁLISE DE PRESENÇA DIGITAL: Avaliação do site e reputação no Google.
-      4. PONTOS FORTES E FRACOS: Onde existe oportunidade comercial.
-      5. OPORTUNIDADES DE CRESCIMENTO: Plano de ação sugerido para vender melhor.
-      6. RECOMENDAÇÃO ESTRATÉGICA: Como uma estrutura comercial pode ajudar esse lead a vender mais.
-
-      Responda em formato Markdown profissional. Evite linguagem de pitch e não use "agência".
-    `;
-
-    const aiResult = await runGovernedAiText(this.prisma, {
-      system: "lead-dossier",
-      organizationId: orgId,
-      agentKey: "lead-dossier",
-      message: prompt,
-      temperature: 0.3,
-      maxTokens: 4096,
-    });
-
-    const dossier = aiResult.result.response;
-
-    return await this.prisma.capturedLead.update({
-      where: { id: leadId },
-      data: {
-        aiDiagnosis: dossier,
-      }
-    });
+    return this.generateCaptureCardForLead(lead, orgId);
   }
+
 
   async enrichLead(leadId: string, orgId: string) {
     const lead = await this.prisma.capturedLead.findFirst({
@@ -785,6 +769,399 @@ export class LeadAiService {
     }
   }
 
+  private async runGroqChat(
+    orgId: string,
+    input: { system: string; message: string; temperature?: number; maxTokens?: number }
+  ): Promise<string> {
+    const keys = await getOrgAIKeys(this.prisma, orgId);
+    const apiKey = keys.groqKey;
+    if (!apiKey) {
+      throw new Error("GROQ_API_KEY nao configurada para a organizacao.");
+    }
+
+    const baseUrl = (process.env.GROQ_API_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, "");
+    const model = process.env.GROQ_CAPTURE_MODEL || process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: input.system },
+          { role: "user", content: input.message },
+        ],
+        temperature: input.temperature ?? 0.2,
+        max_tokens: input.maxTokens ?? 2048,
+      }),
+    });
+
+    const rawText = await response.text();
+    let data: any = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = { raw: rawText };
+    }
+
+    if (!response.ok) {
+      const details = data?.error?.message || data?.message || rawText || "Groq indisponivel";
+      throw Object.assign(new Error(details), { status: response.status, details: data });
+    }
+
+    return data?.choices?.[0]?.message?.content || "";
+  }
+
+  private buildCaptureCardPrompt(lead: any): string {
+    const input = {
+      nome: lead.businessName || "",
+      segmento: lead.category || "",
+      cidade: [lead.city, lead.state].filter(Boolean).join(" - "),
+      endereco: lead.address || "",
+      tem_site: Boolean(lead.website),
+      tem_whatsapp: Boolean(lead.phone || lead.phoneNormalized),
+      instagram: lead.instagram || "",
+      google_reviews: Number.isFinite(Number(lead.reviewsCount)) ? Number(lead.reviewsCount) : null,
+      tem_trafego_pago: this.detectPaidTraffic(lead),
+      cnpj_encontrado: Boolean(lead.cnpj && lead.cnpjStatus === "validated"),
+      decisores: this.getLeadDecisionMakers(lead).map(decisor => ({
+        nome: decisor.nome,
+        cargo: decisor.cargo,
+      })),
+      observacoes: lead.notes || "",
+    };
+
+    return `
+Voce e uma IA especialista em inteligencia comercial, prospeccao B2B e analise de empresas locais.
+
+Sua funcao e analisar dados de uma empresa (lead) e gerar um CARD DE CAPTACAO altamente estrategico, objetivo e acionavel para um SDR ou Closer.
+
+O objetivo NAO e descrever a empresa, mas sim:
+-> Ajudar a decidir se vale abordar
+-> Mostrar como abordar
+-> Gerar oportunidade de venda
+
+DADOS DE ENTRADA:
+${JSON.stringify(input, null, 2)}
+
+SAIDA OBRIGATORIA:
+Retorne SOMENTE JSON valido no seguinte formato:
+{
+  "score": {
+    "valor": 0,
+    "classificacao": "Alta | Media | Baixa",
+    "justificativa": ["", "", ""]
+  },
+  "recomendacao_ia": "",
+  "oportunidade": {
+    "nivel": "Alta | Media | Baixa",
+    "ticket_estimado": "R$ faixa",
+    "maturidade_digital": "Alta | Media | Baixa",
+    "fit_icp": "Alto | Medio | Baixo"
+  },
+  "diagnostico": {
+    "resumo": "",
+    "dores": ["", "", ""],
+    "oportunidades": ["", "", ""]
+  },
+  "decisores": [
+    {
+      "nome": "",
+      "cargo": "",
+      "nivel_influencia": "Alto | Medio | Baixo"
+    }
+  ],
+  "estrategia_abordagem": {
+    "canal_prioritario": "WhatsApp | Ligacao | Instagram",
+    "melhor_horario": "",
+    "angulo": "",
+    "gatilho": ""
+  },
+  "script_sdr": {
+    "abertura": "",
+    "conexao": "",
+    "oferta": "",
+    "cta": ""
+  },
+  "acoes_recomendadas": ["", "", ""]
+}
+
+REGRAS IMPORTANTES:
+- Seja DIRETO, nada de textos longos
+- Linguagem comercial, pratica e agressiva (modo vendedor)
+- Foque em gerar DINHEIRO e oportunidade
+- Se nao houver dados, inferir com base no segmento
+- Penalizar score se nao tem site, nao tem trafego pago ou baixa presenca digital
+- Aumentar score se tem decisor identificado e estrutura minima digital
+
+LOGICA DO SCORE:
++20 tem site
++20 tem trafego pago
++15 tem WhatsApp
++15 tem decisor
++10 boas avaliacoes
+-20 sem presenca digital
+-15 negocio muito pequeno
+
+TOM:
+Errado: "A empresa parece ter algumas oportunidades..."
+Certo: "Alta chance de fechamento - empresa sem geracao previsivel de leads."
+`;
+  }
+
+  private normalizeCaptureCard(input: any, lead: any): CaptureCard {
+    const fallback = this.buildFallbackCaptureCard(lead);
+    const score = input?.score || {};
+    const oportunidade = input?.oportunidade || {};
+    const diagnostico = input?.diagnostico || {};
+    const estrategia = input?.estrategia_abordagem || {};
+    const script = input?.script_sdr || {};
+
+    return {
+      score: {
+        valor: this.toScoreNumber(score.valor, fallback.score.valor),
+        classificacao: this.toClassification(score.classificacao, fallback.score.classificacao),
+        justificativa: this.toStringArray(score.justificativa, fallback.score.justificativa, 3),
+      },
+      recomendacao_ia: this.toCleanString(input?.recomendacao_ia, fallback.recomendacao_ia),
+      oportunidade: {
+        nivel: this.toClassification(oportunidade.nivel, fallback.oportunidade.nivel),
+        ticket_estimado: this.toCleanString(oportunidade.ticket_estimado, fallback.oportunidade.ticket_estimado),
+        maturidade_digital: this.toClassification(oportunidade.maturidade_digital, fallback.oportunidade.maturidade_digital),
+        fit_icp: this.toInfluence(oportunidade.fit_icp, fallback.oportunidade.fit_icp),
+      },
+      diagnostico: {
+        resumo: this.toCleanString(diagnostico.resumo, fallback.diagnostico.resumo),
+        dores: this.toStringArray(diagnostico.dores, fallback.diagnostico.dores, 4),
+        oportunidades: this.toStringArray(diagnostico.oportunidades, fallback.diagnostico.oportunidades, 4),
+      },
+      decisores: Array.isArray(input?.decisores) && input.decisores.length
+        ? input.decisores.slice(0, 5).map((item: any) => ({
+            nome: this.toCleanString(item?.nome, "Decisor nao identificado"),
+            cargo: this.toCleanString(item?.cargo, "Socio / responsavel comercial"),
+            nivel_influencia: this.toInfluence(item?.nivel_influencia, "Alto"),
+          }))
+        : fallback.decisores,
+      estrategia_abordagem: {
+        canal_prioritario: this.toChannel(estrategia.canal_prioritario, fallback.estrategia_abordagem.canal_prioritario),
+        melhor_horario: this.toCleanString(estrategia.melhor_horario, fallback.estrategia_abordagem.melhor_horario),
+        angulo: this.toCleanString(estrategia.angulo, fallback.estrategia_abordagem.angulo),
+        gatilho: this.toCleanString(estrategia.gatilho, fallback.estrategia_abordagem.gatilho),
+      },
+      script_sdr: {
+        abertura: this.toCleanString(script.abertura, fallback.script_sdr.abertura),
+        conexao: this.toCleanString(script.conexao, fallback.script_sdr.conexao),
+        oferta: this.toCleanString(script.oferta, fallback.script_sdr.oferta),
+        cta: this.toCleanString(script.cta, fallback.script_sdr.cta),
+      },
+      acoes_recomendadas: this.toStringArray(input?.acoes_recomendadas, fallback.acoes_recomendadas, 4),
+    };
+  }
+
+  private buildFallbackCaptureCard(lead: any): CaptureCard {
+    const score = this.calculateCaptureScore(lead);
+    const hasWebsite = Boolean(lead.website);
+    const hasPhone = Boolean(lead.phone || lead.phoneNormalized);
+    const hasDecisionMaker = this.getLeadDecisionMakers(lead).length > 0;
+    const segment = lead.category || "empresa local";
+    const city = [lead.city, lead.state].filter(Boolean).join("/") || "regiao";
+    const maturity = this.digitalMaturity(lead);
+    const decisores = this.getLeadDecisionMakers(lead);
+
+    return {
+      score: {
+        valor: score.value,
+        classificacao: score.classification,
+        justificativa: score.justifications,
+      },
+      recomendacao_ia: `${score.classification} chance de fechamento - ${hasWebsite ? "empresa com estrutura minima digital" : "empresa sem site claro"} e oportunidade de gerar demanda previsivel.`,
+      oportunidade: {
+        nivel: score.classification,
+        ticket_estimado: this.estimateTicket(segment),
+        maturidade_digital: maturity,
+        fit_icp: score.value >= 70 ? "Alto" : score.value >= 45 ? "Medio" : "Baixo",
+      },
+      diagnostico: {
+        resumo: `${lead.businessName} atua em ${segment} em ${city}. Oportunidade principal: transformar buscas locais em conversas comerciais e previsibilidade de leads.`,
+        dores: [
+          hasWebsite ? "Site existe, mas precisa provar geracao previsivel de demanda." : "Sem site institucional forte para converter buscas em leads.",
+          hasPhone ? "WhatsApp disponivel, mas sem esteira comercial clara." : "Contato direto nao apareceu na captacao.",
+          hasDecisionMaker ? "Decisor mapeado, abordagem pode ser direta." : "Decisor ainda precisa ser localizado antes da venda.",
+        ],
+        oportunidades: [
+          "Criar funil de captacao previsivel com WhatsApp como canal de conversao.",
+          "Usar reputacao local para abrir conversa com proposta de crescimento.",
+          "Mapear concorrentes investindo em trafego e posicionar oferta de resposta rapida.",
+        ],
+      },
+      decisores: decisores.length ? decisores : [{
+        nome: "Decisor nao identificado",
+        cargo: "Socio / responsavel comercial",
+        nivel_influencia: "Alto",
+      }],
+      estrategia_abordagem: {
+        canal_prioritario: hasPhone ? "WhatsApp" : lead.instagram ? "Instagram" : "Ligacao",
+        melhor_horario: "09h - 11h / 14h - 16h",
+        angulo: "Geracao previsivel de leads e dinheiro no caixa",
+        gatilho: hasWebsite ? "Concorrentes investindo em aquisicao local" : "Baixa presenca digital travando conversao",
+      },
+      script_sdr: {
+        abertura: `Ola, tudo bem? Aqui e o Paulo. Falo com quem cuida do comercial da ${lead.businessName}?`,
+        conexao: `Vi que a ${lead.businessName} tem demanda local em ${city} e queria entender como voces geram oportunidades hoje.`,
+        oferta: "Ajudamos empresas locais a organizar entrada de leads e converter mais conversas em vendas, sem depender so de indicacao.",
+        cta: "Posso te mostrar em 15 minutos onde esta a oportunidade mais rapida?",
+      },
+      acoes_recomendadas: [
+        "Iniciar abordagem via WhatsApp com script sugerido.",
+        "Confirmar decisor antes de apresentar diagnostico.",
+        "Agendar reuniao curta de diagnostico comercial.",
+      ],
+    };
+  }
+
+  private calculateCaptureScore(lead: any): { value: number; classification: CaptureClassification; justifications: string[] } {
+    const hasWebsite = Boolean(lead.website);
+    const hasPhone = Boolean(lead.phone || lead.phoneNormalized);
+    const hasDecisionMaker = this.getLeadDecisionMakers(lead).length > 0;
+    const hasPaidTraffic = this.detectPaidTraffic(lead) === true;
+    const reviews = Number(lead.reviewsCount || 0);
+    const rating = Number(lead.rating || 0);
+    const goodReviews = rating >= 4.2 && reviews >= 10;
+    const highDemand = this.isHighDemandSegment(lead.category);
+    const noDigitalPresence = !hasWebsite && !lead.instagram && !lead.facebook && !lead.linkedin;
+    const verySmall = reviews > 0 && reviews < 8 && !hasWebsite;
+
+    const parts = [
+      { label: hasWebsite ? "Tem site institucional" : "Nao tem site institucional", value: hasWebsite ? 20 : -20 },
+      { label: hasPaidTraffic ? "Trafego pago detectado" : "Sem trafego pago detectado", value: hasPaidTraffic ? 20 : -20 },
+      { label: hasPhone ? "WhatsApp/telefone disponivel" : "Sem WhatsApp/telefone claro", value: hasPhone ? 15 : -15 },
+      { label: hasDecisionMaker ? "Decisor identificado" : "Decisor nao identificado", value: hasDecisionMaker ? 15 : -10 },
+      { label: goodReviews ? "Avaliacoes fortes no Google" : "Pouca prova social no Google", value: goodReviews ? 10 : -5 },
+      { label: highDemand ? "Segmento com alta demanda local" : "Demanda do segmento precisa ser validada", value: highDemand ? 20 : 0 },
+      { label: noDigitalPresence ? "Baixa presenca digital" : "Presenca digital minima", value: noDigitalPresence ? -20 : 5 },
+      { label: verySmall ? "Negocio aparenta ser muito pequeno" : "Porte minimo comercial aceitavel", value: verySmall ? -15 : 0 },
+    ];
+
+    const total = parts.reduce((acc, item) => acc + item.value, 50);
+    const value = Math.max(0, Math.min(100, Math.round(total)));
+    const classification: CaptureClassification = value >= 70 ? "Alta" : value >= 45 ? "Media" : "Baixa";
+    const justifications = parts
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+      .slice(0, 3)
+      .map(item => `${item.label} (${item.value > 0 ? "+" : ""}${item.value})`);
+
+    return { value, classification, justifications };
+  }
+
+  private detectPaidTraffic(lead: any): boolean | null {
+    const raw = JSON.stringify(lead.rawData || {}).toLowerCase();
+    if (!raw || raw === "{}") return null;
+    if (/patrocinado|sponsored|google_ads|paid_traffic|trafego_pago|ad_position|anuncio|ads?_/i.test(raw)) {
+      return true;
+    }
+    return null;
+  }
+
+  private getLeadDecisionMakers(lead: any): CaptureCard["decisores"] {
+    const owners = String(lead.owners || "")
+      .split(/[,;|\n]+/)
+      .map(item => item.trim())
+      .filter(Boolean)
+      .map(item => {
+        const roleMatch = item.match(/\(([^)]+)\)/);
+        return {
+          nome: item.replace(/\([^)]*\)/g, "").trim(),
+          cargo: roleMatch?.[1] || "Socio / administrador",
+          nivel_influencia: "Alto" as const,
+        };
+      });
+
+    const managers = String(lead.managementTeam || "")
+      .split(/[,;|\n]+/)
+      .map(item => item.trim())
+      .filter(Boolean)
+      .map(item => {
+        const parts = item.split(/\s+-\s+|\s+\|\s+|:/);
+        return {
+          nome: parts[0]?.trim() || item,
+          cargo: parts[1]?.trim() || "Gestao / comercial",
+          nivel_influencia: "Alto" as const,
+        };
+      });
+
+    const unique = new Map<string, CaptureCard["decisores"][number]>();
+    [...owners, ...managers].forEach(item => {
+      if (item.nome) unique.set(this.normalizeText(item.nome), item);
+    });
+    return Array.from(unique.values()).slice(0, 5);
+  }
+
+  private digitalMaturity(lead: any): CaptureClassification {
+    const hasWebsite = Boolean(lead.website);
+    const hasSocial = Boolean(lead.instagram || lead.facebook || lead.linkedin);
+    const reviews = Number(lead.reviewsCount || 0);
+    if (hasWebsite && hasSocial && reviews >= 30) return "Alta";
+    if (hasWebsite || hasSocial || reviews >= 10) return "Media";
+    return "Baixa";
+  }
+
+  private estimateTicket(segment?: string | null): string {
+    const normalized = this.normalizeText(segment);
+    if (/IMOB|CONSTR|ADV|SAUDE|ODONT|CLINIC|MEDIC/.test(normalized)) return "R$ 1.500 - R$ 3.000/mes";
+    if (/RESTAUR|BAR|LANCH|ESTET|ACADEM|AUTO/.test(normalized)) return "R$ 900 - R$ 2.000/mes";
+    return "R$ 800 - R$ 1.800/mes";
+  }
+
+  private isHighDemandSegment(segment?: string | null): boolean {
+    return /IMOB|CONSTR|ADV|SAUDE|ODONT|CLINIC|MEDIC|ESTET|ACADEM|RESTAUR|BAR|LANCH|AUTO|EDUC|FARM/.test(this.normalizeText(segment));
+  }
+
+  private toScoreNumber(value: unknown, fallback: number): number {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return fallback;
+    return Math.max(0, Math.min(100, Math.round(number)));
+  }
+
+  private toCleanString(value: unknown, fallback: string): string {
+    const text = typeof value === "string" ? value.trim() : "";
+    return text || fallback;
+  }
+
+  private toStringArray(value: unknown, fallback: string[], limit: number): string[] {
+    const source = Array.isArray(value) ? value : fallback;
+    const cleaned = source
+      .map(item => typeof item === "string" ? item.trim() : "")
+      .filter(Boolean)
+      .slice(0, limit);
+    return cleaned.length ? cleaned : fallback.slice(0, limit);
+  }
+
+  private toClassification(value: unknown, fallback: CaptureClassification): CaptureClassification {
+    const normalized = this.normalizeText(typeof value === "string" ? value : "");
+    if (normalized === "ALTA") return "Alta";
+    if (normalized === "MEDIA" || normalized === "MEDIO") return "Media";
+    if (normalized === "BAIXA" || normalized === "BAIXO") return "Baixa";
+    return fallback;
+  }
+
+  private toInfluence(value: unknown, fallback: "Alto" | "Médio" | "Medio" | "Baixo"): "Alto" | "Medio" | "Baixo" {
+    const normalized = this.normalizeText(typeof value === "string" ? value : "");
+    if (normalized === "ALTO" || normalized === "ALTA") return "Alto";
+    if (normalized === "MEDIO" || normalized === "MEDIA") return "Medio";
+    if (normalized === "BAIXO" || normalized === "BAIXA") return "Baixo";
+    return fallback === "Médio" ? "Medio" : fallback;
+  }
+
+  private toChannel(value: unknown, fallback: CaptureCard["estrategia_abordagem"]["canal_prioritario"]): CaptureCard["estrategia_abordagem"]["canal_prioritario"] {
+    const normalized = this.normalizeText(typeof value === "string" ? value : "");
+    if (normalized.includes("WHATS")) return "WhatsApp";
+    if (normalized.includes("INST")) return "Instagram";
+    if (normalized.includes("LIG")) return "Ligacao";
+    return fallback;
+  }
+
   private buildFallbackDiagnosis(lead: any) {
     const hasWebsite = Boolean(lead.website);
     const hasPhone = Boolean(lead.phone || lead.phoneNormalized);
@@ -867,16 +1244,14 @@ export class LeadAiService {
         }
       `;
 
-      const aiResult = await runGovernedAiText(this.prisma, {
-        system: "lead-research",
-        organizationId: orgId,
-        agentKey: "lead-research",
+      const aiResponse = await this.runGroqChat(orgId, {
+        system: "Voce extrai decisores de resultados de busca. Responda somente JSON valido.",
         message: prompt,
         temperature: 0.2,
         maxTokens: 2048,
       });
 
-      const result = this.parseJsonObject(aiResult.result.response) || {};
+      const result = this.parseJsonObject(aiResponse) || {};
 
       return await this.prisma.capturedLead.update({
         where: { id: leadId },

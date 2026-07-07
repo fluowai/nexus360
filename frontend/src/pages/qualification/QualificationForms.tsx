@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { FileText, Plus, Settings, Eye, BarChart3, RefreshCw, Loader2 } from "lucide-react";
-import { apiFetch } from "../../lib/api";
+import { FileText, Plus, Settings, Eye, BarChart3, RefreshCw, Loader2, Copy, ExternalLink, Check } from "lucide-react";
+import { apiFetch, getApiBaseUrl } from "../../lib/api";
 import { QualificationFormBuilder } from "./QualificationFormBuilder";
 import { QualificationSubmissions } from "./QualificationSubmissions";
 
@@ -10,6 +10,24 @@ export default function QualificationForms() {
   const [loading, setLoading] = useState(true);
   const [editingForm, setEditingForm] = useState<any | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [copiedFormId, setCopiedFormId] = useState<string | null>(null);
+
+  const buildPublicUrl = (form: any) => {
+    if (form.publicUrl) return form.publicUrl;
+    const base = getApiBaseUrl() || window.location.origin;
+    const url = new URL(`/qualification/${form.id}`, base);
+    url.searchParams.set("utm_source", "nexus");
+    url.searchParams.set("utm_medium", "qualification_form");
+    url.searchParams.set("utm_campaign", `qualificacao_${form.id.slice(0, 8)}`);
+    return url.toString();
+  };
+
+  const copyPublicUrl = async (form: any) => {
+    const url = buildPublicUrl(form);
+    await navigator.clipboard?.writeText(url);
+    setCopiedFormId(form.id);
+    setTimeout(() => setCopiedFormId(null), 1800);
+  };
 
   const fetchForms = async () => {
     setLoading(true);
@@ -105,7 +123,9 @@ export default function QualificationForms() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {forms.map((form: any) => (
+              {forms.map((form: any) => {
+                const publicUrl = buildPublicUrl(form);
+                return (
                 <div key={form.id} className="bg-white border border-gray-200 rounded-2xl p-6 hover:shadow-md transition-all">
                   <div className="flex items-start justify-between mb-3">
                     <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
@@ -120,6 +140,25 @@ export default function QualificationForms() {
                   <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
                     <span>{form._count?.submissions || 0} submissões</span>
                     <span>{Array.isArray(form.icpFields) ? form.icpFields.length : 0} campos</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 border border-gray-100 rounded-xl mb-4">
+                    <span className="flex-1 min-w-0 truncate text-[11px] font-semibold text-gray-500">{publicUrl}</span>
+                    <button
+                      onClick={() => copyPublicUrl(form)}
+                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-white rounded-lg transition-all"
+                      title="Copiar link rastreavel"
+                    >
+                      {copiedFormId === form.id ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                    </button>
+                    <a
+                      href={publicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-white rounded-lg transition-all"
+                      title="Abrir formulario publico"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -141,7 +180,8 @@ export default function QualificationForms() {
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </>

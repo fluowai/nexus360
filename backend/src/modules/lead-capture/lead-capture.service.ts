@@ -192,28 +192,31 @@ export class LeadCaptureService {
   }
 
   private calculateScore(lead: NormalizedLead): { value: number, level: string } {
-    let score = 0;
+    let score = 50;
+    const hasWebsite = Boolean(lead.website);
+    const hasPhone = Boolean(lead.phone);
+    const hasSocial = Boolean(lead.instagram || lead.facebook || lead.linkedin);
+    const rating = Number(lead.rating || 0);
+    const reviews = Number(lead.reviews_count || 0);
+    const goodReviews = rating >= 4.2 && reviews >= 10;
+    const highDemandSegment = /imob|constr|adv|sa[uú]de|odont|clinic|medic|est[eé]t|academ|restaur|bar|lanch|auto|educ|farm/i.test(lead.category || "");
+    const noDigitalPresence = !hasWebsite && !hasSocial;
+    const verySmall = reviews > 0 && reviews < 8 && !hasWebsite;
 
-    if (lead.phone) score += 15; else score -= 20;
-    if (!lead.website) score += 20; else score += 5;
+    score += hasWebsite ? 20 : -20;
+    score -= 20;
+    score += hasPhone ? 15 : -15;
+    score += goodReviews ? 10 : -5;
+    score += highDemandSegment ? 20 : 0;
+    score += noDigitalPresence ? -20 : 5;
+    score += verySmall ? -15 : 0;
 
-    const rating = lead.rating || 0;
-    if (rating > 0 && rating < 4.3) score += 10;
-    else if (rating >= 4.3 && rating < 4.8) score += 5;
-
-    const reviews = lead.reviews_count || 0;
-    if (reviews > 0 && reviews < 30) score += 10;
-    else if (reviews >= 30 && reviews < 100) score += 5;
-
-    if (lead.email) score += 10;
-    if (lead.instagram) score += 5;
-
+    const value = Math.max(0, Math.min(100, Math.round(score)));
     let level = 'Baixa';
-    if (score >= 81) level = 'Prioridade';
-    else if (score >= 61) level = 'Alta';
-    else if (score >= 31) level = 'Média';
+    if (value >= 70) level = 'Alta';
+    else if (value >= 45) level = 'Media';
 
-    return { value: Math.max(0, score), level };
+    return { value, level };
   }
 
   private mapToPrisma(lead: NormalizedLead, params: LeadSearchParams) {

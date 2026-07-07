@@ -85,7 +85,7 @@ import { webhookRoutes } from "./routes/webhooks.js";
 import { whatsappCallRoutes } from "./routes/whatsappCalls.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
 import { experienceRoutes } from "./routes/experience.js";
-import { qualificationRoutes, qualificationPublicRoutes } from "./routes/qualification.js";
+import { qualificationRoutes, qualificationPublicRoutes, qualificationPublicPageRoutes } from "./routes/qualification.js";
 import { closingRoutes } from "./routes/closing.js";
 import { quizRoutes, quizPublicRoutes } from "./routes/quizzes.js";
 
@@ -331,6 +331,7 @@ app.use("/", landingPagePublicRoutes(prisma));
 
 // Rotas Públicas de Qualificação (formulários embedáveis)
 app.use("/api/qualification", qualificationPublicRoutes(prisma));
+app.use("/", qualificationPublicPageRoutes(prisma));
 
 // Rotas Públicas de Quizzes (HTML interativo + captura de leads)
 app.use("/", quizPublicRoutes(prisma));

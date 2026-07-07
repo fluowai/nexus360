@@ -629,27 +629,56 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       }
 
       if (!crmClient) {
-        crmClient = await prisma.client.create({
-          data: {
-            corporateName: capturedLead.businessName,
-            tradeName: capturedLead.businessName,
-            cnpj: normalizedCnpj,
-            email: capturedLead.email || "",
-            phone: capturedLead.phoneNormalized || capturedLead.phone,
-            website: capturedLead.website,
-            address: capturedLead.address,
-            city: capturedLead.city,
-            state: capturedLead.state,
-            segment: capturedLead.category,
-            source: capturedLead.provider || "captacao",
-            sourceDetail: capturedLead.sourceId || undefined,
-            notes: crmNotes,
-            tags: capturedLead.category || undefined,
-            status: "prospect",
-            organizationId: targetOrgId,
-            assignedToId: req.user?.id,
-          },
-        });
+        try {
+          crmClient = await prisma.client.create({
+            data: {
+              corporateName: capturedLead.businessName,
+              tradeName: capturedLead.businessName,
+              cnpj: normalizedCnpj,
+              email: capturedLead.email || "",
+              phone: capturedLead.phoneNormalized || capturedLead.phone,
+              website: capturedLead.website,
+              address: capturedLead.address,
+              city: capturedLead.city,
+              state: capturedLead.state,
+              segment: capturedLead.category,
+              source: capturedLead.provider || "captacao",
+              sourceDetail: capturedLead.sourceId || undefined,
+              notes: crmNotes,
+              tags: capturedLead.category || undefined,
+              status: "prospect",
+              organizationId: targetOrgId,
+              assignedToId: req.user?.id,
+            },
+          });
+        } catch (clientErr: any) {
+          if (clientErr.code === 'P2002' && normalizedCnpj) {
+            console.warn("[SEND_TO_CRM_CLIENT_CNPJ_CONFLICT]", { cnpj: normalizedCnpj, businessName: capturedLead.businessName });
+            crmClient = await prisma.client.create({
+              data: {
+                corporateName: capturedLead.businessName,
+                tradeName: capturedLead.businessName,
+                cnpj: null,
+                email: capturedLead.email || "",
+                phone: capturedLead.phoneNormalized || capturedLead.phone,
+                website: capturedLead.website,
+                address: capturedLead.address,
+                city: capturedLead.city,
+                state: capturedLead.state,
+                segment: capturedLead.category,
+                source: capturedLead.provider || "captacao",
+                sourceDetail: capturedLead.sourceId || undefined,
+                notes: crmNotes + "\n\n[AVISO] CNPJ já cadastrado em outra organização. Criado sem CNPJ.",
+                tags: capturedLead.category || undefined,
+                status: "prospect",
+                organizationId: targetOrgId,
+                assignedToId: req.user?.id,
+              },
+            });
+          } else {
+            throw clientErr;
+          }
+        }
       }
 
       await prisma.lead.update({
@@ -707,11 +736,14 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       console.error("[SEND_TO_CRM_ERROR]", {
         leadId: req.params.id,
         error: error.message,
+        code: error.code,
+        meta: error.meta,
         stack: error.stack
       });
       res.status(500).json({ 
         error: "Erro ao enviar para o CRM", 
-        details: error.message 
+        details: error.message,
+        code: error.code 
       });
     }
   });

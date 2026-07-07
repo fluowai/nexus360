@@ -5,7 +5,6 @@ import {
   Globe, 
   Phone, 
   Star, 
-  MoreHorizontal, 
   ExternalLink, 
   Database,
   CheckCircle2,
@@ -14,13 +13,21 @@ import {
   Trash2,
   Send,
   Wand2,
-  Filter,
   History,
   Download,
   ListFilter,
   Zap,
   MessageCircle,
-  Calendar
+  Calendar,
+  Brain,
+  DollarSign,
+  Target,
+  Users,
+  ClipboardList,
+  Check,
+  X,
+  Copy,
+  RefreshCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiFetch } from '../../lib/api';
@@ -49,6 +56,51 @@ interface Lead {
   managementTeam?: string;
   suggestedOffer?: string;
   whatsappMessage?: string;
+  coldCallScript?: string;
+  aiWeaknesses?: string[] | unknown;
+  aiOpportunities?: string[] | unknown;
+  googleMapsUrl?: string;
+  createdAt?: string;
+}
+
+type CaptureClassification = 'Alta' | 'Media' | 'Média' | 'Baixa' | string;
+
+interface CaptureCardData {
+  score: {
+    valor: number;
+    classificacao: CaptureClassification;
+    justificativa: string[];
+  };
+  recomendacao_ia: string;
+  oportunidade: {
+    nivel: CaptureClassification;
+    ticket_estimado: string;
+    maturidade_digital: CaptureClassification;
+    fit_icp: string;
+  };
+  diagnostico: {
+    resumo: string;
+    dores: string[];
+    oportunidades: string[];
+  };
+  decisores: Array<{
+    nome: string;
+    cargo: string;
+    nivel_influencia: string;
+  }>;
+  estrategia_abordagem: {
+    canal_prioritario: string;
+    melhor_horario: string;
+    angulo: string;
+    gatilho: string;
+  };
+  script_sdr: {
+    abertura: string;
+    conexao: string;
+    oferta: string;
+    cta: string;
+  };
+  acoes_recomendadas: string[];
 }
 
 const toneTemplates: Record<string, string> = {
@@ -63,11 +115,486 @@ function extractGeneratedSiteUrl(lead: Lead) {
   return match?.[1] || null;
 }
 
+function parseJsonObject(text?: string | null) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function normalizeClassification(value?: CaptureClassification) {
+  const normalized = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (normalized.includes('alta')) return 'Alta';
+  if (normalized.includes('baixa')) return 'Baixa';
+  return 'Média';
+}
+
+function normalizeArray(value: unknown, fallback: string[] = []) {
+  if (!Array.isArray(value)) return fallback;
+  const cleaned = value.map(item => String(item || '').trim()).filter(Boolean);
+  return cleaned.length ? cleaned : fallback;
+}
+
+function splitPeople(value?: string) {
+  return String(value || '')
+    .split(/[,;|\n]+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function getDecisionMakersFromLead(lead: Lead) {
+  const owners = splitPeople(lead.owners).map(item => {
+    const role = item.match(/\(([^)]+)\)/)?.[1] || 'Sócio / Administrador';
+    return {
+      nome: item.replace(/\([^)]*\)/g, '').trim(),
+      cargo: role,
+      nivel_influencia: 'Alto'
+    };
+  });
+
+  const managers = splitPeople(lead.managementTeam).map(item => {
+    const [name, role] = item.split(/\s+-\s+|\s+\|\s+|:/);
+    return {
+      nome: (name || item).trim(),
+      cargo: (role || 'Gestão / Comercial').trim(),
+      nivel_influencia: 'Alto'
+    };
+  });
+
+  const unique = new Map<string, { nome: string; cargo: string; nivel_influencia: string }>();
+  [...owners, ...managers].forEach(person => {
+    if (person.nome) unique.set(person.nome.toLowerCase(), person);
+  });
+  return Array.from(unique.values());
+}
+
+function isHighDemandSegment(category?: string) {
+  return /imob|constr|adv|sa[uú]de|odont|clinic|medic|est[eé]t|academ|restaur|bar|lanch|auto|educ|farm/i.test(category || '');
+}
+
+function estimateTicket(category?: string) {
+  if (/imob|constr|adv|sa[uú]de|odont|clinic|medic/i.test(category || '')) return 'R$ 1.500 - R$ 3.000/mês';
+  if (/restaur|bar|lanch|est[eé]t|academ|auto/i.test(category || '')) return 'R$ 900 - R$ 2.000/mês';
+  return 'R$ 800 - R$ 1.800/mês';
+}
+
+function buildFallbackCaptureCard(lead: Lead, legacyText?: string): CaptureCardData {
+  const score = Number(lead.scoreOpportunity || 0);
+  const classification = score >= 70 ? 'Alta' : score >= 45 ? 'Média' : 'Baixa';
+  const decisionMakers = getDecisionMakersFromLead(lead);
+  const hasSite = Boolean(lead.website);
+  const hasWhatsApp = Boolean(lead.phone);
+  const location = [lead.city, lead.state].filter(Boolean).join('/') || 'região';
+
+  return {
+    score: {
+      valor: score,
+      classificacao: classification,
+      justificativa: [
+        hasSite ? 'Tem site institucional (+20)' : 'Sem site institucional (-20)',
+        hasWhatsApp ? 'WhatsApp disponível (+15)' : 'Sem WhatsApp claro (-15)',
+        decisionMakers.length ? 'Decisor identificado (+15)' : 'Decisor ainda não identificado (-10)',
+      ],
+    },
+    recomendacao_ia: legacyText || `${classification} chance de fechamento — abordar com foco em geração previsível de leads.`,
+    oportunidade: {
+      nivel: classification,
+      ticket_estimado: estimateTicket(lead.category),
+      maturidade_digital: hasSite ? 'Média' : 'Baixa',
+      fit_icp: score >= 70 ? 'Alto' : score >= 45 ? 'Médio' : 'Baixo',
+    },
+    diagnostico: {
+      resumo: legacyText || `${lead.businessName} atua em ${lead.category || 'empresa local'} em ${location}. Prioridade: entender geração atual de oportunidades e abrir conversa comercial.`,
+      dores: normalizeArray(lead.aiWeaknesses, [
+        hasSite ? 'Site precisa provar geração real de demanda.' : 'Sem site forte para converter buscas em leads.',
+        'Dependência provável de indicação ou demanda passiva.',
+        decisionMakers.length ? 'Abordagem deve ser direta no decisor.' : 'Decisor precisa ser localizado antes da oferta.',
+      ]),
+      oportunidades: normalizeArray(lead.aiOpportunities, [
+        'Implementar funil de captação previsível.',
+        'Usar WhatsApp como canal de conversão rápida.',
+        'Criar argumento baseado em concorrência e demanda local.',
+      ]),
+    },
+    decisores: decisionMakers.length ? decisionMakers : [{ nome: 'Decisor não identificado', cargo: 'Sócio / Responsável comercial', nivel_influencia: 'Alto' }],
+    estrategia_abordagem: {
+      canal_prioritario: hasWhatsApp ? 'WhatsApp' : 'Ligação',
+      melhor_horario: '09h - 11h / 14h - 16h',
+      angulo: 'Geração previsível de leads',
+      gatilho: hasSite ? 'Concorrentes investindo em aquisição local' : 'Baixa presença digital travando conversão',
+    },
+    script_sdr: {
+      abertura: `Olá, tudo bem? Aqui é o Paulo. Falo com quem cuida do comercial da ${lead.businessName}?`,
+      conexao: `Vi a ${lead.businessName} em ${location} e queria entender como vocês geram oportunidades hoje.`,
+      oferta: 'Ajudamos empresas locais a organizar entrada de leads e transformar mais conversas em vendas.',
+      cta: 'Posso te mostrar em 15 minutos onde está a oportunidade mais rápida?',
+    },
+    acoes_recomendadas: [
+      'Iniciar abordagem via WhatsApp com script sugerido.',
+      'Confirmar decisor antes de apresentar diagnóstico.',
+      'Agendar reunião curta de diagnóstico comercial.',
+    ],
+  };
+}
+
+function getCaptureCard(lead: Lead): CaptureCardData | null {
+  if (!lead.aiDiagnosis) return null;
+  const parsed = parseJsonObject(lead.aiDiagnosis);
+  if (!parsed?.score || !parsed?.diagnostico) {
+    return buildFallbackCaptureCard(lead, lead.aiDiagnosis);
+  }
+
+  const fallback = buildFallbackCaptureCard(lead);
+  return {
+    score: {
+      valor: Number(parsed.score?.valor ?? lead.scoreOpportunity ?? fallback.score.valor),
+      classificacao: normalizeClassification(parsed.score?.classificacao || fallback.score.classificacao),
+      justificativa: normalizeArray(parsed.score?.justificativa, fallback.score.justificativa),
+    },
+    recomendacao_ia: String(parsed.recomendacao_ia || fallback.recomendacao_ia),
+    oportunidade: {
+      nivel: normalizeClassification(parsed.oportunidade?.nivel || fallback.oportunidade.nivel),
+      ticket_estimado: String(parsed.oportunidade?.ticket_estimado || fallback.oportunidade.ticket_estimado),
+      maturidade_digital: normalizeClassification(parsed.oportunidade?.maturidade_digital || fallback.oportunidade.maturidade_digital),
+      fit_icp: String(parsed.oportunidade?.fit_icp || fallback.oportunidade.fit_icp),
+    },
+    diagnostico: {
+      resumo: String(parsed.diagnostico?.resumo || fallback.diagnostico.resumo),
+      dores: normalizeArray(parsed.diagnostico?.dores, fallback.diagnostico.dores),
+      oportunidades: normalizeArray(parsed.diagnostico?.oportunidades, fallback.diagnostico.oportunidades),
+    },
+    decisores: Array.isArray(parsed.decisores) && parsed.decisores.length ? parsed.decisores : fallback.decisores,
+    estrategia_abordagem: {
+      canal_prioritario: String(parsed.estrategia_abordagem?.canal_prioritario || fallback.estrategia_abordagem.canal_prioritario),
+      melhor_horario: String(parsed.estrategia_abordagem?.melhor_horario || fallback.estrategia_abordagem.melhor_horario),
+      angulo: String(parsed.estrategia_abordagem?.angulo || fallback.estrategia_abordagem.angulo),
+      gatilho: String(parsed.estrategia_abordagem?.gatilho || fallback.estrategia_abordagem.gatilho),
+    },
+    script_sdr: {
+      abertura: String(parsed.script_sdr?.abertura || fallback.script_sdr.abertura),
+      conexao: String(parsed.script_sdr?.conexao || fallback.script_sdr.conexao),
+      oferta: String(parsed.script_sdr?.oferta || fallback.script_sdr.oferta),
+      cta: String(parsed.script_sdr?.cta || fallback.script_sdr.cta),
+    },
+    acoes_recomendadas: normalizeArray(parsed.acoes_recomendadas, fallback.acoes_recomendadas),
+  };
+}
+
+function buildScoreRows(lead: Lead, card: CaptureCardData) {
+  const hasSite = Boolean(lead.website);
+  const hasWhatsApp = Boolean(lead.phone);
+  const hasCnpj = lead.cnpjStatus === 'validated' || Boolean(lead.cnpj);
+  const hasReviews = Number(lead.rating || 0) >= 4.2 && Number(lead.reviewsCount || 0) >= 10;
+  const highDemand = isHighDemandSegment(lead.category);
+
+  return [
+    { label: hasSite ? 'Tem site institucional' : 'Sem site institucional', value: hasSite ? 20 : -20 },
+    { label: hasWhatsApp ? 'WhatsApp disponível' : 'Sem WhatsApp claro', value: hasWhatsApp ? 15 : -15 },
+    { label: 'Sem tráfego pago detectado', value: -20 },
+    { label: hasCnpj ? 'CNPJ validado' : 'CNPJ não encontrado', value: hasCnpj ? 5 : -15 },
+    { label: hasReviews ? `Avaliações Google (${lead.rating})` : 'Pouca prova social no Google', value: hasReviews ? 10 : -5 },
+    { label: highDemand ? 'Segmento com alta demanda' : 'Demanda do segmento a validar', value: highDemand ? 20 : 0 },
+    { label: `Total ${Math.round(card.score.valor || 0)}/100`, value: null },
+  ];
+}
+
+function fullScript(card: CaptureCardData) {
+  return [
+    `1. Abertura\n${card.script_sdr.abertura}`,
+    `2. Conexão\n${card.script_sdr.conexao}`,
+    `3. Oferta\n${card.script_sdr.oferta}`,
+    `4. CTA\n${card.script_sdr.cta}`,
+  ].join('\n\n');
+}
+
 type SendToCrmResult = {
   ok: boolean;
   skipped?: boolean;
   reason?: string;
 };
+
+function CaptureIntelligenceCard({
+  lead,
+  card,
+  onGenerateScripts,
+  onRefresh,
+}: {
+  lead: Lead;
+  card: CaptureCardData;
+  onGenerateScripts?: (leadId: string) => void;
+  onRefresh?: (leadId: string) => void;
+}) {
+  const score = Math.max(0, Math.min(100, Math.round(card.score.valor || 0)));
+  const scoreLabel = normalizeClassification(card.score.classificacao);
+  const scoreColor = score >= 70 ? '#22c55e' : score >= 45 ? '#f59e0b' : '#94a3b8';
+  const scoreRows = buildScoreRows(lead, card);
+  const copiedText = fullScript(card);
+
+  return (
+    <div className="w-full mt-3 rounded-2xl border border-indigo-100 bg-white shadow-sm overflow-hidden">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px]">
+        <div className="p-4 lg:p-5 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_180px] gap-4">
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700">
+                  <Brain size={12} />
+                  Card de Captação IA
+                </span>
+                <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  Groq
+                </span>
+                <span className="rounded-lg bg-purple-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-purple-700">
+                  {lead.category || 'Segmento não informado'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+                <SignalPill ok={lead.cnpjStatus === 'validated' || Boolean(lead.cnpj)} okText={lead.cnpj || 'CNPJ validado'} badText="CNPJ não encontrado" />
+                <SignalPill ok={Boolean(lead.website)} okText="Site detectado" badText="Sem site" />
+                <SignalPill ok={false} okText="Tráfego pago ativo" badText="Tráfego pago não detectado" />
+                <SignalPill ok={Number(lead.rating || 0) >= 4.2} okText={`Google ${lead.rating || 'N/A'}`} badText="Avaliações fracas" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-center lg:justify-end gap-4 border-t border-gray-100 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-4">
+              <div
+                className="h-28 w-28 rounded-full p-3"
+                style={{ background: `conic-gradient(${scoreColor} ${score * 3.6}deg, #eef2ff 0deg)` }}
+              >
+                <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
+                  <span className="text-3xl font-black text-gray-950">{score}%</span>
+                  <span className="text-xs font-black" style={{ color: scoreColor }}>{scoreLabel}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <InfoPanel icon={<Brain size={16} />} title="Recomendação IA" accent="text-indigo-600">
+              <p className="text-sm font-semibold leading-relaxed text-gray-800">{card.recomendacao_ia}</p>
+            </InfoPanel>
+
+            <InfoPanel icon={<DollarSign size={16} />} title="Oportunidade Estimada" accent="text-emerald-600">
+              <MetricRow label="Ticket médio" value={card.oportunidade.ticket_estimado} strong />
+              <MetricRow label="Maturidade digital" value={normalizeClassification(card.oportunidade.maturidade_digital)} />
+              <MetricRow label="Fit ICP" value={card.oportunidade.fit_icp} />
+              <MetricRow label="Potencial" value={normalizeClassification(card.oportunidade.nivel)} />
+            </InfoPanel>
+
+            <InfoPanel icon={<Target size={16} />} title="Resumo do Score" accent="text-blue-600">
+              <div className="space-y-1.5">
+                {scoreRows.map((row, idx) => (
+                  <div key={`${row.label}-${idx}`} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex items-center gap-1.5 text-gray-700">
+                      {row.value === null ? <Target size={12} className="text-indigo-500" /> : row.value >= 0 ? <Check size={12} className="text-emerald-500" /> : <X size={12} className="text-red-500" />}
+                      {row.label}
+                    </span>
+                    {row.value === null ? (
+                      <span className="text-sm font-black text-emerald-600">{score}/100</span>
+                    ) : (
+                      <span className={row.value >= 0 ? 'font-black text-emerald-600' : 'font-black text-red-500'}>
+                        {row.value > 0 ? '+' : ''}{row.value}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </InfoPanel>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-3">
+            <InfoPanel icon={<ClipboardList size={16} />} title="Diagnóstico IA" accent="text-purple-600">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Resumo</p>
+                  <p className="font-medium leading-relaxed text-gray-700">{card.diagnostico.resumo}</p>
+                </div>
+                <ListBlock title="Dores identificadas" items={card.diagnostico.dores} tone="red" />
+                <ListBlock title="Oportunidades" items={card.diagnostico.oportunidades} tone="emerald" />
+              </div>
+            </InfoPanel>
+
+            <InfoPanel icon={<Target size={16} />} title="Estratégia de Abordagem" accent="text-indigo-600">
+              <MetricRow label="Canal prioritário" value={card.estrategia_abordagem.canal_prioritario} strong />
+              <MetricRow label="Melhor horário" value={card.estrategia_abordagem.melhor_horario} />
+              <MetricRow label="Ângulo" value={card.estrategia_abordagem.angulo} />
+              <MetricRow label="Gatilho" value={card.estrategia_abordagem.gatilho} />
+            </InfoPanel>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-3">
+            <InfoPanel icon={<MessageCircle size={16} />} title="Script SDR Sugerido" accent="text-blue-600">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                {[
+                  ['1. Abertura', card.script_sdr.abertura],
+                  ['2. Conexão', card.script_sdr.conexao],
+                  ['3. Oferta', card.script_sdr.oferta],
+                  ['4. CTA', card.script_sdr.cta],
+                ].map(([title, text]) => (
+                  <div key={title} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-indigo-600">{title}</p>
+                    <p className="text-xs font-medium leading-relaxed text-gray-700">{text}</p>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard?.writeText(copiedText);
+                }}
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100"
+              >
+                <Copy size={14} />
+                Copiar script completo
+              </button>
+            </InfoPanel>
+
+            <InfoPanel icon={<ClipboardList size={16} />} title="Ações Recomendadas" accent="text-emerald-600">
+              <div className="space-y-2">
+                {card.acoes_recomendadas.map((action, idx) => (
+                  <div key={`${action}-${idx}`} className="flex items-start gap-2 text-xs font-medium text-gray-700">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-black text-indigo-700">{idx + 1}</span>
+                    <span>{action}</span>
+                  </div>
+                ))}
+              </div>
+            </InfoPanel>
+          </div>
+        </div>
+
+        <aside className="border-t border-gray-100 bg-gray-50/70 p-4 xl:border-l xl:border-t-0">
+          <div className="space-y-4">
+            <div>
+              <p className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-700">
+                <Users size={15} className="text-indigo-600" />
+                Decisores identificados
+              </p>
+              <div className="space-y-2">
+                {card.decisores.slice(0, 4).map((person, idx) => (
+                  <div key={`${person.nome}-${idx}`} className="flex items-center justify-between gap-2 rounded-xl bg-white p-3 shadow-sm">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-black text-white">
+                        {(person.nome || '?').slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-black text-gray-900">{person.nome}</p>
+                        <p className="truncate text-[10px] font-medium text-gray-500">{person.cargo}</p>
+                      </div>
+                    </div>
+                    <span className="rounded-lg bg-emerald-100 px-2 py-1 text-[10px] font-black text-emerald-700">{person.nivel_influencia}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-3 text-xs font-black uppercase tracking-widest text-gray-700">Ações rápidas</p>
+              <div className="space-y-2">
+                <QuickAction icon={<MessageCircle size={14} />} label="Iniciar abordagem SDR" tone="indigo" href={lead.phone ? `https://wa.me/${lead.phone.replace(/\D/g, '')}` : undefined} />
+                <QuickAction icon={<Wand2 size={14} />} label="Gerar script personalizado" tone="emerald" onClick={() => onGenerateScripts?.(lead.id)} />
+                <QuickAction icon={<Target size={14} />} label="Ver estratégia de ataque" tone="orange" />
+                <QuickAction icon={<RefreshCcw size={14} />} label="Reprocessar IA" tone="gray" onClick={() => onRefresh?.(lead.id)} />
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function SignalPill({ ok, okText, badText }: { ok: boolean; okText: string; badText: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-black ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+      {ok ? <Check size={12} /> : <X size={12} />}
+      {ok ? okText : badText}
+    </span>
+  );
+}
+
+function InfoPanel({ icon, title, accent, children }: { icon: React.ReactNode; title: string; accent: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <h4 className={`mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-widest ${accent}`}>
+        {icon}
+        {title}
+      </h4>
+      {children}
+    </section>
+  );
+}
+
+function MetricRow({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-gray-100 py-2 last:border-b-0">
+      <span className="text-xs font-medium text-gray-600">{label}</span>
+      <span className={`text-right text-xs ${strong ? 'font-black text-emerald-600' : 'font-bold text-gray-800'}`}>{value}</span>
+    </div>
+  );
+}
+
+function ListBlock({ title, items, tone }: { title: string; items: string[]; tone: 'red' | 'emerald' }) {
+  const dot = tone === 'red' ? 'bg-red-500' : 'bg-emerald-500';
+  return (
+    <div>
+      <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-500">{title}</p>
+      <div className="space-y-2">
+        {items.slice(0, 4).map((item, idx) => (
+          <p key={`${item}-${idx}`} className="flex items-start gap-2 font-medium leading-relaxed text-gray-700">
+            <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+            {item}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuickAction({ icon, label, tone, href, onClick }: { icon: React.ReactNode; label: string; tone: 'indigo' | 'emerald' | 'orange' | 'gray'; href?: string; onClick?: () => void }) {
+  const styles = {
+    indigo: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
+    emerald: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+    orange: 'bg-orange-50 text-orange-700 hover:bg-orange-100',
+    gray: 'bg-white text-gray-600 hover:bg-gray-100',
+  };
+  const content = (
+    <>
+      {icon}
+      {label}
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${styles[tone]}`}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${styles[tone]}`}
+    >
+      {content}
+    </button>
+  );
+}
 
 export default function LeadCapture() {
   const [loading, setLoading] = useState(false);
@@ -1009,6 +1536,7 @@ export default function LeadCapture() {
             <AnimatePresence mode="popLayout">
               {leads.map((lead) => {
                 const generatedSiteUrl = extractGeneratedSiteUrl(lead);
+                const captureCard = getCaptureCard(lead);
                 return (
                 <motion.div
                   key={lead.id}
@@ -1016,7 +1544,9 @@ export default function LeadCapture() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={() => setSelectedLeadForModal(lead)}
+                  onClick={() => {
+                    if (!captureCard) setSelectedLeadForModal(lead);
+                  }}
                   className={`group relative bg-white p-4 rounded-2xl border-2 transition-all hover:shadow-xl hover:shadow-gray-200/40 cursor-pointer ${selectedLeads.includes(lead.id) ? 'border-primary bg-primary/5 shadow-md' : 'border-gray-50'}`}
                 >
                   <div className="flex items-start gap-4">
@@ -1170,12 +1700,21 @@ export default function LeadCapture() {
                           />
                         </div>
 
-                        {/* Dossiê Inline */}
-                        {lead.aiDiagnosis && (
+                        {/* Card IA Inline */}
+                        {captureCard && (
+                          <CaptureIntelligenceCard
+                            lead={lead}
+                            card={captureCard}
+                            onGenerateScripts={handleGenerateScripts}
+                            onRefresh={handleDossier}
+                          />
+                        )}
+
+                        {lead.aiDiagnosis && !captureCard && (
                           <div className="w-full mt-3 border border-indigo-200 rounded-2xl overflow-hidden">
                             <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600">
                               <p className="text-[10px] font-black text-white uppercase tracking-widest flex items-center gap-1.5">
-                                <Database size={11} /> Dossiê Estratégico IA
+                                <Database size={11} /> Card Estratégico IA
                               </p>
                               <span className="text-[9px] text-indigo-200 font-bold">Gerado automaticamente</span>
                             </div>
@@ -1210,10 +1749,10 @@ export default function LeadCapture() {
                             onClick={() => handleDossier(lead.id)}
                             disabled={analyzingIds.includes(lead.id)}
                             className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-all flex items-center gap-2 text-[11px] font-bold disabled:opacity-50"
-                            title="Gerar Dossiê de Inteligência"
+                            title="Gerar Card de Captação IA"
                           >
                             {analyzingIds.includes(lead.id) ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
-                            Dossiê
+                            Card IA
                           </button>
                           <button 
                             onClick={() => handleGenerateScripts(lead.id)}

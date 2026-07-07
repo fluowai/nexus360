@@ -35,8 +35,8 @@ export function dashboardRoutes(prisma: PrismaClient) {
         safeDashboardValue("creatives", 0, () => prisma.creative.count({ where: { organizationId: orgId } })),
         safeDashboardValue("chartData", [], () =>
           prisma.$queryRawUnsafe<Array<{ date: Date; leads: bigint; conv: bigint }>>(
-            `SELECT DATE(l.created_at) as date, COUNT(*) FILTER (WHERE l.status = 'qualificado' OR l.status = 'fechado') as conv,
-             COUNT(*) as leads FROM "Lead" l WHERE l.organization_id = $1 AND l.created_at >= $2 GROUP BY DATE(l.created_at) ORDER BY date ASC`,
+            `SELECT DATE(l."createdAt") as date, COUNT(*) FILTER (WHERE l.status = 'qualificado' OR l.status = 'fechado') as conv,
+             COUNT(*) as leads FROM "Lead" l WHERE l."organizationId" = $1 AND l."createdAt" >= $2 GROUP BY DATE(l."createdAt") ORDER BY date ASC`,
             orgId, sevenDaysAgo
           ).then((rows) =>
             rows.map((r) => ({

@@ -25,6 +25,40 @@ type IcpField = {
 
 type FormAnswers = Record<string, any>;
 
+type TrackingData = Record<string, any>;
+
+function sanitizeTracking(tracking?: TrackingData): TrackingData {
+  if (!tracking || typeof tracking !== "object" || Array.isArray(tracking)) return {};
+  const allowedKeys = [
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+    "referrer",
+    "landingUrl",
+    "path",
+    "ip",
+    "userAgent",
+  ];
+  return allowedKeys.reduce((acc, key) => {
+    const value = tracking[key];
+    if (value === null || value === undefined || value === "") return acc;
+    acc[key] = String(value).slice(0, 500);
+    return acc;
+  }, {} as TrackingData);
+}
+
+function formatTrackingSummary(tracking: TrackingData): string | null {
+  const parts = [
+    tracking.utm_source ? `utm_source=${tracking.utm_source}` : null,
+    tracking.utm_medium ? `utm_medium=${tracking.utm_medium}` : null,
+    tracking.utm_campaign ? `utm_campaign=${tracking.utm_campaign}` : null,
+    tracking.referrer ? `referrer=${tracking.referrer}` : null,
+  ].filter(Boolean);
+  return parts.length ? `Rastreamento: ${parts.join(" | ")}` : null;
+}
+
 function getScoreForField(field: IcpField, value: any): number {
   if (value === null || value === undefined || value === "") return 0;
   if (field.weight === undefined || field.weight === 0) return 0;
@@ -84,7 +118,7 @@ function findAvailableUser(users: { id: string; department: string | null }[], t
 export async function submitQualification(
   prisma: PrismaClient,
   formId: string,
-  data: { name: string; email: string; phone?: string; notes?: string; answers: FormAnswers },
+  data: { name: string; email: string; phone?: string; notes?: string; answers: FormAnswers; tracking?: TrackingData },
 ) {
   const form = await prisma.qualificationForm.findUnique({
     where: { id: formId },
@@ -96,6 +130,11 @@ export async function submitQualification(
   const rules = form.routingRules ? (form.routingRules as RoutingRule[]) : [];
   const { score, maxScore, scorePercent } = calculateScore(fields, data.answers);
   const routing = findRoutingTarget(rules, data.answers, score);
+  const tracking = sanitizeTracking(data.tracking);
+  const trackingSummary = formatTrackingSummary(tracking);
+  const answersWithTracking = Object.keys(tracking).length
+    ? { ...data.answers, __tracking: tracking }
+    : data.answers;
 
   let leadId: string | null = null;
   if (form.createLead) {
@@ -104,7 +143,9 @@ export async function submitQualification(
         name: data.name,
         email: data.email,
         phone: data.phone || null,
-        notes: data.notes || null,
+        notes: [data.notes, trackingSummary].filter(Boolean).join("\n") || null,
+        source: tracking.utm_source ? `qualification:${tracking.utm_source}` : "qualification_form",
+        channel: tracking.utm_medium || null,
         organizationId: form.organizationId,
         status: routing ? "qualificado" : "pending",
         score,
@@ -128,7 +169,7 @@ export async function submitQualification(
       leadEmail: data.email,
       leadPhone: data.phone || null,
       leadNotes: data.notes || null,
-      answers: data.answers as any,
+      answers: answersWithTracking as any,
       score,
       maxScore,
       scorePercent,
@@ -157,7 +198,7 @@ export async function submitQualification(
           email: submission.leadEmail,
           phone: submission.leadPhone,
           phoneNormalized: phoneDigits,
-          notes: [`Score ICP: ${scorePercent}%`, submission.leadNotes].filter(Boolean).join("\n"),
+          notes: [`Score ICP: ${scorePercent}%`, submission.leadNotes, trackingSummary].filter(Boolean).join("\n"),
           crmStatus: "prospecting_funnel",
         },
         create: {
@@ -170,7 +211,7 @@ export async function submitQualification(
           phoneNormalized: phoneDigits,
           hasPhone: true,
           crmStatus: "prospecting_funnel",
-          notes: [`Score ICP: ${scorePercent}%`, submission.leadNotes].filter(Boolean).join("\n"),
+          notes: [`Score ICP: ${scorePercent}%`, submission.leadNotes, trackingSummary].filter(Boolean).join("\n"),
         },
       });
       funnelResult = await enrollCapturedLeadsInFunnel(prisma, form.organizationId, [captured.id], form.funnelId);

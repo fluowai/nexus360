@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   ArrowLeft, Plus, Trash2, Save, AlertCircle,
-  ToggleLeft, ToggleRight, ArrowUp, ArrowDown
+  ToggleLeft, ToggleRight, ArrowUp, ArrowDown, Sparkles, Loader2
 } from "lucide-react";
 import { apiFetch } from "../../lib/api";
 
@@ -130,6 +130,9 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
   });
 
   const [saving, setSaving] = useState(false);
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiBrief, setAiBrief] = useState({ niche: "", ticket: "", objective: "" });
+  const [aiNotice, setAiNotice] = useState("");
   const [error, setError] = useState("");
 
   const addField = () => {
@@ -180,6 +183,40 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
     setData({ ...data, routingRules: data.routingRules.filter((_, i) => i !== index) });
   };
 
+  const generateWithAi = async () => {
+    if (!aiBrief.niche.trim()) { setError("Informe o nicho para a IA gerar o formulÃ¡rio"); return; }
+    if (!aiBrief.ticket.trim()) { setError("Informe o ticket mÃ©dio ou oferta"); return; }
+    setGeneratingAi(true);
+    setError("");
+    setAiNotice("");
+    try {
+      const res = await apiFetch("/api/qualification/forms/generate-ai", {
+        method: "POST",
+        body: JSON.stringify({ ...aiBrief, fieldCount: 6 }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || "Erro ao gerar formulÃ¡rio com IA");
+      const generated = payload.form || {};
+      setData((current) => ({
+        ...current,
+        name: generated.name || current.name,
+        description: generated.description || current.description,
+        icpFields: Array.isArray(generated.icpFields) ? generated.icpFields : current.icpFields,
+        routingRules: Array.isArray(generated.routingRules) ? generated.routingRules : current.routingRules,
+        allowScheduling: generated.allowScheduling ?? current.allowScheduling,
+        schedulingMessage: generated.schedulingMessage || current.schedulingMessage,
+        schedulingLeadTime: generated.schedulingLeadTime || current.schedulingLeadTime,
+        createLead: generated.createLead ?? current.createLead,
+        createFunnelLead: generated.createFunnelLead ?? current.createFunnelLead,
+      }));
+      setAiNotice("Rascunho gerado com Groq. Revise os campos, pesos e regras antes de salvar.");
+    } catch (err: any) {
+      setError(err.message || "Erro ao gerar formulÃ¡rio com IA");
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!data.name.trim()) { setError("Nome é obrigatório"); return; }
     if (data.icpFields.length === 0) { setError("Adicione pelo menos um campo ICP"); return; }
@@ -224,6 +261,67 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
           {error}
         </div>
       )}
+
+      <div className="bg-white rounded-2xl border border-purple-100 p-6 space-y-4 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-purple-600 font-black text-xs uppercase tracking-widest mb-1">
+              <Sparkles size={15} />
+              IA Groq
+            </div>
+            <h2 className="font-black text-gray-900 text-lg">Criar com ajuda da IA</h2>
+            <p className="text-sm text-gray-500">Informe nicho e ticket para gerar um rascunho editavel de campos ICP, score e roteamento.</p>
+          </div>
+          {aiNotice && (
+            <span className="shrink-0 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
+              Rascunho pronto
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Nicho</label>
+            <input
+              type="text"
+              value={aiBrief.niche}
+              onChange={(e) => setAiBrief({ ...aiBrief, niche: e.target.value })}
+              placeholder="Ex: Farmacias, Imobiliarias, Clinicas"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 outline-none text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Ticket / oferta</label>
+            <input
+              type="text"
+              value={aiBrief.ticket}
+              onChange={(e) => setAiBrief({ ...aiBrief, ticket: e.target.value })}
+              placeholder="Ex: R$ 3.000/mes"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 outline-none text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Objetivo opcional</label>
+            <input
+              type="text"
+              value={aiBrief.objective}
+              onChange={(e) => setAiBrief({ ...aiBrief, objective: e.target.value })}
+              placeholder="Ex: Agendar diagnostico comercial"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 outline-none text-sm"
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={generateWithAi}
+            disabled={generatingAi}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-black transition-all disabled:opacity-50"
+          >
+            {generatingAi ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            {generatingAi ? "Gerando..." : "Gerar rascunho com IA"}
+          </button>
+          {aiNotice && <p className="text-sm text-emerald-700 font-medium">{aiNotice}</p>}
+        </div>
+      </div>
 
       <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-5">
         <h2 className="font-black text-gray-900 text-lg">Informações Básicas</h2>

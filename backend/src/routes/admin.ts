@@ -67,13 +67,13 @@ export function adminRoutes(prisma: PrismaClient) {
         })(),
         (async () => {
           try {
-            const orgFilter = orgId ? `AND l.organization_id = $1` : ``;
+            const orgFilter = orgId ? `AND l."organizationId" = $1` : ``;
             const params: any[] = [];
             if (orgId) params.push(String(orgId));
             params.push(sevenDaysAgo);
             const rows = await prisma.$queryRawUnsafe<Array<{ date: Date; leads: bigint; conv: bigint }>>(
-              `SELECT DATE(l.created_at) as date, COUNT(*) FILTER (WHERE l.status = 'qualificado' OR l.status = 'fechado') as conv,
-               COUNT(*) as leads FROM "Lead" l WHERE 1=1 ${orgFilter} AND l.created_at >= $${params.length} GROUP BY DATE(l.created_at) ORDER BY date ASC`,
+              `SELECT DATE(l."createdAt") as date, COUNT(*) FILTER (WHERE l.status = 'qualificado' OR l.status = 'fechado') as conv,
+               COUNT(*) as leads FROM "Lead" l WHERE 1=1 ${orgFilter} AND l."createdAt" >= $${params.length} GROUP BY DATE(l."createdAt") ORDER BY date ASC`,
               ...params
             );
             return rows.map((r) => ({

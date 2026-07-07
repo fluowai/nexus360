@@ -285,13 +285,23 @@ export function QualificationSubmissions({ forms }: Props) {
                     )}
 
                     <div className="grid grid-cols-2 gap-2">
-                      {Object.entries(sub.answers).map(([key, value]) => (
+                      {Object.entries(sub.answers).filter(([key]) => key !== "__tracking").map(([key, value]) => (
                         <div key={key} className="p-2 bg-gray-50 rounded-lg">
                           <span className="text-[9px] font-bold text-gray-500 uppercase block">{key}</span>
                           <span className="text-sm font-medium text-gray-900">{String(value)}</span>
                         </div>
                       ))}
                     </div>
+
+                    {sub.answers.__tracking && typeof sub.answers.__tracking === "object" && (
+                      <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-700">
+                        <span className="font-black uppercase tracking-wider block mb-1">Rastreamento</span>
+                        {Object.entries(sub.answers.__tracking as Record<string, any>)
+                          .filter(([, value]) => Boolean(value))
+                          .map(([key, value]) => `${key}: ${String(value)}`)
+                          .join(" | ")}
+                      </div>
+                    )}
 
                     {sub.status === "approved" && (
                       <div className="flex items-center gap-2">

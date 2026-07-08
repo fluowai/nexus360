@@ -259,7 +259,20 @@
   width: var(--sidebar-collapsed-width);
 }
 
+.sidebar-container.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 1rem 0;
+}
+
+.sidebar-container.collapsed .sidebar-header > button {
+  width: 42px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+}
+
 .sidebar-container.collapsed .logo-text,
+.sidebar-container.collapsed .logo-wrapper,
 .sidebar-container.collapsed .sidebar-group-label,
 .sidebar-container.collapsed .sidebar-item-label,
 .sidebar-container.collapsed .ai-badge,

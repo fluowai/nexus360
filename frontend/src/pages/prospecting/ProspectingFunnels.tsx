@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Building2,
   Bot,
   Calendar,
   CheckCircle2,
+  ClipboardList,
+  Clock,
   Database,
+  FileText,
   GitBranch,
   Inbox,
+  ListChecks,
   Loader2,
   MessageCircle,
   PhoneForwarded,
@@ -17,6 +22,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Target,
   UserCheck,
   Users,
   X,
@@ -30,8 +36,26 @@ interface FunnelStage {
   order: number;
   agentName: string;
   goal: string;
+  prompt?: string;
   maxMessages: number;
   isHumanHandoff: boolean;
+}
+
+interface FunnelPlaybook {
+  segment: string;
+  targetRoles: string[];
+  avoidDepartments: string[];
+  positioning: string;
+  firstTouchMessage: string;
+  gatekeeperFallbackMessage: string;
+  qualificationQuestion: string;
+  followUpMessages: string[];
+  followUpAfterMinutes: number;
+  maxFollowUps: number;
+  scheduleTriggerPhrases: string[];
+  meetingDurationMinutes: number;
+  handoffMessage: string;
+  forbiddenFirstMessageTerms: string[];
 }
 
 interface Funnel {
@@ -40,7 +64,9 @@ interface Funnel {
   description?: string;
   campaignName?: string;
   agentName?: string;
+  senderCompanyName?: string;
   firstStagePrompt?: string;
+  playbook?: FunnelPlaybook;
   status: string;
   channel: string;
   isDefault: boolean;
@@ -111,7 +137,7 @@ interface DispatchAttempt {
   createdAt: string;
 }
 
-type Tab = 'operation' | 'leads' | 'queue' | 'messages' | 'agents' | 'rules';
+type Tab = 'operation' | 'playbooks' | 'leads' | 'queue' | 'messages' | 'agents' | 'rules';
 
 const statusLabels: Record<string, string> = {
   queued: 'Na fila',
@@ -133,6 +159,64 @@ const attemptStatusLabels: Record<string, string> = {
 };
 
 const DEFAULT_FIRST_STAGE_PROMPT = 'Primeira etapa: falar como humano e localizar o decisor antes de qualquer explicacao. Procurar socio, proprietario, administrador ou alguem da area comercial. Nunca dizer que somos agencia. Nunca abrir falando de marketing, presenca digital, solucao digital, tecnologia, clientes, diagnostico ou avaliacao. A primeira mensagem deve apenas perguntar quem e o responsavel pelo comercial.';
+const DEFAULT_PLAYBOOK: FunnelPlaybook = {
+  segment: 'empresas locais',
+  targetRoles: ['socio', 'proprietario', 'responsavel comercial'],
+  avoidDepartments: ['marketing', 'social media', 'agencia'],
+  positioning: 'estrutura comercial e implementacao comercial',
+  firstTouchMessage: 'Oi, tudo bem? Aqui e o {agentName} da {senderCompanyName}. Poderia me ajudar a falar com {targetRoleLabel} da {businessName}?',
+  gatekeeperFallbackMessage: 'Sem problema. Quem costuma cuidar dessa parte comercial por ai?',
+  qualificationQuestion: 'Perfeito. Hoje quem acompanha a entrada de novos clientes e oportunidades comerciais?',
+  followUpMessages: [
+    'Oi, tudo bem? Conseguiu ver minha mensagem anterior?',
+    'Passando uma ultima vez por aqui. Existe alguem melhor para eu falar sobre a parte comercial?'
+  ],
+  followUpAfterMinutes: 1440,
+  maxFollowUps: 2,
+  scheduleTriggerPhrases: ['agenda', 'reuniao', 'call', 'pode me ligar', 'tenho interesse', 'quero entender'],
+  meetingDurationMinutes: 30,
+  handoffMessage: 'Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui.',
+  forbiddenFirstMessageTerms: ['marketing', 'presenca digital', 'diagnostico', 'avaliacao', 'trafego pago']
+};
+
+const FUNNEL_TEMPLATES = [
+  {
+    id: 'real-estate',
+    label: 'Imobiliarias',
+    data: {
+      name: 'Funil imobiliarias',
+      campaignName: 'Prospeccao imobiliarias',
+      description: 'Localizar proprietario, socio ou responsavel comercial antes de qualquer oferta.',
+      segment: 'imobiliarias',
+      targetRoles: 'proprietario, socio, diretor comercial, gerente comercial',
+      positioning: 'estrutura comercial para captar e atender oportunidades imobiliarias',
+      firstTouchMessage: 'Oi, tudo bem? Aqui e o {agentName} da {senderCompanyName}. Poderia me ajudar a falar com o proprietario ou responsavel comercial da {businessName}?',
+      qualificationQuestion: 'Perfeito. Hoje quem acompanha a entrada de novos interessados e oportunidades de venda ou locacao?',
+      followUpMessages: [
+        'Oi, tudo bem? Conseguiu ver minha mensagem sobre o responsavel comercial?',
+        'Ultima tentativa por aqui. Existe alguem melhor para eu falar sobre a area comercial da imobiliaria?'
+      ]
+    }
+  },
+  {
+    id: 'lawyers',
+    label: 'Advogados',
+    data: {
+      name: 'Funil advogados',
+      campaignName: 'Prospeccao advocacia',
+      description: 'Chegar ao socio ou responsavel por novas demandas sem abordar marketing.',
+      segment: 'escritorios de advocacia',
+      targetRoles: 'socio, socio administrador, responsavel comercial, gestor do escritorio',
+      positioning: 'estrutura comercial para organizar entrada e triagem de novas demandas',
+      firstTouchMessage: 'Oi, tudo bem? Aqui e o {agentName} da {senderCompanyName}. Poderia me ajudar a falar com o socio ou responsavel pelas novas demandas do {businessName}?',
+      qualificationQuestion: 'Perfeito. Hoje quem acompanha a entrada de novas demandas e o primeiro atendimento do escritorio?',
+      followUpMessages: [
+        'Oi, tudo bem? Conseguiu ver minha mensagem sobre o responsavel pelas novas demandas?',
+        'Passando uma ultima vez. Tem algum socio ou responsavel mais indicado para eu falar?'
+      ]
+    }
+  }
+] as const;
 
 const today = new Date().toISOString().slice(0, 10);
 const controlClass = 'h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-bold text-gray-800 outline-none focus:border-emerald-200 focus:ring-2 focus:ring-emerald-100';
@@ -143,6 +227,35 @@ const formatConnection = (connection?: Connection) => {
 };
 
 const formatCampaign = (run: Run) => run.qualification?.campaign?.name || run.funnel?.name || 'Operacao ativa';
+const toLines = (value: string) => value.split(/\n|,|;/).map(item => item.trim()).filter(Boolean);
+const listText = (items?: string[]) => (items?.length ? items : []).join('\n');
+const playbookFor = (funnel?: Funnel | null): FunnelPlaybook => ({ ...DEFAULT_PLAYBOOK, ...(funnel?.playbook || {}) });
+const targetLabel = (playbook?: FunnelPlaybook) => (playbook?.targetRoles?.length ? playbook.targetRoles.join(', ') : DEFAULT_PLAYBOOK.targetRoles.join(', '));
+
+function createFunnelForm() {
+  return {
+    name: '',
+    campaignName: '',
+    agentName: 'Paulo',
+    senderCompanyName: 'Consultio',
+    description: '',
+    segment: DEFAULT_PLAYBOOK.segment,
+    targetRolesText: listText(DEFAULT_PLAYBOOK.targetRoles),
+    avoidDepartmentsText: listText(DEFAULT_PLAYBOOK.avoidDepartments),
+    positioning: DEFAULT_PLAYBOOK.positioning,
+    firstStagePrompt: DEFAULT_FIRST_STAGE_PROMPT,
+    firstTouchMessage: DEFAULT_PLAYBOOK.firstTouchMessage,
+    gatekeeperFallbackMessage: DEFAULT_PLAYBOOK.gatekeeperFallbackMessage,
+    qualificationQuestion: DEFAULT_PLAYBOOK.qualificationQuestion,
+    followUpMessagesText: listText(DEFAULT_PLAYBOOK.followUpMessages),
+    followUpAfterMinutes: DEFAULT_PLAYBOOK.followUpAfterMinutes,
+    maxFollowUps: DEFAULT_PLAYBOOK.maxFollowUps,
+    scheduleTriggerPhrasesText: listText(DEFAULT_PLAYBOOK.scheduleTriggerPhrases),
+    meetingDurationMinutes: DEFAULT_PLAYBOOK.meetingDurationMinutes,
+    handoffMessage: DEFAULT_PLAYBOOK.handoffMessage,
+    forbiddenTermsText: listText(DEFAULT_PLAYBOOK.forbiddenFirstMessageTerms)
+  };
+}
 
 export default function ProspectingFunnels() {
   const [activeTab, setActiveTab] = useState<Tab>('operation');
@@ -179,15 +292,11 @@ export default function ProspectingFunnels() {
     messageIntervalMinutes: 15
   });
 
-  const [form, setForm] = useState({
-    name: '',
-    campaignName: '',
-    agentName: 'Paulo',
-    description: '',
-    firstStagePrompt: DEFAULT_FIRST_STAGE_PROMPT
-  });
+  const [form, setForm] = useState(createFunnelForm);
 
   const defaultFunnel = useMemo(() => funnels.find(funnel => funnel.isDefault) || funnels[0], [funnels]);
+  const selectedFunnel = funnels.find(funnel => funnel.id === operation.funnelId) || defaultFunnel;
+  const selectedPlaybook = playbookFor(selectedFunnel);
   const selectedAgent = agents.find(agent => agent.id === operation.agentId) || agents[0];
   const selectedConnection = connections.find(connection => connection.id === operation.channelId);
   const queuedRuns = runs.filter(run => run.status === 'queued').length;
@@ -207,6 +316,11 @@ export default function ProspectingFunnels() {
       funnelId: current.funnelId === 'default' ? defaultFunnel.id : current.funnelId
     }));
   }, [defaultFunnel]);
+
+  useEffect(() => {
+    if (!selectedFunnel?.playbook?.segment) return;
+    setOperation(current => current.niche.trim() ? current : { ...current, niche: selectedFunnel.playbook?.segment || current.niche });
+  }, [selectedFunnel?.id]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -265,20 +379,38 @@ export default function ProspectingFunnels() {
 
     setSavingFunnel(true);
     try {
+      const playbook = {
+        segment: form.segment.trim(),
+        targetRoles: toLines(form.targetRolesText),
+        avoidDepartments: toLines(form.avoidDepartmentsText),
+        positioning: form.positioning.trim(),
+        firstTouchMessage: form.firstTouchMessage.trim(),
+        gatekeeperFallbackMessage: form.gatekeeperFallbackMessage.trim(),
+        qualificationQuestion: form.qualificationQuestion.trim(),
+        followUpMessages: toLines(form.followUpMessagesText),
+        followUpAfterMinutes: Number(form.followUpAfterMinutes || DEFAULT_PLAYBOOK.followUpAfterMinutes),
+        maxFollowUps: Number(form.maxFollowUps || DEFAULT_PLAYBOOK.maxFollowUps),
+        scheduleTriggerPhrases: toLines(form.scheduleTriggerPhrasesText),
+        meetingDurationMinutes: Number(form.meetingDurationMinutes || DEFAULT_PLAYBOOK.meetingDurationMinutes),
+        handoffMessage: form.handoffMessage.trim(),
+        forbiddenFirstMessageTerms: toLines(form.forbiddenTermsText)
+      };
       const res = await apiFetch('/api/prospecting-funnels/funnels', {
         method: 'POST',
         body: JSON.stringify({
           name: form.name.trim(),
           campaignName: (form.campaignName || form.name).trim(),
           agentName: (form.agentName || 'Paulo').trim(),
+          senderCompanyName: (form.senderCompanyName || 'Consultio').trim(),
           description: form.description.trim() || 'Funil de abordagem por WhatsApp para localizar decisor antes de qualificar.',
-          firstStagePrompt: form.firstStagePrompt.trim()
+          firstStagePrompt: form.firstStagePrompt.trim(),
+          playbook
         })
       });
       const created = await readJsonResponse<Funnel>(res, 'Nao foi possivel criar o funil.');
       setOperation(current => ({ ...current, funnelId: created.id }));
       setShowCreateForm(false);
-      setForm({ name: '', campaignName: '', agentName: 'Paulo', description: '', firstStagePrompt: DEFAULT_FIRST_STAGE_PROMPT });
+      setForm(createFunnelForm());
       await fetchAll();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Nao foi possivel criar o funil.');
@@ -369,6 +501,22 @@ export default function ProspectingFunnels() {
     } finally {
       setSending(false);
     }
+  };
+
+  const applyTemplate = (template: typeof FUNNEL_TEMPLATES[number]) => {
+    const data = template.data;
+    setForm(current => ({
+      ...current,
+      name: data.name,
+      campaignName: data.campaignName,
+      description: data.description,
+      segment: data.segment,
+      targetRolesText: data.targetRoles,
+      positioning: data.positioning,
+      firstTouchMessage: data.firstTouchMessage,
+      qualificationQuestion: data.qualificationQuestion,
+      followUpMessagesText: data.followUpMessages.join('\n')
+    }));
   };
 
   const canPrepare = operation.niche.trim() && operation.city.trim() && operation.state.trim();
@@ -481,6 +629,7 @@ export default function ProspectingFunnels() {
 
       <nav className="flex flex-wrap gap-2 rounded-lg border border-gray-100 bg-white p-2 shadow-sm">
         <TabButton active={activeTab === 'operation'} icon={GitBranch} label="Operacao" onClick={() => setActiveTab('operation')} />
+        <TabButton active={activeTab === 'playbooks'} icon={ClipboardList} label="Playbooks" onClick={() => setActiveTab('playbooks')} />
         <TabButton active={activeTab === 'leads'} icon={Users} label="Leads" onClick={() => setActiveTab('leads')} />
         <TabButton active={activeTab === 'queue'} icon={Inbox} label="Fila" onClick={() => setActiveTab('queue')} />
         <TabButton active={activeTab === 'messages'} icon={Inbox} label="Mensagens" onClick={() => setActiveTab('messages')} />
@@ -490,25 +639,62 @@ export default function ProspectingFunnels() {
 
       {showCreateForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4">
-          <form onSubmit={createFunnel} className="w-full max-w-2xl overflow-hidden rounded-lg border border-gray-100 bg-white shadow-xl">
+          <form onSubmit={createFunnel} className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-gray-100 bg-white shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-5">
               <div>
                 <h2 className="text-xl font-black text-gray-900">Criar funil WhatsApp</h2>
-                <p className="mt-1 text-xs font-medium text-gray-500">Configure campanha, agente e comportamento da primeira etapa.</p>
+                <p className="mt-1 text-xs font-medium text-gray-500">Configure segmento, abordagem, mensagens, follow-ups e agenda automatica.</p>
               </div>
               <button type="button" onClick={() => setShowCreateForm(false)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100">
                 <X size={20} />
               </button>
             </div>
-            <div className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-              <FormInput label="Nome do funil" value={form.name} onChange={(value) => setForm(current => ({ ...current, name: value }))} placeholder="Ex: Clinicas odontologicas" />
-              <FormInput label="Campanha" value={form.campaignName} onChange={(value) => setForm(current => ({ ...current, campaignName: value }))} placeholder="Ex: SP zona sul" />
-              <FormInput label="Nome do agente" value={form.agentName} onChange={(value) => setForm(current => ({ ...current, agentName: value }))} placeholder="Paulo" />
-              <FormInput label="Descricao" value={form.description} onChange={(value) => setForm(current => ({ ...current, description: value }))} placeholder="Localizar decisor" />
-              <label className="space-y-1.5 md:col-span-2">
-                <span className="text-[10px] font-black uppercase text-gray-400">Etapa 1</span>
-                <textarea value={form.firstStagePrompt} onChange={(event) => setForm(current => ({ ...current, firstStagePrompt: event.target.value }))} className="min-h-28 w-full resize-none rounded-lg border border-gray-200 px-3 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-100" />
-              </label>
+            <div className="overflow-y-auto p-5">
+              <div className="mb-5 flex flex-wrap gap-2">
+                {FUNNEL_TEMPLATES.map(template => (
+                  <button key={template.id} type="button" onClick={() => applyTemplate(template)} className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 px-3 text-xs font-black text-gray-600 hover:bg-gray-50">
+                    <Sparkles size={14} />
+                    {template.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <FormInput label="Nome do funil" value={form.name} onChange={(value) => setForm(current => ({ ...current, name: value }))} placeholder="Ex: Funil imobiliarias" />
+                <FormInput label="Campanha" value={form.campaignName} onChange={(value) => setForm(current => ({ ...current, campaignName: value }))} placeholder="Ex: SP capital" />
+                <FormInput label="Segmento" value={form.segment} onChange={(value) => setForm(current => ({ ...current, segment: value }))} placeholder="Ex: imobiliarias" />
+                <FormInput label="Nome do agente" value={form.agentName} onChange={(value) => setForm(current => ({ ...current, agentName: value }))} placeholder="Paulo" />
+                <FormInput label="Empresa" value={form.senderCompanyName} onChange={(value) => setForm(current => ({ ...current, senderCompanyName: value }))} placeholder="Consultio" />
+                <FormInput label="Descricao" value={form.description} onChange={(value) => setForm(current => ({ ...current, description: value }))} placeholder="Localizar decisor antes da abordagem" />
+
+                <FormTextarea className="md:col-span-1" label="Quem procurar" value={form.targetRolesText} onChange={(value) => setForm(current => ({ ...current, targetRolesText: value }))} />
+                <FormTextarea className="md:col-span-1" label="Evitar setor" value={form.avoidDepartmentsText} onChange={(value) => setForm(current => ({ ...current, avoidDepartmentsText: value }))} />
+                <FormTextarea className="md:col-span-1" label="Como abordar" value={form.positioning} onChange={(value) => setForm(current => ({ ...current, positioning: value }))} />
+
+                <FormTextarea className="md:col-span-3" label="Primeira mensagem" value={form.firstTouchMessage} onChange={(value) => setForm(current => ({ ...current, firstTouchMessage: value }))} minHeight="min-h-20" />
+                <FormTextarea className="md:col-span-1" label="Se barrarem" value={form.gatekeeperFallbackMessage} onChange={(value) => setForm(current => ({ ...current, gatekeeperFallbackMessage: value }))} />
+                <FormTextarea className="md:col-span-2" label="Pergunta de qualificacao" value={form.qualificationQuestion} onChange={(value) => setForm(current => ({ ...current, qualificationQuestion: value }))} />
+
+                <FormTextarea className="md:col-span-2" label="Follow-ups automaticos" value={form.followUpMessagesText} onChange={(value) => setForm(current => ({ ...current, followUpMessagesText: value }))} />
+                <label className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase text-gray-400">Cadencia</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="number" min={5} value={form.followUpAfterMinutes} onChange={(event) => setForm(current => ({ ...current, followUpAfterMinutes: Number(event.target.value) }))} className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-100" />
+                    <input type="number" min={1} value={form.maxFollowUps} onChange={(event) => setForm(current => ({ ...current, maxFollowUps: Number(event.target.value) }))} className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-100" />
+                  </div>
+                  <span className="block text-[10px] font-bold text-gray-400">minutos ate follow-up / maximo</span>
+                </label>
+
+                <FormTextarea className="md:col-span-1" label="Gatilhos de agenda" value={form.scheduleTriggerPhrasesText} onChange={(value) => setForm(current => ({ ...current, scheduleTriggerPhrasesText: value }))} />
+                <label className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase text-gray-400">Duracao call</span>
+                  <input type="number" min={15} value={form.meetingDurationMinutes} onChange={(event) => setForm(current => ({ ...current, meetingDurationMinutes: Number(event.target.value) }))} className="h-11 w-full rounded-lg border border-gray-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-100" />
+                </label>
+                <FormTextarea className="md:col-span-1" label="Mensagem de handoff" value={form.handoffMessage} onChange={(value) => setForm(current => ({ ...current, handoffMessage: value }))} />
+
+                <FormTextarea className="md:col-span-1" label="Termos proibidos" value={form.forbiddenTermsText} onChange={(value) => setForm(current => ({ ...current, forbiddenTermsText: value }))} />
+                <FormTextarea className="md:col-span-2" label="Instrucao do agente" value={form.firstStagePrompt} onChange={(value) => setForm(current => ({ ...current, firstStagePrompt: value }))} />
+              </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-100 p-5">
               <button type="button" onClick={() => setShowCreateForm(false)} className="h-11 rounded-lg bg-gray-100 px-5 text-sm font-bold text-gray-700 hover:bg-gray-200">Cancelar</button>
@@ -527,7 +713,8 @@ export default function ProspectingFunnels() {
         </div>
       ) : (
         <>
-          {activeTab === 'operation' && <OperationBoard runs={runs} selectedAgent={selectedAgent} selectedConnection={selectedConnection} />}
+          {activeTab === 'operation' && <OperationBoard runs={runs} selectedAgent={selectedAgent} selectedConnection={selectedConnection} selectedFunnel={selectedFunnel} />}
+          {activeTab === 'playbooks' && <PlaybooksPanel funnels={funnels} onCreate={() => setShowCreateForm(true)} />}
           {activeTab === 'leads' && <LeadsTable runs={runs} />}
           {activeTab === 'queue' && <QueuePanel attempts={attempts} />}
           {activeTab === 'messages' && (
@@ -552,7 +739,71 @@ export default function ProspectingFunnels() {
   );
 }
 
-function OperationBoard({ runs, selectedAgent, selectedConnection }: { runs: Run[]; selectedAgent?: ProspectingAgent; selectedConnection?: Connection }) {
+function PlaybooksPanel({ funnels, onCreate }: { funnels: Funnel[]; onCreate: () => void }) {
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col justify-between gap-3 rounded-lg border border-gray-100 bg-white p-5 shadow-sm md:flex-row md:items-center">
+        <div>
+          <h2 className="flex items-center gap-2 font-black text-gray-950"><ClipboardList size={18} className="text-emerald-600" /> Playbooks de prospeccao</h2>
+          <p className="mt-1 text-sm font-medium text-gray-500">Cada funil define segmento, alvo, mensagens, follow-ups e gatilhos de agenda.</p>
+        </div>
+        <button onClick={onCreate} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-950 px-4 text-xs font-black text-white hover:bg-black">
+          <Plus size={15} />
+          Novo funil
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {funnels.map(funnel => {
+          const playbook = playbookFor(funnel);
+          return (
+            <article key={funnel.id} className="rounded-lg border border-gray-100 bg-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase text-gray-400">{playbook.segment || 'Segmento'}</p>
+                  <h3 className="mt-1 text-lg font-black text-gray-950">{funnel.name}</h3>
+                  <p className="mt-1 text-sm font-medium leading-relaxed text-gray-500">{funnel.description || 'Funil consultivo para localizar decisor antes de qualificar.'}</p>
+                </div>
+                <span className="rounded-lg bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">{funnel._count?.runs || 0} leads</span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <MiniInfo icon={Target} label="Alvo" value={targetLabel(playbook)} />
+                <MiniInfo icon={ShieldCheck} label="Evitar" value={(playbook.avoidDepartments || []).join(', ') || 'marketing'} />
+                <MiniInfo icon={Clock} label="Follow-up" value={`${playbook.maxFollowUps || 0}x / ${playbook.followUpAfterMinutes || 0} min`} />
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <MessagePreview icon={MessageCircle} label="Primeira mensagem" text={playbook.firstTouchMessage} />
+                <MessagePreview icon={ListChecks} label="Qualificacao" text={playbook.qualificationQuestion} />
+                <MessagePreview icon={Calendar} label="Agenda/handoff" text={playbook.handoffMessage} />
+              </div>
+
+              <div className="mt-4 rounded-lg bg-gray-50 p-3">
+                <p className="mb-2 text-[10px] font-black uppercase text-gray-400">Follow-ups</p>
+                <div className="space-y-2">
+                  {(playbook.followUpMessages || []).map((message, index) => (
+                    <p key={`${funnel.id}-${index}`} className="text-xs font-medium leading-relaxed text-gray-600">{index + 1}. {message}</p>
+                  ))}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {funnels.length === 0 && (
+        <div className="rounded-lg border border-dashed border-gray-200 bg-white p-10 text-center">
+          <FileText className="mx-auto mb-3 text-gray-300" size={38} />
+          <p className="font-black text-gray-800">Nenhum funil criado ainda.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OperationBoard({ runs, selectedAgent, selectedConnection, selectedFunnel }: { runs: Run[]; selectedAgent?: ProspectingAgent; selectedConnection?: Connection; selectedFunnel?: Funnel }) {
+  const playbook = playbookFor(selectedFunnel);
   const columns = [
     { id: 'captured', title: 'Leads Google', icon: Database, runs: runs.filter(run => run.status === 'queued') },
     { id: 'contact', title: 'Primeiro contato', icon: MessageCircle, runs: runs.filter(run => ['sent', 'active'].includes(run.status)) },
@@ -563,10 +814,12 @@ function OperationBoard({ runs, selectedAgent, selectedConnection }: { runs: Run
   return (
     <div className="grid grid-cols-1 gap-5 xl:grid-cols-[320px_1fr]">
       <aside className="space-y-3 rounded-lg border border-gray-100 bg-white p-4 shadow-sm">
+        <InfoRow icon={Building2} label="Segmento" value={playbook.segment || selectedFunnel?.name || 'Funil selecionado'} />
+        <InfoRow icon={Target} label="Alvo" value={targetLabel(playbook)} />
         <InfoRow icon={Bot} label="Agente" value={selectedAgent?.name || 'SDR Primeiro Contato'} />
         <InfoRow icon={PlugZap} label="Instancia" value={formatConnection(selectedConnection)} />
-        <InfoRow icon={Calendar} label="Agenda" value="Data e hora ficam salvas na campanha preparada" />
-        <InfoRow icon={ShieldCheck} label="Trava" value="Primeiro contato busca decisor, sem pitch de marketing" />
+        <InfoRow icon={Calendar} label="Agenda" value={`${playbook.meetingDurationMinutes || 30} min quando houver horario claro`} />
+        <InfoRow icon={ShieldCheck} label="Trava" value={`Evitar: ${(playbook.avoidDepartments || []).join(', ') || 'marketing'}`} />
       </aside>
       <section className="grid grid-cols-1 gap-3 xl:grid-cols-4">
         {columns.map(column => {
@@ -839,6 +1092,15 @@ function FormInput({ label, value, onChange, placeholder }: { label: string; val
   );
 }
 
+function FormTextarea({ label, value, onChange, className, minHeight = 'min-h-24' }: { label: string; value: string; onChange: (value: string) => void; className?: string; minHeight?: string }) {
+  return (
+    <label className={`space-y-1.5 ${className || ''}`}>
+      <span className="text-[10px] font-black uppercase text-gray-400">{label}</span>
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} className={`${minHeight} w-full resize-none rounded-lg border border-gray-200 px-3 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-100`} />
+    </label>
+  );
+}
+
 function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
   return (
     <div className="flex items-start gap-3 rounded-lg bg-gray-50 p-3">
@@ -847,6 +1109,30 @@ function InfoRow({ icon: Icon, label, value }: { icon: any; label: string; value
         <p className="text-[10px] font-black uppercase text-gray-400">{label}</p>
         <p className="text-sm font-bold text-gray-700">{value}</p>
       </div>
+    </div>
+  );
+}
+
+function MiniInfo({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-gray-50 p-3">
+      <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase text-gray-400">
+        <Icon size={13} className="text-emerald-600" />
+        {label}
+      </div>
+      <p className="line-clamp-2 text-xs font-bold leading-relaxed text-gray-700">{value}</p>
+    </div>
+  );
+}
+
+function MessagePreview({ icon: Icon, label, text }: { icon: any; label: string; text: string }) {
+  return (
+    <div className="rounded-lg border border-gray-100 p-3">
+      <div className="mb-2 flex items-center gap-2 text-[10px] font-black uppercase text-gray-400">
+        <Icon size={13} className="text-emerald-600" />
+        {label}
+      </div>
+      <p className="text-sm font-medium leading-relaxed text-gray-700">{text || '-'}</p>
     </div>
   );
 }

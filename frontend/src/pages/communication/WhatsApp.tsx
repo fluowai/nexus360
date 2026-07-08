@@ -309,6 +309,7 @@ export default function WhatsApp() {
   const [qrModalConnectionId, setQrModalConnectionId] = useState<string | null>(null);
   const [calling, setCalling] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
+  const [autoOpenConversationId, setAutoOpenConversationId] = useState<string | null>(null);
 
   const activeConnection = useMemo(
     () => connections.find((conn) => conn.config?.status === "connected" && conn.isActive) || connections.find((conn) => conn.isActive),
@@ -332,6 +333,11 @@ export default function WhatsApp() {
     const tab = searchParams.get("tab");
     if (tab === "instances" || tab === "llms" || tab === "messages") {
       setActiveTab(tab);
+    }
+    const cid = searchParams.get("conversationId");
+    if (cid && tab === "messages") {
+      // Auto-open conversation after conversations load
+      setAutoOpenConversationId(cid);
     }
   }, [searchParams]);
 
@@ -382,6 +388,16 @@ export default function WhatsApp() {
     }, 4000);
     return () => { window.clearInterval(timer); window.clearInterval(qrTimer); };
   }, [messageTab, activeTab, qrModalConnectionId]);
+
+  // Auto-abre conversa quando redirecionado da abordagem SDR
+  useEffect(() => {
+    if (!autoOpenConversationId || conversations.length === 0) return;
+    const target = conversations.find(c => c.id === autoOpenConversationId);
+    if (target) {
+      openConversation(target);
+      setAutoOpenConversationId(null);
+    }
+  }, [autoOpenConversationId, conversations]);
 
   const createConnection = async () => {
     const name = instanceName.trim();

@@ -20,7 +20,7 @@ function dayStart(now = new Date()) {
   return start;
 }
 
-function isUnsafeProspectingFirstMessage(message?: string | null) {
+function isUnsafeProspectingFirstMessage(message?: string | null, forbiddenTerms: string[] = []) {
   const normalized = String(message || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -39,11 +39,13 @@ function isUnsafeProspectingFirstMessage(message?: string | null) {
     "diagnostico",
     "avaliacao",
     "[seu nome]",
-  ].some((term) => normalized.includes(term));
+    ...forbiddenTerms,
+  ].some((term) => normalized.includes(String(term || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()));
 }
 
-function safeProspectingFirstMessage() {
-  return "Oi, tudo bem? Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?";
+function safeProspectingFirstMessage(runtimeConfig?: ReturnType<typeof getFunnelRuntimeConfig>) {
+  const target = runtimeConfig?.targetRoleLabel || "socio, proprietario ou responsavel comercial";
+  return `Oi, tudo bem? Poderia me ajudar a falar com ${target} da empresa?`;
 }
 
 async function pickChannel(prisma: PrismaClient, organizationId: string, preferredChannelId?: string | null) {
@@ -138,8 +140,8 @@ export async function dispatchProspectingRun(prisma: PrismaClient, run: any, opt
     },
   });
 
-  const firstMessage = isUnsafeProspectingFirstMessage(run.firstMessage)
-    ? safeProspectingFirstMessage()
+  const firstMessage = isUnsafeProspectingFirstMessage(run.firstMessage, runtimeConfig.forbiddenFirstMessageTerms)
+    ? safeProspectingFirstMessage(runtimeConfig)
     : run.firstMessage;
 
   const attempt = await createDispatchAttempt(prisma, {

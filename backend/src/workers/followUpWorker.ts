@@ -5,6 +5,7 @@ import {
   isInsideBusinessHours,
   isOptedOut,
   mergeProspectingAgentMemory,
+  renderProspectingTemplate,
   updateDispatchAttempt,
 } from "../services/prospectingAutomation.js";
 import { OutboundDispatcherService } from "../services/outboundDispatcher.js";
@@ -87,8 +88,8 @@ export class FollowUpWorker {
     await mutex.acquire("follow-up-worker:prospecting", async () => {
       try {
         const now = new Date();
-        const afterMinutes = Number(process.env.PROSPECTING_FOLLOWUP_AFTER_MINUTES || 1440);
-        const cutoff = new Date(now.getTime() - afterMinutes * 60 * 1000);
+        const minimumDelayMinutes = Math.max(Number(process.env.PROSPECTING_FOLLOWUP_MIN_AFTER_MINUTES || 5), 1);
+        const cutoff = new Date(now.getTime() - minimumDelayMinutes * 60 * 1000);
         const maxPerTick = Number(process.env.PROSPECTING_FOLLOWUP_BATCH_SIZE || 5);
         const runs = await this.prisma.prospectingRun.findMany({
           where: {
@@ -99,22 +100,29 @@ export class FollowUpWorker {
           },
           include: { funnel: { include: { stages: { orderBy: { order: "asc" } } } }, stage: true },
           orderBy: { lastContactAt: "asc" },
-          take: maxPerTick,
+          take: Math.max(maxPerTick * 4, maxPerTick),
         });
 
+      let processed = 0;
       for (const run of runs) {
+        if (processed >= maxPerTick) break;
         const qualification = (run.qualification as any) || {};
+        const runtimeConfig = getFunnelRuntimeConfig(run.funnel);
         const followUpCount = Number(qualification.followUpCount || 0);
-        const maxFollowUps = Number(qualification?.campaign?.maxFollowUps || process.env.PROSPECTING_MAX_FOLLOWUPS || 2);
+        const maxFollowUps = Number(qualification?.campaign?.maxFollowUps || runtimeConfig.maxFollowUps || process.env.PROSPECTING_MAX_FOLLOWUPS || 2);
         if (followUpCount >= maxFollowUps) {
           await this.prisma.prospectingRun.update({
             where: { id: run.id },
             data: { status: "nurturing", nextAction: "max_followups_reached" },
           });
+          processed += 1;
           continue;
         }
 
-        const runtimeConfig = getFunnelRuntimeConfig(run.funnel);
+        const afterMinutes = Number(qualification?.campaign?.followUpAfterMinutes || runtimeConfig.followUpAfterMinutes || process.env.PROSPECTING_FOLLOWUP_AFTER_MINUTES || 1440);
+        const dueAt = new Date(new Date(run.lastContactAt || run.updatedAt).getTime() + afterMinutes * 60 * 1000);
+        if (dueAt > now) continue;
+
         if (!isInsideBusinessHours(runtimeConfig.businessHours, now)) continue;
 
         if (await isOptedOut(this.prisma, run.organizationId, run.leadPhone)) {
@@ -125,9 +133,17 @@ export class FollowUpWorker {
           continue;
         }
 
-        const message = followUpCount === 0
-          ? "Oi, tudo bem? Conseguiu ver minha mensagem anterior?"
-          : "Passando uma ultima vez por aqui. Existe alguem melhor para eu falar sobre a parte comercial?";
+        const template = runtimeConfig.followUpMessages[followUpCount] || runtimeConfig.followUpMessages[runtimeConfig.followUpMessages.length - 1];
+        const leadSnapshot = (run.leadSnapshot as any) || {};
+        const message = renderProspectingTemplate(template, {
+          agentName: runtimeConfig.agentName,
+          senderCompanyName: runtimeConfig.senderCompanyName,
+          businessName: run.leadName || leadSnapshot.businessName,
+          targetRoleLabel: runtimeConfig.targetRoleLabel,
+          segment: qualification?.playbook?.segment || leadSnapshot.category,
+          city: leadSnapshot.city,
+          state: leadSnapshot.state,
+        });
         const attempt = await createDispatchAttempt(this.prisma, {
           organizationId: run.organizationId,
           run,
@@ -175,6 +191,7 @@ export class FollowUpWorker {
               },
             },
           });
+          processed += 1;
         } catch (error: any) {
           await updateDispatchAttempt(this.prisma, attempt.id, {
             status: "failed",

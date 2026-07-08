@@ -10,6 +10,8 @@ type GridCoordinate = {
 type ScraperRow = Record<string, string>;
 
 const activeExecutions = new Set<string>();
+const COMPLETED_JOB_STATUSES = new Set(["ok", "completed", "complete", "done", "finished", "success", "succeeded"]);
+const FAILED_JOB_STATUSES = new Set(["failed", "fail", "error", "errored", "canceled", "cancelled"]);
 
 function normalize(value: unknown) {
   return String(value || "")
@@ -80,10 +82,10 @@ function parseCsv(input: string): ScraperRow[] {
     rows.push(row);
   }
 
-  const headers = rows.shift() || [];
+  const headers = (rows.shift() || []).map((header) => header.replace(/^\uFEFF/, "").trim());
   return rows.map((values) =>
     headers.reduce<ScraperRow>((result, header, index) => {
-      result[header] = values[index] || "";
+      result[header] = (values[index] || "").trim();
       return result;
     }, {}),
   );
@@ -149,8 +151,21 @@ export async function startProfileDiscovery(query: string) {
 }
 
 function numberValue(value: unknown) {
+  if (value && typeof value === "object") return null;
   const parsed = Number(String(value || "").replace(",", "."));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function firstValue(...values: unknown[]) {
+  return values.find((value) => value !== undefined && value !== null && String(value).trim() !== "");
+}
+
+function coordinatesFromRaw(row: Record<string, any>) {
+  const gps = row.gps_coordinates || row.gpsCoordinates || row.coordinates || {};
+  return {
+    latitude: numberValue(firstValue(row.latitude, row.lat, gps.latitude, gps.lat)),
+    longitude: numberValue(firstValue(row.longitude, row.longtitude, row.lng, row.lon, gps.longitude, gps.lng, gps.lon)),
+  };
 }
 
 export function profileCandidateFromGoogleMapsUrl(url: string, fallbackName?: string) {
@@ -227,32 +242,118 @@ export function profileCandidateFromGoogleMapsUrl(url: string, fallbackName?: st
   };
 }
 
-export function normalizeProfileCandidate(row: ScraperRow) {
+export function normalizeProfileCandidate(row: Record<string, any>) {
+  const { latitude, longitude } = coordinatesFromRaw(row);
+  const cid = firstValue(row.cid, row.data_cid, row.place_cid);
+  const placeId = firstValue(row.place_id, row.placeId, row.google_id, row.googleId);
+  const sourceUrl = firstValue(row.link, row.google_maps_url, row.location_link, row.mapsUrl, cid ? `https://www.google.com/maps?cid=${cid}` : null);
   return {
-    name: row.title || "",
-    placeId: row.place_id || null,
-    cid: row.cid || null,
-    address: row.address || null,
-    sourceUrl: row.link || null,
-    category: row.category || null,
-    phone: row.phone || null,
-    website: row.website || row.web_site || null,
-    rating: numberValue(row.review_rating),
-    reviewsCount: numberValue(row.review_count),
-    latitude: numberValue(row.latitude),
-    longitude: numberValue(row.longitude || row.longtitude),
-    description: row.descriptions || row.description || null,
-    openHours: row.open_hours || null,
-    thumbnail: row.thumbnail || null,
+    name: String(firstValue(row.title, row.name, row.business_name) || "").trim(),
+    placeId: placeId ? String(placeId).trim() : null,
+    cid: cid ? String(cid).trim() : null,
+    address: firstValue(row.address, row.full_address, row.formattedAddress) ? String(firstValue(row.address, row.full_address, row.formattedAddress)) : null,
+    sourceUrl: sourceUrl ? String(sourceUrl) : null,
+    category: firstValue(row.category, row.type, row.subtype, Array.isArray(row.categories) ? row.categories[0] : null) ? String(firstValue(row.category, row.type, row.subtype, Array.isArray(row.categories) ? row.categories[0] : null)) : null,
+    phone: firstValue(row.phone, row.phoneNumber, row.phone_number) ? String(firstValue(row.phone, row.phoneNumber, row.phone_number)) : null,
+    website: firstValue(row.website, row.web_site, row.site) ? String(firstValue(row.website, row.web_site, row.site)) : null,
+    rating: numberValue(firstValue(row.review_rating, row.rating)),
+    reviewsCount: numberValue(firstValue(row.review_count, row.ratingCount, row.reviews, row.reviews_count)),
+    latitude,
+    longitude,
+    description: firstValue(row.descriptions, row.description) ? String(firstValue(row.descriptions, row.description)) : null,
+    openHours: firstValue(row.open_hours, row.opening_hours, row.working_hours) || null,
+    thumbnail: firstValue(row.thumbnail, row.imageUrl, row.image_url) ? String(firstValue(row.thumbnail, row.imageUrl, row.image_url)) : null,
     rawData: row,
   };
+}
+
+export async function discoverProfilesWithSerper(query: string, apiKey?: string | null) {
+  const cleanQuery = query.trim();
+  if (!cleanQuery || !apiKey) return [];
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch("https://google.serper.dev/places", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-KEY": apiKey,
+      },
+      body: JSON.stringify({
+        q: cleanQuery,
+        gl: "br",
+        hl: "pt-br",
+        num: 20,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error || data.message) {
+      const details = data.error || data.message || `HTTP ${response.status}`;
+      throw new Error(`Serper Places: ${details}`);
+    }
+
+    const places = Array.isArray(data.places) ? data.places : [];
+    return places
+      .map((place: Record<string, any>) => normalizeProfileCandidate(place))
+      .filter((item: GoogleProfileCandidate) => item.name && item.latitude !== null && item.longitude !== null)
+      .slice(0, 20);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function discoverProfilesWithOutscraper(query: string, apiKey?: string | null) {
+  const cleanQuery = query.trim();
+  if (!cleanQuery || !apiKey) return [];
+
+  const endpoint = process.env.OUTSCRAPER_GOOGLE_MAPS_ENDPOINT || "https://api.app.outscraper.com/maps/search-v3";
+  const url = new URL(endpoint);
+  url.searchParams.set("query", cleanQuery);
+  url.searchParams.set("limit", "20");
+  url.searchParams.set("language", "pt-BR");
+  url.searchParams.set("region", "BR");
+  url.searchParams.set("async", "false");
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      headers: { "X-API-KEY": apiKey },
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.error || data.message) {
+      const details = data.error || data.message || `HTTP ${response.status}`;
+      throw new Error(`Outscraper Maps: ${details}`);
+    }
+
+    const results = Array.isArray(data.results?.[0])
+      ? data.results[0]
+      : Array.isArray(data.data?.[0])
+        ? data.data[0]
+        : Array.isArray(data.results)
+          ? data.results
+          : [];
+
+    return results
+      .map((place: Record<string, any>) => normalizeProfileCandidate(place))
+      .filter((item: GoogleProfileCandidate) => item.name && item.latitude !== null && item.longitude !== null)
+      .slice(0, 20);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export async function getProfileDiscovery(jobId: string) {
   const statusResponse = await scraperRequest(`/api/v1/jobs/${encodeURIComponent(jobId)}`);
   const job = await statusResponse.json() as { status?: string };
-  if (job.status === "failed") return { status: "FAILED", candidates: [] };
-  if (job.status !== "ok" && job.status !== "completed") return { status: "RUNNING", candidates: [] };
+  const status = String(job.status || "").toLowerCase();
+  if (FAILED_JOB_STATUSES.has(status)) return { status: "FAILED", candidates: [] };
+  if (!COMPLETED_JOB_STATUSES.has(status)) return { status: "RUNNING", candidates: [] };
   const csvResponse = await scraperRequest(`/api/v1/jobs/${encodeURIComponent(jobId)}/download`);
   const rows = parseCsv(await csvResponse.text());
   return {
@@ -418,8 +519,9 @@ async function scrapePoint(keyword: string, latitude: number, longitude: number,
     await new Promise((resolve) => setTimeout(resolve, pollMs));
     const statusResponse = await scraperRequest(`/api/v1/jobs/${id}`);
     const job = await statusResponse.json() as { status?: string };
-    if (job.status === "failed") throw new Error("O scraper falhou ao processar o ponto.");
-    if (job.status === "ok" || job.status === "completed") {
+    const status = String(job.status || "").toLowerCase();
+    if (FAILED_JOB_STATUSES.has(status)) throw new Error("O scraper falhou ao processar o ponto.");
+    if (COMPLETED_JOB_STATUSES.has(status)) {
       const csvResponse = await scraperRequest(`/api/v1/jobs/${id}/download`);
       return { jobId: id, rows: parseCsv(await csvResponse.text()) };
     }
@@ -433,7 +535,10 @@ function findProfile(rows: ScraperRow[], profile: { name: string; placeId: strin
   return rows.find((row) => {
     if (profile.placeId && row.place_id === profile.placeId) return true;
     if (profile.cid && row.cid === profile.cid) return true;
-    return normalize(row.title) === expectedName;
+    const title = normalize(row.title || row.name);
+    return title === expectedName ||
+      (expectedName.length >= 6 && title.includes(expectedName)) ||
+      (title.length >= 6 && expectedName.includes(title));
   });
 }
 

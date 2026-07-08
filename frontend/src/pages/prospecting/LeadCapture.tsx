@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Search, 
   MapPin, 
@@ -326,11 +327,13 @@ function CaptureIntelligenceCard({
   card,
   onGenerateScripts,
   onRefresh,
+  onStartSdr,
 }: {
   lead: Lead;
   card: CaptureCardData;
   onGenerateScripts?: (leadId: string) => void;
   onRefresh?: (leadId: string) => void;
+  onStartSdr?: (lead: Lead, script: string) => void;
 }) {
   const score = Math.max(0, Math.min(100, Math.round(card.score.valor || 0)));
   const scoreLabel = normalizeClassification(card.score.classificacao);
@@ -492,7 +495,7 @@ function CaptureIntelligenceCard({
 
           <InfoPanel icon={<Zap size={16} />} title="Ações Rápidas" accent="text-indigo-600">
             <div className="space-y-2">
-              <QuickAction icon={<MessageCircle size={14} />} label="Iniciar abordagem SDR" tone="indigo" href={lead.phone ? `https://wa.me/${lead.phone.replace(/\D/g, '')}` : undefined} />
+              <QuickAction icon={<MessageCircle size={14} />} label="Iniciar abordagem SDR" tone="indigo" onClick={() => onStartSdr?.(lead, fullScript(card))} />
               <QuickAction icon={<Wand2 size={14} />} label="Gerar script personalizado" tone="emerald" onClick={() => onGenerateScripts?.(lead.id)} />
               <QuickAction icon={<Target size={14} />} label="Ver estratégia de ataque" tone="orange" />
               <QuickAction icon={<RefreshCcw size={14} />} label="Reprocessar IA" tone="gray" onClick={() => onRefresh?.(lead.id)} />
@@ -551,27 +554,13 @@ function ListBlock({ title, items, tone }: { title: string; items: string[]; ton
   );
 }
 
-function QuickAction({ icon, label, tone, href, onClick }: { icon: React.ReactNode; label: string; tone: 'indigo' | 'emerald' | 'orange' | 'gray'; href?: string; onClick?: () => void }) {
+function QuickAction({ icon, label, tone, onClick }: { icon: React.ReactNode; label: string; tone: 'indigo' | 'emerald' | 'orange' | 'gray'; onClick?: () => void }) {
   const styles = {
     indigo: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
     emerald: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
     orange: 'bg-orange-50 text-orange-700 hover:bg-orange-100',
     gray: 'bg-white text-gray-600 hover:bg-gray-100',
   };
-  const content = (
-    <>
-      {icon}
-      {label}
-    </>
-  );
-
-  if (href) {
-    return (
-      <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${styles[tone]}`}>
-        {content}
-      </a>
-    );
-  }
 
   return (
     <button
@@ -582,14 +571,18 @@ function QuickAction({ icon, label, tone, href, onClick }: { icon: React.ReactNo
       }}
       className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-black transition-all ${styles[tone]}`}
     >
-      {content}
+      {icon}
+      {label}
     </button>
   );
 }
 
 export default function LeadCapture() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [sdrLoading, setSdrLoading] = useState<string | null>(null);
+  const [sdrError, setSdrError] = useState<string | null>(null);
   const [sources, setSources] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'search' | 'history'>('search');
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -858,6 +851,37 @@ export default function LeadCapture() {
       console.error(err);
     } finally {
       setAnalyzingIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleStartSdr = async (lead: Lead, script: string) => {
+    if (!lead.phone) {
+      setSdrError('Este lead não possui telefone cadastrado para iniciar a abordagem.');
+      return;
+    }
+    setSdrLoading(lead.id);
+    setSdrError(null);
+    try {
+      const res = await apiFetch('/api/whatsapp/conversations/start-sdr', {
+        method: 'POST',
+        body: JSON.stringify({
+          phone: lead.phone,
+          businessName: lead.businessName,
+          script,
+          capturedLeadId: lead.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSdrError(data.error || 'Não foi possível iniciar a abordagem SDR.');
+        return;
+      }
+      // Redireciona para a aba de mensagens, já abrindo a conversa
+      navigate(`/comunicacao/whatsapp?tab=messages&conversationId=${data.conversationId}`);
+    } catch (err: any) {
+      setSdrError(err.message || 'Erro ao iniciar abordagem SDR.');
+    } finally {
+      setSdrLoading(null);
     }
   };
   
@@ -1354,6 +1378,21 @@ export default function LeadCapture() {
           </div>
         )}
 
+        {sdrError && (
+          <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-700 font-bold flex items-center gap-2">
+            <AlertCircle size={16} />
+            {sdrError}
+            <button onClick={() => setSdrError(null)} className="ml-auto text-orange-400 hover:text-orange-600">✕</button>
+          </div>
+        )}
+
+        {sdrLoading && (
+          <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-700 font-bold flex items-center gap-2">
+            <span className="animate-spin inline-block w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full" />
+            Iniciando abordagem SDR para o lead... Você será redirecionado para a aba de mensagens.
+          </div>
+        )}
+
         {siteGenerationMessage && (
           <div className="mt-4 p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-700 font-bold flex items-center gap-2">
             <CheckCircle2 size={16} />
@@ -1570,6 +1609,7 @@ export default function LeadCapture() {
                             card={captureCard}
                             onGenerateScripts={handleGenerateScripts}
                             onRefresh={handleDossier}
+                            onStartSdr={handleStartSdr}
                           />
                         )}
 

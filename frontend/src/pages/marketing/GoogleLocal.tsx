@@ -25,10 +25,8 @@ type Scan = {
 function rankColor(rank?: number | null, status?: string) {
   if (status === "PENDING" || status === "RUNNING") return "#94a3b8";
   if (!rank) return "#dc2626";
-  if (rank <= 3) return "#16a34a";
-  if (rank <= 10) return "#84cc16";
-  if (rank <= 20) return "#eab308";
-  if (rank <= 30) return "#f97316";
+  if (rank === 1) return "#16a34a";
+  if (rank === 2) return "#f97316";
   return "#dc2626";
 }
 
@@ -71,6 +69,7 @@ export default function GoogleLocal() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [scanForm, setScanForm] = useState({ profileId: "", keyword: "", gridSize: "5", radiusKm: "5" });
+  const [customRadiusKm, setCustomRadiusKm] = useState("15");
 
   const loadData = async () => {
     setLoading(true);
@@ -176,7 +175,11 @@ export default function GoogleLocal() {
     event.preventDefault(); setSaving(true); setMessage("");
     try {
       const response = await apiFetch("/api/google-local/scans", {
-        method: "POST", body: JSON.stringify(scanForm),
+        method: "POST",
+        body: JSON.stringify({
+          ...scanForm,
+          radiusKm: scanForm.radiusKm === "custom" ? customRadiusKm : scanForm.radiusKm,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível iniciar a análise.");
@@ -286,7 +289,22 @@ export default function GoogleLocal() {
               <select required className="modal-input" value={scanForm.profileId} onChange={(e) => setScanForm({ ...scanForm, profileId: e.target.value })}><option value="">Selecione o perfil</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select>
               <input required className="modal-input" placeholder="Palavra-chave: dentista" value={scanForm.keyword} onChange={(e) => setScanForm({ ...scanForm, keyword: e.target.value })} />
               <select className="modal-input" value={scanForm.gridSize} onChange={(e) => setScanForm({ ...scanForm, gridSize: e.target.value })}><option value="3">Grade 3 × 3</option><option value="5">Grade 5 × 5</option><option value="7">Grade 7 × 7</option></select>
-              <select className="modal-input" value={scanForm.radiusKm} onChange={(e) => setScanForm({ ...scanForm, radiusKm: e.target.value })}><option value="1">Raio 1 km</option><option value="2">Raio 2 km</option><option value="5">Raio 5 km</option><option value="10">Raio 10 km</option><option value="20">Raio 20 km</option></select>
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <select className="modal-input" value={scanForm.radiusKm} onChange={(e) => setScanForm({ ...scanForm, radiusKm: e.target.value })}><option value="5">Raio 5 km</option><option value="10">Raio 10 km</option><option value="15">Raio 15 km</option><option value="custom">Personalizado</option></select>
+                {scanForm.radiusKm === "custom" && (
+                  <input
+                    required
+                    className="modal-input w-28"
+                    min="0.5"
+                    max="50"
+                    step="0.5"
+                    type="number"
+                    value={customRadiusKm}
+                    onChange={(e) => setCustomRadiusKm(e.target.value)}
+                    aria-label="Raio personalizado em km"
+                  />
+                )}
+              </div>
             </div>
             <button disabled={saving || !profiles.length} className="mt-5 flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"><Play size={17} /> Iniciar Geo Grid</button>
           </form>
@@ -294,6 +312,11 @@ export default function GoogleLocal() {
           {selectedScan ? <div className="rounded-[28px] border border-gray-100 bg-white p-6 shadow-sm">
             <div className="mb-5 flex justify-between"><div><p className="text-xs font-bold uppercase text-indigo-500">{selectedScan.profile.name}</p><h2 className="text-xl font-black">{selectedScan.keyword}</h2><p className="text-xs text-gray-500">{selectedScan.processedPoints}/{selectedScan.totalPoints} pontos</p></div>{["PENDING", "RUNNING"].includes(selectedScan.status) && <Loader2 className="animate-spin text-indigo-500" />}</div>
             <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">{[["Posição média", selectedScan.averageRank?.toFixed(1) || "—"], ["Top 3", `${(selectedScan.top3Percent || 0).toFixed(0)}%`], ["Top 10", `${(selectedScan.top10Percent || 0).toFixed(0)}%`], ["Encontrado", `${(selectedScan.foundPercent || 0).toFixed(0)}%`]].map(([label, value]) => <div key={label} className="rounded-2xl bg-gray-50 p-4"><p className="text-[10px] font-bold uppercase text-gray-400">{label}</p><p className="text-2xl font-black">{value}</p></div>)}</div>
+            <div className="mb-4 flex flex-wrap gap-3 text-xs font-bold text-gray-600">
+              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-600" /> 1a posicao</span>
+              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-orange-500" /> 2a posicao</span>
+              <span className="flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-red-600" /> Demais posicoes</span>
+            </div>
             {selectedScan.points?.length ? <RankingMap scan={selectedScan} /> : null}
           </div> : <div className="rounded-[28px] border border-dashed border-gray-300 p-16 text-center text-gray-400"><MapPinned className="mx-auto mb-3" size={42} /><p className="font-bold">Execute uma análise para visualizar o mapa.</p></div>}
         </div>

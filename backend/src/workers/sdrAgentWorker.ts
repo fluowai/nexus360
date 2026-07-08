@@ -34,7 +34,7 @@ function bufferReady(qualification: any, now = new Date()) {
   return true;
 }
 
-function detectIntent(text: string) {
+function detectIntent(text: string, scheduleTriggerPhrases: string[] = []) {
   const normalized = normalizeText(text);
   const handoffTerms = [
     "pode me ligar",
@@ -52,8 +52,9 @@ function detectIntent(text: string) {
     "agenda",
     "reuniao",
     "call",
+    ...scheduleTriggerPhrases,
   ];
-  const meetingTerms = ["agenda", "reuniao", "call", "horario", "amanha", "hoje a tarde"];
+  const meetingTerms = ["agenda", "reuniao", "call", "horario", "amanha", "hoje a tarde", ...scheduleTriggerPhrases];
   return {
     wantsHuman: handoffTerms.some((term) => normalized.includes(normalizeText(term))),
     wantsMeeting: meetingTerms.some((term) => normalized.includes(normalizeText(term))),
@@ -66,6 +67,44 @@ function stripControlTags(text: string) {
     .replace(/\[MEETING\]/gi, "")
     .replace(/\[STOP\]/gi, "")
     .trim();
+}
+
+function parseSuggestedMeetingDate(text: string, now = new Date()) {
+  const normalized = normalizeText(text);
+  const timeMatch = normalized.match(/\b(?:as|para|por volta de)\s*(\d{1,2})(?::|h)?(\d{2})?\b|\b(\d{1,2})(?::(\d{2})|h(\d{2})?)\b/);
+  if (!timeMatch) return null;
+
+  const hour = Number(timeMatch[1] || timeMatch[3]);
+  const minute = Number(timeMatch[2] || timeMatch[4] || timeMatch[5] || 0);
+  if (hour < 7 || hour > 21 || minute < 0 || minute > 59) return null;
+
+  const date = new Date(now);
+  date.setSeconds(0, 0);
+
+  const weekdays: Record<string, number> = {
+    domingo: 0,
+    segunda: 1,
+    terca: 2,
+    quarta: 3,
+    quinta: 4,
+    sexta: 5,
+    sabado: 6,
+  };
+
+  if (normalized.includes("amanha")) {
+    date.setDate(date.getDate() + 1);
+  } else {
+    const weekday = Object.entries(weekdays).find(([name]) => normalized.includes(name));
+    if (weekday) {
+      const target = weekday[1];
+      const diff = (target - date.getDay() + 7) % 7 || 7;
+      date.setDate(date.getDate() + diff);
+    }
+  }
+
+  date.setHours(hour, minute, 0, 0);
+  if (date <= now) date.setDate(date.getDate() + 1);
+  return date;
 }
 
 export class SdrAgentWorker {
@@ -128,13 +167,14 @@ export class SdrAgentWorker {
     });
   }
 
-  private async buildAiResponse(run: any, leadMessage: string, intent: { wantsHuman: boolean; wantsMeeting: boolean }) {
+  private async buildAiResponse(run: any, leadMessage: string, intent: { wantsHuman: boolean; wantsMeeting: boolean }, runtimeConfig = getFunnelRuntimeConfig(run.funnel)) {
     if (!run.organizationId) {
-      if (intent.wantsHuman) return "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui.";
+      if (intent.wantsHuman) return `[HANDOFF] ${runtimeConfig.handoffMessage}`;
       return "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
     }
 
     const memory = asRecord(run.qualification);
+    const playbook = asRecord(memory.playbook);
     const agentMemory = asRecord(memory.agentMemory);
     const conversationContext = agentMemory.nextAgentContext || agentMemory.handoffContext || "Sem contexto previo.";
     const history = (Array.isArray(agentMemory.conversationHistory) ? agentMemory.conversationHistory : [])
@@ -149,6 +189,10 @@ export class SdrAgentWorker {
     const systemPrompt = [
       "Voce e um SDR B2B da Nexus/Consultio em uma conversa de WhatsApp.",
       "Objetivo: localizar o decisor comercial, entender abertura e encaminhar para humano quando houver interesse real.",
+      `Segmento do funil: ${playbook.segment || "empresas locais"}.`,
+      `Quem procurar: ${runtimeConfig.targetRoleLabel}.`,
+      `Evitar departamentos: ${Array.isArray(playbook.avoidDepartments) ? playbook.avoidDepartments.join(", ") : "marketing, social media, agencia"}.`,
+      `Posicionamento permitido depois de abertura: ${playbook.positioning || "estrutura comercial e implementacao comercial"}.`,
       "",
       "Regras obrigatorias:",
       "- Responda apenas com a mensagem final para WhatsApp.",
@@ -158,6 +202,7 @@ export class SdrAgentWorker {
       "- Nao force reuniao.",
       "- Nao fale como robo.",
       "- Se o lead demonstrar interesse, pedir valores, pedir ligacao, disser que e decisor ou quiser agenda, comece com [HANDOFF].",
+      "- Se o lead sugerir data e horario para call, comece com [MEETING].",
       "- Se o lead pedir para parar/remover/cancelar, comece com [STOP].",
       "- Se ainda nao estiver claro quem decide, pergunte quem cuida das decisoes comerciais.",
       "",
@@ -181,7 +226,7 @@ export class SdrAgentWorker {
 
       return result.result.response.trim();
     } catch {
-      if (intent.wantsHuman) return "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui.";
+      if (intent.wantsHuman) return `[HANDOFF] ${runtimeConfig.handoffMessage}`;
       return "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
     }
   }
@@ -204,7 +249,7 @@ export class SdrAgentWorker {
       const leadMessage = bufferedMessages.length
         ? bufferedMessages.join("\n")
         : String(qualification.lastLeadMessage || "").trim();
-      const intent = detectIntent(leadMessage);
+      const intent = detectIntent(leadMessage, runtimeConfig.scheduleTriggerPhrases);
       const optedOut = detectOptOut(leadMessage, runtimeConfig.stopWords);
       const lastConversationId = qualification.lastConversationId || qualification.agentMemory?.conversationHistory?.slice(-1)?.[0]?.conversationId || null;
       const lastMessageId = qualification.lastMessageId || qualification.agentMemory?.conversationHistory?.slice(-1)?.[0]?.messageId || null;
@@ -245,17 +290,20 @@ export class SdrAgentWorker {
         return;
       }
 
-      let aiResponse = await this.buildAiResponse(run, leadMessage, intent).catch((error: any) => {
+      let aiResponse = await this.buildAiResponse(run, leadMessage, intent, runtimeConfig).catch((error: any) => {
         logger.warn("SdrAgentWorker", "IA indisponivel", { error: error?.message || error });
         return intent.wantsHuman
-          ? "[HANDOFF] Perfeito, vou passar para uma pessoa do nosso time continuar com voce por aqui."
+          ? `[HANDOFF] ${runtimeConfig.handoffMessage}`
           : "Entendi. Voce e a pessoa que cuida das decisoes comerciais, ou existe alguem melhor para eu falar sobre isso?";
       });
 
       const aiRequestedStop = /\[STOP\]/i.test(aiResponse);
+      const aiRequestedMeeting = /\[MEETING\]/i.test(aiResponse);
       const aiRequestedHandoff = /\[HANDOFF\]|\[MEETING\]/i.test(aiResponse);
       aiResponse = stripControlTags(aiResponse);
+      if (!aiResponse) aiResponse = runtimeConfig.handoffMessage;
       const shouldHandoff = intent.wantsHuman || intent.wantsMeeting || aiRequestedHandoff;
+      const meetingStartDate = (intent.wantsMeeting || aiRequestedMeeting) ? parseSuggestedMeetingDate(leadMessage) : null;
 
       if (aiRequestedStop) {
         await ensureOptOut(this.prisma, {
@@ -343,9 +391,11 @@ export class SdrAgentWorker {
 
       if (shouldHandoff) {
         await convertProspectingRunToCrm(this.prisma, { ...run, qualification: updatedQualification }, {
-          reason: intent.wantsMeeting ? "lead_pediu_agenda" : "lead_demonstrou_interesse",
+          reason: meetingStartDate ? "lead_agendou_call" : intent.wantsMeeting ? "lead_pediu_agenda" : "lead_demonstrou_interesse",
           summary,
           conversationId: dispatch.conversationId || lastConversationId,
+          meetingStartDate,
+          durationMinutes: qualification?.campaign?.meetingDurationMinutes || runtimeConfig.meetingDurationMinutes,
         }).catch((error: any) => {
           logger.error("SdrAgentWorker", "falha ao converter para CRM", { error: error?.message || error });
         });

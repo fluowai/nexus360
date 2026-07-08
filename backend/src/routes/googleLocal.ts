@@ -4,6 +4,8 @@ import { AuthRequest } from "../middleware/auth.js";
 import {
   executeGoogleLocalScan,
   generateGrid,
+  discoverProfilesWithOutscraper,
+  discoverProfilesWithSerper,
   getProfileDiscovery,
   normalizeProfileCandidate,
   auditGoogleProfile,
@@ -77,8 +79,55 @@ export function googleLocalRoutes(prisma: PrismaClient) {
         }
       }
 
+      let serperError: string | null = null;
+      if (!url || !finalQuery.includes("google.com/maps")) {
+        const orgKeys = await prisma.organization.findUnique({
+          where: { id: req.user!.orgId },
+          select: { serperApiKey: true, outscraperKey: true },
+        });
+
+        try {
+          const serperCandidates = await discoverProfilesWithSerper(
+            finalQuery,
+            orgKeys?.serperApiKey || process.env.SERPER_API_KEY,
+          );
+
+          if (serperCandidates.length) {
+            return res.json({
+              status: "COMPLETED",
+              candidates: serperCandidates,
+              source: "SERPER_PLACES",
+              message: "Perfis localizados no Google Places.",
+            });
+          }
+        } catch (error) {
+          serperError = error instanceof Error ? error.message : String(error);
+          console.warn("[GOOGLE_LOCAL_SERPER_DISCOVER_FALLBACK]", serperError);
+        }
+
+        try {
+          const outscraperCandidates = await discoverProfilesWithOutscraper(
+            finalQuery,
+            orgKeys?.outscraperKey || process.env.OUTSCRAPER_API_KEY || process.env.OUTSCRAPER_KEY,
+          );
+
+          if (outscraperCandidates.length) {
+            return res.json({
+              status: "COMPLETED",
+              candidates: outscraperCandidates,
+              source: "OUTSCRAPER_MAPS",
+              message: "Perfis localizados no Google Maps.",
+            });
+          }
+        } catch (error) {
+          const outscraperError = error instanceof Error ? error.message : String(error);
+          console.warn("[GOOGLE_LOCAL_OUTSCRAPER_DISCOVER_FALLBACK]", outscraperError);
+          serperError = [serperError, outscraperError].filter(Boolean).join(" | ") || null;
+        }
+      }
+
       const jobId = await startProfileDiscovery(finalQuery);
-      res.status(202).json({ jobId, status: "RUNNING" });
+      res.status(202).json({ jobId, status: "RUNNING", serperError });
     } catch (error) {
       const details = error instanceof Error ? error.message : String(error);
       console.error("[GOOGLE_LOCAL_DISCOVER_ERROR]", details);

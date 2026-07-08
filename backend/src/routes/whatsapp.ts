@@ -40,7 +40,7 @@ async function ensureWhatsAppInbox(prisma: PrismaClient, organizationId: string,
   return prisma.inbox.create({ data: { organizationId, name } });
 }
 
-function isUnsafeProspectingFirstMessage(message?: string | null) {
+function isUnsafeProspectingFirstMessage(message?: string | null, forbiddenTerms: string[] = []) {
   const normalized = String(message || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -58,12 +58,14 @@ function isUnsafeProspectingFirstMessage(message?: string | null) {
     "grande potencial",
     "diagnostico",
     "avaliacao",
-    "[seu nome]"
-  ].some(term => normalized.includes(term));
+    "[seu nome]",
+    ...forbiddenTerms
+  ].some(term => normalized.includes(String(term || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()));
 }
 
-function safeProspectingFirstMessage() {
-  return "Oi, tudo bem? Poderia me informar quem e a pessoa responsavel pelo comercial da empresa?";
+function safeProspectingFirstMessage(runtimeConfig?: ReturnType<typeof getFunnelRuntimeConfig>) {
+  const target = runtimeConfig?.targetRoleLabel || "socio, proprietario ou responsavel comercial";
+  return `Oi, tudo bem? Poderia me ajudar a falar com ${target} da empresa?`;
 }
 
 function parseBusinessHours(value?: string | null) {
@@ -898,6 +900,116 @@ export function whatsappRoutes(prisma: PrismaClient) {
     } catch (error) { next(error); }
   });
 
+  /**
+   * POST /conversations/start-sdr
+   * Cria (ou recupera) uma conversa interna para o lead e registra
+   * o script SDR como primeira mensagem — sem abrir link externo.
+   */
+  router.post("/conversations/start-sdr", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { phone, businessName, script, capturedLeadId } = req.body;
+
+      if (!phone) return res.status(400).json({ error: "Telefone obrigatorio" });
+
+      // Normaliza o telefone para JID do WhatsApp
+      const normalized = normalizeWhatsAppPhone(phone);
+      const contactJid = normalized.jid || `${normalized.digits}@s.whatsapp.net`;
+
+      // Busca o canal WhatsApp ativo da organização
+      const channel = await prisma.channel.findFirst({
+        where: {
+          provider: whatsappProvider(),
+          isActive: true,
+          inbox: { organizationId: orgId },
+        },
+        include: { inbox: true },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!channel) {
+        return res.status(400).json({
+          error: "Nenhuma conexão WhatsApp ativa. Conecte um número em Comunicação > WhatsApp antes de iniciar a abordagem.",
+        });
+      }
+
+      // Cria ou recupera a conversa existente para este contato
+      let conversation = await prisma.conversation.findFirst({
+        where: { channelId: channel.id, contactId: contactJid },
+      });
+
+      if (!conversation) {
+        conversation = await prisma.conversation.create({
+          data: {
+            subject: businessName || contactJid,
+            inboxId: channel.inboxId,
+            channelId: channel.id,
+            contactId: contactJid,
+            status: "open",
+            priority: "high",
+            lastMessageAt: new Date(),
+            metadata: capturedLeadId ? { capturedLeadId, source: "sdr_approach" } : { source: "sdr_approach" },
+          } as any,
+        });
+      } else {
+        // Reabre se estava fechada
+        if (conversation.status === "closed") {
+          conversation = await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { status: "open", lastMessageAt: new Date() },
+          });
+        }
+      }
+
+      // Registra o script como mensagem interna (tipo USER = enviada pelo SDR)
+      const firstMessage = script || `Olá! Aqui é o SDR entrando em contato com ${businessName || "vocês"}.`;
+
+      const message = await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          senderId: req.user!.id,
+          senderType: "USER",
+          content: firstMessage,
+          type: "text",
+          metadata: {
+            source: "nexus_sdr_approach",
+            capturedLeadId: capturedLeadId || null,
+            fromMe: true,
+            displayName: "Você (SDR)",
+            sdrInitiated: true,
+          },
+          createdAt: new Date(),
+        },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date() },
+      });
+
+      // Tenta enviar pelo WhatsApp Bridge (não bloqueia se falhar)
+      callBridge(`/sessions/${channel.id}/send`, {
+        channelId: channel.id,
+        to: contactJid,
+        message: firstMessage,
+      }).then(async (bridge: any) => {
+        // Atualiza a mensagem com o ID do bridge se conseguir enviar
+        await prisma.message.update({
+          where: { id: message.id },
+          data: { metadata: { source: "nexus_sdr_approach", capturedLeadId: capturedLeadId || null, fromMe: true, displayName: "Você (SDR)", sdrInitiated: true, bridgeMessageId: bridge?.messageId || null } },
+        }).catch(() => {});
+      }).catch(() => {
+        // Silencia: a mensagem já está registrada internamente mesmo sem WhatsApp conectado
+      });
+
+      res.status(201).json({
+        conversationId: conversation.id,
+        messageId: message.id,
+        redirectUrl: `/comunicacao/whatsapp?tab=messages&conversationId=${conversation.id}`,
+      });
+    } catch (error) { next(error); }
+  });
+
   router.get("/prospecting/dispatch-attempts", async (req: AuthRequest, res, next) => {
     try {
       const attempts = await prisma.prospectingDispatchAttempt.findMany({
@@ -1068,8 +1180,8 @@ export function whatsappRoutes(prisma: PrismaClient) {
         const safetyRules = (run.funnel?.safetyRules as any) || {};
         const runtimeConfig = getFunnelRuntimeConfig(run.funnel);
         const messageLimit = Number(req.body.maxDailyMessages || (channel.config as any)?.maxDailyMessages || runtimeConfig.maxDailyMessagesPerOrganization || maxDailyMessages);
-        const firstMessage = isUnsafeProspectingFirstMessage(run.firstMessage)
-          ? safeProspectingFirstMessage()
+        const firstMessage = isUnsafeProspectingFirstMessage(run.firstMessage, runtimeConfig.forbiddenFirstMessageTerms)
+          ? safeProspectingFirstMessage(runtimeConfig)
           : run.firstMessage;
         const attempt = await createDispatchAttempt(prisma, {
           organizationId: orgId,

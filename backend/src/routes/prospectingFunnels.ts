@@ -457,15 +457,17 @@ async function refreshQueuedFirstMessages(prisma: PrismaClient, organizationId: 
 
   for (const run of queuedRuns) {
     if (!run.capturedLead) continue;
+    const previousQualification = (run.qualification as any) || {};
 
     await prisma.prospectingRun.update({
       where: { id: run.id },
       data: {
         firstMessage: buildFirstMessage(run.capturedLead, config),
         qualification: {
+          ...previousQualification,
           ...buildQualificationSeed(run.capturedLead, config),
-          ...((run.qualification as any) || {}),
-          agentMemory: (run.qualification as any)?.agentMemory || buildProspectingAgentMemorySeed({
+          ...(previousQualification.campaign ? { campaign: previousQualification.campaign } : {}),
+          agentMemory: previousQualification.agentMemory || buildProspectingAgentMemorySeed({
             lead: run.capturedLead,
             funnel,
             stage: funnel.stages?.[0],
@@ -541,6 +543,12 @@ export async function enrollCapturedLeadsInFunnel(
       agentName: runConfig.agentName,
       senderCompanyName: runConfig.senderCompanyName,
       decisionMakerFirstName: pickPersonFirstName(decisionMaker?.firstName || decisionMaker?.name) || pickTargetOwner(leadForFunnel),
+      businessName: leadForFunnel.businessName,
+      targetRoleLabel: funnelConfig.playbook.targetRoles.join(", "),
+      segment: funnelConfig.playbook.segment || leadForFunnel.category,
+      city: leadForFunnel.city,
+      state: leadForFunnel.state,
+      template: funnelConfig.playbook.firstTouchMessage,
     });
 
     let gbpContext = null;
@@ -748,6 +756,76 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     res.status(201).json(serializeFunnel(funnel));
   }));
 
+  router.put("/funnels/:id", asyncHandler(async (req: AuthRequest, res) => {
+    const orgId = req.user?.orgId;
+    if (!orgId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const existing = await prisma.prospectingFunnel.findFirst({
+      where: { id: req.params.id, organizationId: orgId },
+      include: { stages: { orderBy: { order: "asc" } } }
+    });
+    if (!existing) {
+      res.status(404).json({ error: "Funil nao encontrado." });
+      return;
+    }
+
+    const existingConfig = getFunnelConfig(existing);
+    const name = String(req.body.name || existing.name).trim();
+    const campaignName = String(req.body.campaignName || existingConfig.campaignName || name).trim();
+    const agentName = String(req.body.agentName || existingConfig.agentName || "Paulo").trim();
+    const senderCompanyName = String(req.body.senderCompanyName || existingConfig.senderCompanyName || DEFAULT_SAFETY_RULES.senderCompanyName).trim();
+    const firstStagePrompt = String(req.body.firstStagePrompt || existingConfig.firstStagePrompt || "").trim();
+    const playbook = buildPlaybookFromBody({ ...req.body, playbook: { ...existingConfig.playbook, ...(req.body.playbook || {}) } }, campaignName);
+
+    const updated = await prisma.prospectingFunnel.update({
+      where: { id: existing.id },
+      data: {
+        name,
+        description: Object.prototype.hasOwnProperty.call(req.body, "description") ? req.body.description : existing.description,
+        objective: req.body.objective || existing.objective || `Campanha: ${campaignName}`,
+        status: req.body.status || existing.status,
+        safetyRules: {
+          ...DEFAULT_SAFETY_RULES,
+          ...((existing.safetyRules as any) || {}),
+          campaignName,
+          agentName,
+          senderCompanyName,
+          firstStagePrompt,
+          playbook,
+          firstTouchMessage: playbook.firstTouchMessage,
+          followUpMessages: playbook.followUpMessages,
+          followUpAfterMinutes: playbook.followUpAfterMinutes,
+          maxFollowUps: playbook.maxFollowUps,
+          scheduleTriggerPhrases: playbook.scheduleTriggerPhrases,
+          meetingDurationMinutes: playbook.meetingDurationMinutes,
+          forbiddenFirstMessageTerms: playbook.forbiddenFirstMessageTerms
+        }
+      },
+      include: { stages: { orderBy: { order: "asc" } } }
+    });
+
+    if (firstStagePrompt) {
+      await prisma.prospectingFunnelStage.updateMany({
+        where: { funnelId: updated.id, order: 0 },
+        data: {
+          prompt: firstStagePrompt,
+          goal: "Executar a primeira abordagem configurada sem pitch e sem texto longo."
+        }
+      });
+    }
+
+    const refreshed = await refreshQueuedFirstMessages(prisma, orgId, updated);
+    const reloaded = await prisma.prospectingFunnel.findFirstOrThrow({
+      where: { id: updated.id },
+      include: { stages: { orderBy: { order: "asc" } }, _count: { select: { runs: true } } }
+    });
+
+    res.json({ ...serializeFunnel(reloaded), refreshedRuns: refreshed });
+  }));
+
   router.get("/runs", asyncHandler(async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     if (!orgId) {
@@ -795,7 +873,10 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
       executionDate,
       executionTime,
       dailyMessageLimit = 50,
-      messageIntervalMinutes = 15
+      messageIntervalMinutes = 15,
+      followUpAfterMinutes,
+      maxFollowUps,
+      meetingDurationMinutes
     } = req.body || {};
 
     if (!niche || !city || !state) {
@@ -827,6 +908,7 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
       res.status(404).json({ error: "Funil nao encontrado." });
       return;
     }
+    const runtimeConfig = getFunnelRuntimeConfig(funnel);
 
     const capture = await leadCaptureService.captureLeads({
       tenantId: orgId,
@@ -870,7 +952,10 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
               agentName: selectedAgent.name,
               scheduledAt,
               dailyMessageLimit: Number(dailyMessageLimit || 50),
-              messageIntervalMinutes: Number(messageIntervalMinutes || 15)
+              messageIntervalMinutes: Number(messageIntervalMinutes || 15),
+              followUpAfterMinutes: Number(followUpAfterMinutes || runtimeConfig.followUpAfterMinutes),
+              maxFollowUps: Number(maxFollowUps || runtimeConfig.maxFollowUps),
+              meetingDurationMinutes: Number(meetingDurationMinutes || runtimeConfig.meetingDurationMinutes)
             }
           }
         }
@@ -885,7 +970,10 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
         channel,
         scheduledAt,
         dailyMessageLimit: Number(dailyMessageLimit || 50),
-        messageIntervalMinutes: Number(messageIntervalMinutes || 15)
+        messageIntervalMinutes: Number(messageIntervalMinutes || 15),
+        followUpAfterMinutes: Number(followUpAfterMinutes || runtimeConfig.followUpAfterMinutes),
+        maxFollowUps: Number(maxFollowUps || runtimeConfig.maxFollowUps),
+        meetingDurationMinutes: Number(meetingDurationMinutes || runtimeConfig.meetingDurationMinutes)
       },
       capture: {
         sourceId: capture.sourceId,
@@ -924,9 +1012,10 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
       return;
     }
 
-    const normalized = String(message).toLowerCase();
-    const wantsMeeting = ["agenda", "reuniao", "reunião", "ligar", "call", "horario", "horário", "tenho interesse"].some(term => normalized.includes(term));
-    const optOut = ["parar", "remover", "nao quero", "não quero", "cancelar"].some(term => normalized.includes(term));
+    const runtimeConfig = getFunnelRuntimeConfig(run.funnel);
+    const normalized = normalizeText(message);
+    const wantsMeeting = runtimeConfig.scheduleTriggerPhrases.some(term => normalized.includes(normalizeText(term)));
+    const optOut = runtimeConfig.stopWords.some(term => normalized.includes(normalizeText(term)));
     const currentOrder = run.stage?.order ?? 0;
     const nextStage = run.funnel.stages.find(stage => stage.order > currentOrder) || run.stage;
 
@@ -936,7 +1025,7 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
 
     if (wantsMeeting && meetingStartDate) {
       const start = new Date(meetingStartDate);
-      const end = new Date(start.getTime() + Number(durationMinutes) * 60 * 1000);
+      const end = new Date(start.getTime() + Number(durationMinutes || runtimeConfig.meetingDurationMinutes) * 60 * 1000);
       calendarEvent = await prisma.calendarEvent.create({
         data: {
           title: `Reuniao SDR - ${run.leadName}`,

@@ -45,6 +45,7 @@ interface ProspectLead {
   googleReviewsCount: number | null;
   status: string;
   captureDate: string;
+  altPhone?: string | null;
   validation?: {
     cnpj?: string;
     owners?: string;
@@ -184,10 +185,10 @@ export default function MissionsList() {
             <div className="p-2.5 bg-primary/10 rounded-2xl">
               <Calendar className="text-primary" size={28} />
             </div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Missões Agendadas</h1>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Mineração Ativa</h1>
           </div>
           <p className="text-gray-500 font-medium text-sm ml-[52px]">
-            Gerencie suas missões autônomas de captação de leads.
+            Gerencie suas minerações autônomas de captação e validação de leads prontos.
           </p>
         </div>
         <button
@@ -513,6 +514,16 @@ export default function MissionsList() {
                                 </a>
                                 <a href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-600 rounded-lg text-[10px] font-bold hover:bg-green-100 transition-colors">
                                   <Phone size={11} className="rotate-90" /> WhatsApp
+                                </a>
+                              </div>
+                            )}
+                            {lead.altPhone && lead.altPhone !== lead.phone && (
+                              <div className="flex items-center gap-1">
+                                <a href={`tel:${lead.altPhone}`} className="flex items-center gap-1 px-2.5 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-[10px] font-bold hover:bg-orange-100 transition-colors" title="Número alternativo identificado em fontes de dados">
+                                  <Phone size={11} /> Ligar Alt
+                                </a>
+                                <a href={`https://wa.me/${lead.altPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-bold hover:bg-emerald-100 transition-colors">
+                                  <Phone size={11} className="rotate-90" /> WhatsApp Alt
                                 </a>
                               </div>
                             )}

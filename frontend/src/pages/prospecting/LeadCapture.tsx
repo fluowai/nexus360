@@ -340,8 +340,8 @@ function CaptureIntelligenceCard({
 
   return (
     <div className="w-full mt-3 rounded-2xl border border-indigo-100 bg-white shadow-sm overflow-hidden">
-      <div className="py-4 lg:py-5 space-y-4">
-        <div className="px-4 lg:px-5 grid grid-cols-1 lg:grid-cols-[1fr_180px] gap-4">
+      <div className="space-y-4 p-3 sm:p-4 lg:p-5">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_150px] 2xl:grid-cols-[minmax(0,1fr)_170px]">
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-indigo-700">
@@ -356,7 +356,7 @@ function CaptureIntelligenceCard({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(145px,1fr))] gap-2">
               <SignalPill ok={lead.cnpjStatus === 'validated' || Boolean(lead.cnpj)} okText={lead.cnpj || 'CNPJ validado'} badText="CNPJ não encontrado" />
               <SignalPill ok={Boolean(lead.website)} okText="Site detectado" badText="Sem site" />
               <SignalPill ok={false} okText="Tráfego pago ativo" badText="Tráfego pago não detectado" />
@@ -377,7 +377,7 @@ function CaptureIntelligenceCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3">
           <InfoPanel icon={<Brain size={16} />} title="Recomendação IA" accent="text-indigo-600">
             <p className="text-sm font-semibold leading-relaxed text-gray-800">{card.recomendacao_ia}</p>
           </InfoPanel>
@@ -410,9 +410,9 @@ function CaptureIntelligenceCard({
           </InfoPanel>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
           <InfoPanel icon={<ClipboardList size={16} />} title="Diagnóstico IA" accent="text-purple-600">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4 text-xs">
               <div>
                 <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-gray-500">Resumo</p>
                 <p className="font-medium leading-relaxed text-gray-700">{card.diagnostico.resumo}</p>
@@ -430,9 +430,9 @@ function CaptureIntelligenceCard({
           </InfoPanel>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
           <InfoPanel icon={<MessageCircle size={16} />} title="Script SDR Sugerido" accent="text-blue-600">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2">
               {[
                 ['1. Abertura', card.script_sdr.abertura],
                 ['2. Conexão', card.script_sdr.conexao],
@@ -470,9 +470,9 @@ function CaptureIntelligenceCard({
           </InfoPanel>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-3">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3">
           <InfoPanel icon={<Users size={16} />} title="Decisores Identificados" accent="text-indigo-600">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2">
               {card.decisores.slice(0, 4).map((person, idx) => (
                 <div key={`${person.nome}-${idx}`} className="flex items-center justify-between gap-2 rounded-xl bg-gray-50 p-3">
                   <div className="flex min-w-0 items-center gap-2">
@@ -1146,7 +1146,7 @@ export default function LeadCapture() {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-2 md:p-4 max-w-[1600px] mx-auto">
+    <div className="flex w-full max-w-none flex-col gap-6 p-0">
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
@@ -1498,9 +1498,9 @@ export default function LeadCapture() {
         )}
       </section>
 
-      <div className="flex flex-col lg:flex-row gap-8">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_280px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
         {/* Lista de Resultados */}
-        <div className="flex-1 space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-4">
               <h2 className="text-lg font-black text-gray-900 tracking-tight flex items-center gap-2">
@@ -1797,7 +1797,7 @@ export default function LeadCapture() {
         </div>
 
         {/* Histórico */}
-        <div className="lg:w-80 space-y-4">
+        <div className="min-w-0 space-y-4">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-black text-gray-900 text-sm tracking-tight flex items-center gap-2">
               <History size={16} className="text-primary" />

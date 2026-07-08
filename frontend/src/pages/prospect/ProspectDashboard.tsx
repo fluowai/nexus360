@@ -30,14 +30,14 @@ export default function ProspectDashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-black text-slate-900">Nexus Prospect AI</h1>
-          <p className="text-slate-500">Acompanhe suas missões autônomas de captação.</p>
+          <p className="text-slate-500">Acompanhe suas minerações autônomas de captação e extração prontas para contato.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard 
           icon={<Target size={20} className="text-blue-500" />}
-          title="Missões Ativas"
+          title="Minerações Ativas"
           value={metrics.missionsActive}
         />
         <MetricCard 
@@ -58,8 +58,8 @@ export default function ProspectDashboard() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="font-bold text-slate-800 mb-4">Missões Recentes</h2>
-        <p className="text-sm text-slate-500">As missões estarão disponíveis em breve na listagem completa.</p>
+        <h2 className="font-bold text-slate-800 mb-4">Mineração Ativa</h2>
+        <p className="text-sm text-slate-500">As minerações estarão disponíveis em breve na listagem completa.</p>
       </div>
     </div>
   );

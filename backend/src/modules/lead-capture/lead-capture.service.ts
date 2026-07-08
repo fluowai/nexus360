@@ -370,6 +370,26 @@ export class LeadCaptureService {
             }
           });
 
+          if (result.company.phone) {
+             const cleanAlt = result.company.phone.replace(/\D/g, "");
+             const cleanLeadPhone = (lead.phone || "").replace(/\D/g, "");
+             if (cleanAlt.length >= 10 && cleanAlt !== cleanLeadPhone) {
+                const currentLead = await this.prisma.capturedLead.findUnique({ where: { id: lead.id } });
+                if (currentLead) {
+                   const rawData = typeof currentLead.rawData === 'object' && currentLead.rawData !== null ? currentLead.rawData : {};
+                   await this.prisma.capturedLead.update({
+                      where: { id: lead.id },
+                      data: {
+                         rawData: {
+                            ...rawData,
+                            altPhone: result.company.phone
+                         }
+                      }
+                   });
+                }
+             }
+          }
+
           if (result.decisionMakers.length > 0) {
             const updatedLead = await this.prisma.capturedLead.findUnique({ where: { id: lead.id } });
             if (updatedLead) {

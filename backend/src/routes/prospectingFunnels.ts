@@ -2,9 +2,11 @@ import { NextFunction, Router, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import {
+  DEFAULT_PROSPECTING_PLAYBOOK,
   buildProspectingFirstMessage,
   buildProspectingAgentMemorySeed,
   firstName as pickPersonFirstName,
+  getFunnelPlaybook,
   getFunnelRuntimeConfig,
   mergeProspectingAgentMemory,
   pickBestDecisionMaker,
@@ -96,7 +98,8 @@ const DEFAULT_SAFETY_RULES = {
   approachVersion: "decision_maker_commercial_structure_v3",
   campaignName: "Prospeccao ativa",
   senderCompanyName: "Consultio",
-  agentName: "Paulo"
+  agentName: "Paulo",
+  playbook: DEFAULT_PROSPECTING_PLAYBOOK
 };
 
 const PROSPECTING_AGENTS = [
@@ -179,6 +182,46 @@ function normalizeText(value?: string | null): string {
     .toLowerCase();
 }
 
+function listFromInput(value: any, fallback: string[]) {
+  if (Array.isArray(value)) {
+    const cleaned = value.map((item) => String(item || "").trim()).filter(Boolean);
+    return cleaned.length ? cleaned : fallback;
+  }
+
+  if (typeof value === "string") {
+    const cleaned = value.split(/[,;|\n]+/).map((item) => item.trim()).filter(Boolean);
+    return cleaned.length ? cleaned : fallback;
+  }
+
+  return fallback;
+}
+
+function numberFromInput(value: any, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function buildPlaybookFromBody(body: any, fallbackName: string) {
+  const raw = body?.playbook && typeof body.playbook === "object" ? body.playbook : {};
+  return {
+    ...DEFAULT_PROSPECTING_PLAYBOOK,
+    segment: String(raw.segment || body?.segment || fallbackName || DEFAULT_PROSPECTING_PLAYBOOK.segment).trim(),
+    targetRoles: listFromInput(raw.targetRoles ?? body?.targetRoles, DEFAULT_PROSPECTING_PLAYBOOK.targetRoles),
+    avoidDepartments: listFromInput(raw.avoidDepartments ?? body?.avoidDepartments, DEFAULT_PROSPECTING_PLAYBOOK.avoidDepartments),
+    positioning: String(raw.positioning || body?.positioning || DEFAULT_PROSPECTING_PLAYBOOK.positioning).trim(),
+    firstTouchMessage: String(raw.firstTouchMessage || body?.firstTouchMessage || body?.firstStageMessage || DEFAULT_PROSPECTING_PLAYBOOK.firstTouchMessage).trim(),
+    gatekeeperFallbackMessage: String(raw.gatekeeperFallbackMessage || body?.gatekeeperFallbackMessage || DEFAULT_PROSPECTING_PLAYBOOK.gatekeeperFallbackMessage).trim(),
+    qualificationQuestion: String(raw.qualificationQuestion || body?.qualificationQuestion || DEFAULT_PROSPECTING_PLAYBOOK.qualificationQuestion).trim(),
+    followUpMessages: listFromInput(raw.followUpMessages ?? body?.followUpMessages, DEFAULT_PROSPECTING_PLAYBOOK.followUpMessages),
+    followUpAfterMinutes: numberFromInput(raw.followUpAfterMinutes ?? body?.followUpAfterMinutes, DEFAULT_PROSPECTING_PLAYBOOK.followUpAfterMinutes),
+    maxFollowUps: numberFromInput(raw.maxFollowUps ?? body?.maxFollowUps, DEFAULT_PROSPECTING_PLAYBOOK.maxFollowUps),
+    scheduleTriggerPhrases: listFromInput(raw.scheduleTriggerPhrases ?? body?.scheduleTriggerPhrases, DEFAULT_PROSPECTING_PLAYBOOK.scheduleTriggerPhrases),
+    meetingDurationMinutes: numberFromInput(raw.meetingDurationMinutes ?? body?.meetingDurationMinutes, DEFAULT_PROSPECTING_PLAYBOOK.meetingDurationMinutes),
+    handoffMessage: String(raw.handoffMessage || body?.handoffMessage || DEFAULT_PROSPECTING_PLAYBOOK.handoffMessage).trim(),
+    forbiddenFirstMessageTerms: listFromInput(raw.forbiddenFirstMessageTerms ?? body?.forbiddenFirstMessageTerms, DEFAULT_PROSPECTING_PLAYBOOK.forbiddenFirstMessageTerms),
+  };
+}
+
 function toTitleCaseName(value?: string | null): string | null {
   const cleaned = String(value || "")
     .replace(/\([^)]*\)/g, "")
@@ -220,30 +263,48 @@ function pickTargetOwner(lead: any): string | null {
 function getFunnelConfig(funnel: any) {
   const runtime = getFunnelRuntimeConfig(funnel);
   const rules = typeof funnel?.safetyRules === "object" && funnel.safetyRules ? funnel.safetyRules as any : {};
+  const playbook = getFunnelPlaybook(funnel);
   return {
     campaignName: runtime.campaignName,
     agentName: runtime.agentName,
     senderCompanyName: runtime.senderCompanyName,
-    firstStagePrompt: String(rules.firstStagePrompt || "")
+    firstStagePrompt: String(rules.firstStagePrompt || ""),
+    playbook
   };
 }
 
 function buildQualificationSeed(lead: any, config: ReturnType<typeof getFunnelConfig>) {
   const targetOwner = pickTargetOwner(lead);
+  const targetRoleLabel = config.playbook.targetRoles.join(", ");
 
   return {
     campaignName: config.campaignName,
     agentName: config.agentName,
     senderCompanyName: config.senderCompanyName,
     targetOwner,
+    playbook: config.playbook,
+    targetRoles: config.playbook.targetRoles,
+    avoidDepartments: config.playbook.avoidDepartments,
+    positioning: config.playbook.positioning,
     approachMode: "gatekeeper_named_owner",
     fallbackFlow: [
-      targetOwner ? `Pedir para falar com ${targetOwner} ou com quem decide o comercial.` : "Pedir para falar com o socio, proprietario ou pessoa responsavel pelo comercial.",
+      targetOwner ? `Pedir para falar com ${targetOwner} ou com quem decide o comercial.` : `Pedir para falar com ${targetRoleLabel}.`,
+      config.playbook.avoidDepartments.length ? `Evitar ser direcionado para: ${config.playbook.avoidDepartments.join(", ")}.` : null,
       "Se a pessoa alvo nao estiver, perguntar de forma natural com quem esta falando.",
       targetOwner ? `Perguntar se, alem de ${targetOwner}, existe outra pessoa que cuida do comercial.` : "Perguntar se existe outra pessoa que cuida do comercial.",
-      "Se perguntarem o assunto antes do decisor, dizer apenas que e sobre implementacao comercial e confirmar com quem trata esse tema.",
+      `Se perguntarem o assunto antes do decisor, dizer apenas que e sobre ${config.playbook.positioning} e confirmar com quem trata esse tema.`,
       "So falar de avaliacao/diagnostico quando estiver com o decisor e houver abertura."
-    ]
+    ].filter(Boolean),
+    followUpPlan: {
+      messages: config.playbook.followUpMessages,
+      afterMinutes: config.playbook.followUpAfterMinutes,
+      maxFollowUps: config.playbook.maxFollowUps,
+    },
+    scheduleRules: {
+      triggerPhrases: config.playbook.scheduleTriggerPhrases,
+      durationMinutes: config.playbook.meetingDurationMinutes,
+      handoffMessage: config.playbook.handoffMessage,
+    }
   };
 }
 
@@ -255,7 +316,8 @@ function serializeFunnel(funnel: any) {
     campaignName: config.campaignName,
     agentName: config.agentName,
     senderCompanyName: config.senderCompanyName,
-    firstStagePrompt: config.firstStagePrompt
+    firstStagePrompt: config.firstStagePrompt,
+    playbook: config.playbook
   };
 }
 
@@ -265,6 +327,12 @@ function buildFirstMessage(lead: any, config = getFunnelConfig(null)) {
     agentName: config.agentName || "Paulo",
     senderCompanyName: config.senderCompanyName,
     decisionMakerFirstName: targetOwner,
+    businessName: lead?.businessName || lead?.companyName,
+    targetRoleLabel: config.playbook.targetRoles.join(", "),
+    segment: config.playbook.segment || lead?.category,
+    city: lead?.city,
+    state: lead?.state,
+    template: config.playbook.firstTouchMessage,
   });
 }
 
@@ -322,7 +390,7 @@ export async function ensureDefaultFunnel(prisma: PrismaClient, organizationId: 
           objective: "Encontrar o decisor e abrir uma conversa sobre estrutura comercial, previsibilidade e aumento de receita sem pitch na primeira abordagem.",
           qualificationRules: DEFAULT_QUALIFICATION_RULES,
           handoffRules: DEFAULT_HANDOFF_RULES,
-          safetyRules: { ...DEFAULT_SAFETY_RULES, campaignName: config.campaignName, agentName: config.agentName, senderCompanyName: config.senderCompanyName, firstStagePrompt: config.firstStagePrompt }
+          safetyRules: { ...DEFAULT_SAFETY_RULES, campaignName: config.campaignName, agentName: config.agentName, senderCompanyName: config.senderCompanyName, firstStagePrompt: config.firstStagePrompt, playbook: config.playbook }
         }
       });
 
@@ -638,6 +706,7 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
     const safeAgentName = String(agentName || "Paulo").trim();
     const safeSenderCompanyName = String(senderCompanyName || DEFAULT_SAFETY_RULES.senderCompanyName).trim();
     const safeFirstStagePrompt = String(firstStagePrompt || "").trim();
+    const playbook = buildPlaybookFromBody(req.body, safeCampaignName);
     const stages = DEFAULT_STAGES.map((stage, index) => ({
       ...stage,
       ...(index === 0 && safeFirstStagePrompt ? { prompt: safeFirstStagePrompt, goal: "Executar a primeira abordagem configurada sem pitch e sem texto longo." } : {}),
@@ -659,7 +728,15 @@ export function prospectingFunnelRoutes(prisma: PrismaClient) {
           campaignName: safeCampaignName,
           agentName: safeAgentName,
           senderCompanyName: safeSenderCompanyName,
-          firstStagePrompt: safeFirstStagePrompt
+          firstStagePrompt: safeFirstStagePrompt,
+          playbook,
+          firstTouchMessage: playbook.firstTouchMessage,
+          followUpMessages: playbook.followUpMessages,
+          followUpAfterMinutes: playbook.followUpAfterMinutes,
+          maxFollowUps: playbook.maxFollowUps,
+          scheduleTriggerPhrases: playbook.scheduleTriggerPhrases,
+          meetingDurationMinutes: playbook.meetingDurationMinutes,
+          forbiddenFirstMessageTerms: playbook.forbiddenFirstMessageTerms
         },
         stages: {
           create: stages

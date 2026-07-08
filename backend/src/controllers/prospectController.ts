@@ -279,6 +279,7 @@ export const getMissionLeads = async (req: any, res: Response, next: NextFunctio
         opportunityLevel: cl.opportunityLevel,
         aiDiagnosis: cl.aiDiagnosis
       },
+      altPhone: cl.rawData?.altPhone || null,
       dossier: cl.aiDiagnosis ? { diagnosis: cl.aiDiagnosis } : null
     }));
 

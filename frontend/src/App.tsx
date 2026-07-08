@@ -73,7 +73,6 @@ const PublicProposal = lazy(() => import("./pages/proposals/PublicProposal"));
 const LeadCapture = lazy(() => import("./pages/prospecting/LeadCapture"));
 const CapturedLists = lazy(() => import("./pages/prospecting/CapturedLists"));
 const ProspectingFunnels = lazy(() => import("./pages/prospecting/ProspectingFunnels"));
-const MissionsList = lazy(() => import("./pages/prospecting/MissionsList"));
 const FunnelBuilder = lazy(() => import("./pages/prospecting/FunnelBuilder"));
 const WhatsApp = lazy(() => import("./pages/communication/WhatsApp"));
 const ClientPortal = lazy(() => import("./pages/client-portal/ClientPortal"));
@@ -378,7 +377,7 @@ export default function App() {
           <Route path="/prospecting/lists" element={<CapturedLists />} />
           <Route path="/prospecting/funnels" element={<ProspectingFunnels />} />
           <Route path="/prospecting/funnels/builder" element={<FunnelBuilder />} />
-          <Route path="/prospecting/missions" element={<MissionsList />} />
+          <Route path="/prospecting/missions" element={<LegacyProspectingMissionsRedirect />} />
           <Route path="/qualification/forms" element={<QualificationForms />} />
           <Route path="/whatsapp" element={<WhatsApp />} />
           <Route path="/team" element={<Team />} />
@@ -460,7 +459,7 @@ export default function App() {
           <Route path="/:slug/prospecting/lists" element={<CapturedLists />} />
           <Route path="/:slug/prospecting/funnels" element={<ProspectingFunnels />} />
           <Route path="/:slug/prospecting/funnels/builder" element={<FunnelBuilder />} />
-          <Route path="/:slug/prospecting/missions" element={<MissionsList />} />
+          <Route path="/:slug/prospecting/missions" element={<LegacyProspectingMissionsRedirect />} />
           <Route path="/:slug/qualification/forms" element={<QualificationForms />} />
           <Route path="/:slug/whatsapp" element={<WhatsApp />} />
           <Route path="/:slug/quiz" element={<QuizBuilder />} />
@@ -514,4 +513,10 @@ function WorkspaceAliasRedirect() {
   const { slug, "*": tail } = useParams();
   const target = `/${slug || ""}${tail ? `/${tail}` : ""}`;
   return <Navigate to={target || "/"} replace />;
+}
+
+function LegacyProspectingMissionsRedirect() {
+  const { slug } = useParams();
+  const target = slug ? `/${slug}/prospecting/funnels` : "/prospecting/funnels";
+  return <Navigate to={target} replace />;
 }

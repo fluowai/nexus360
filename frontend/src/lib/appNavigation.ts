@@ -165,7 +165,6 @@ export const menuGroups: MenuGroup[] = [
     items: [
       { module: 'prospecting', icon: Target, label: 'Captacao de Leads', path: '/prospecting/capture' },
       { module: 'google_local', icon: MapPinned, label: 'Google Local', path: '/google-local' },
-      { module: 'prospecting', icon: CalendarDays, label: 'Mineração Ativa', path: '/prospecting/missions' },
       { module: 'prospecting', icon: CheckCircle, label: 'Qualificacao de Leads', path: '/qualification/forms' },
       { module: 'sales', icon: Zap, label: 'Sales Machine', path: '/sales-machine' },
       { module: 'whatsapp_funnels', icon: BarChart3, label: 'Funis IA WhatsApp', path: '/prospecting/funnels' },

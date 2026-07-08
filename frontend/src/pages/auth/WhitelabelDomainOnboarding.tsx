@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Lock, Mail, ShieldCheck, User, Zap } from "lucide-react";
+import { ArrowRight, Lock, Mail, Phone, ShieldCheck, User, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import { hasAccessToken, publicApiFetch, readJsonResponse, setAccessToken } from "../../lib/api";
@@ -10,6 +10,7 @@ export default function WhitelabelDomainOnboarding({ onAuthenticated }: { onAuth
   const { config: whiteLabel, customDomain, loading: whitelabelLoading } = useWhitelabel();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -56,7 +57,7 @@ export default function WhitelabelDomainOnboarding({ onAuthenticated }: { onAuth
 
       const res = await publicApiFetch("/api/auth/register/custom-domain-admin", {
         method: "POST",
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, phone, password }),
       });
       const data = await readJsonResponse(res, "Nao foi possivel conectar a API do dominio.");
 
@@ -66,6 +67,11 @@ export default function WhitelabelDomainOnboarding({ onAuthenticated }: { onAuth
       }
 
       persistSession(data.user, data.token);
+      if (data.user.contactVerification?.required) {
+        localStorage.setItem("nexus_contact_verification_required", "true");
+        navigate("/verify-contact", { replace: true });
+        return;
+      }
       navigate("/onboarding/whitelabel", { replace: true });
     } catch (err: any) {
       setError(err.message || "Nao foi possivel criar o usuario.");
@@ -149,6 +155,21 @@ export default function WhitelabelDomainOnboarding({ onAuthenticated }: { onAuth
                   placeholder="admin@empresa.com"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
+                  required
+                />
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1.5">
+              <span className="pl-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">Telefone com DDD</span>
+              <span className="relative block">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="tel"
+                  className="w-full rounded-2xl border border-gray-100 bg-gray-50 py-3.5 pl-12 pr-4 text-sm outline-none transition-all focus:ring-2 focus:ring-primary/20"
+                  placeholder="(11) 99999-9999"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
                   required
                 />
               </span>

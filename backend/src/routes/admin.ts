@@ -5,6 +5,10 @@ import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
 import { DOMAIN_REGEX, getDnsInstructions, normalizeDomain, verifyDomainDns } from "../utils/domainConfig.js";
 import { removeTraefikDomainConfig, syncTraefikDomainConfig, writeTraefikDomainConfig } from "../services/traefikDomainConfig.js";
+import {
+  normalizeBrazilianPhone,
+  validateEmailAddress,
+} from "../utils/contactValidation.js";
 
 function buildOrgSlug(value: unknown) {
   return String(value || "")
@@ -158,16 +162,16 @@ export function adminRoutes(prisma: PrismaClient) {
 
   router.post("/orgs", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, type, domain, plan, planId, adminEmail, adminPassword, adminName, slug, isTestAccount, betaAccess, whiteLabelConfig } = req.body;
+    const { name, type, domain, plan, planId, adminEmail, adminPhone, adminPassword, adminName, slug, isTestAccount, betaAccess, whiteLabelConfig } = req.body;
     const validType = type && ['CLIENT', 'WHITELABEL'].includes(type) ? type : 'CLIENT';
-    const shouldCreateAdmin = Boolean(adminEmail || adminPassword || validType !== 'WHITELABEL');
+    const shouldCreateAdmin = true;
 
     if (!name) {
       return res.status(400).json({ error: "Nome da organizacao e obrigatorio." });
     }
 
-    if (shouldCreateAdmin && (!adminEmail || !adminPassword)) {
-      return res.status(400).json({ error: "E-mail e Senha do administrador são obrigatórios" });
+    if (shouldCreateAdmin && (!adminEmail || !adminPhone || !adminPassword)) {
+      return res.status(400).json({ error: "E-mail, telefone e senha do administrador sao obrigatorios" });
     }
 
     // Gerar um slug padrão se não for enviado
@@ -181,22 +185,34 @@ export function adminRoutes(prisma: PrismaClient) {
     }
 
     if (shouldCreateAdmin) {
+      const adminEmailResult = validateEmailAddress(adminEmail);
+      if (!adminEmailResult.ok) return res.status(400).json({ error: adminEmailResult.error });
+      const adminPhoneResult = normalizeBrazilianPhone(adminPhone);
+      if (!adminPhoneResult.ok) return res.status(400).json({ error: adminPhoneResult.error });
       const adminPasswordError = assertStrongPassword(adminPassword);
       if (adminPasswordError) return res.status(400).json({ error: adminPasswordError });
     }
 
     try {
+      const adminEmailResult = shouldCreateAdmin ? validateEmailAddress(adminEmail) : null;
+      const adminPhoneResult = shouldCreateAdmin ? normalizeBrazilianPhone(adminPhone) : null;
       const [slugConflict, emailConflict, domainConflict] = await Promise.all([
         prisma.organization.findUnique({ where: { slug: finalSlug }, select: { id: true } }),
-        shouldCreateAdmin ? prisma.user.findUnique({ where: { email: adminEmail }, select: { id: true } }) : Promise.resolve(null),
+        shouldCreateAdmin && adminEmailResult?.ok ? prisma.user.findUnique({ where: { email: adminEmailResult.email }, select: { id: true } }) : Promise.resolve(null),
         normalizedDomain ? prisma.domain.findUnique({ where: { name: normalizedDomain }, select: { id: true } }) : Promise.resolve(null),
       ]);
+      const phoneConflict = shouldCreateAdmin && adminPhoneResult?.ok
+        ? await prisma.user.findUnique({ where: { phoneNormalized: adminPhoneResult.normalized }, select: { id: true } })
+        : null;
 
       if (slugConflict) {
         return res.status(409).json({ error: "Este slug ja esta em uso. Escolha outro slug." });
       }
       if (emailConflict) {
         return res.status(409).json({ error: "Este e-mail de administrador ja esta em uso." });
+      }
+      if (phoneConflict) {
+        return res.status(409).json({ error: "Este telefone de administrador ja esta em uso." });
       }
       if (domainConflict) {
         return res.status(409).json({ error: "Este dominio ja esta vinculado a outra organizacao." });
@@ -237,7 +253,9 @@ export function adminRoutes(prisma: PrismaClient) {
           const hashedPassword = await bcrypt.hash(adminPassword, 10);
           await tx.user.create({
             data: {
-              email: adminEmail,
+              email: adminEmailResult?.ok ? adminEmailResult.email : adminEmail,
+              phone: adminPhoneResult?.ok ? adminPhoneResult.raw : adminPhone,
+              phoneNormalized: adminPhoneResult?.ok ? adminPhoneResult.normalized : null,
               password: hashedPassword,
               name: adminName || name,
               role: 'ORG_ADMIN',
@@ -290,15 +308,23 @@ export function adminRoutes(prisma: PrismaClient) {
   router.patch("/orgs/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
     const { id } = req.params;
-    const { name, type, domain, plan, planId, slug, adminEmail, isTestAccount, betaAccess, whiteLabelConfig } = req.body;
+    const { name, type, domain, plan, planId, slug, adminEmail, adminPhone, isTestAccount, betaAccess, whiteLabelConfig } = req.body;
     const password = typeof req.body.password === "string" ? req.body.password.trim() : req.body.password;
     const shouldUpdatePassword = typeof password === "string" && password !== "" && !/^\*+$/.test(password);
     const hasDomain = Object.prototype.hasOwnProperty.call(req.body, "domain");
     const normalizedDomain = hasDomain ? normalizeDomain(domain) : undefined;
+    const adminEmailResult = adminEmail ? validateEmailAddress(adminEmail) : null;
+    const adminPhoneResult = adminPhone ? normalizeBrazilianPhone(adminPhone) : null;
 
     if (shouldUpdatePassword) {
       const passwordError = assertStrongPassword(password);
       if (passwordError) return res.status(400).json({ error: passwordError });
+    }
+    if (adminEmailResult && !adminEmailResult.ok) {
+      return res.status(400).json({ error: adminEmailResult.error });
+    }
+    if (adminPhoneResult && !adminPhoneResult.ok) {
+      return res.status(400).json({ error: adminPhoneResult.error });
     }
     if (normalizedDomain && !DOMAIN_REGEX.test(normalizedDomain)) {
       return res.status(400).json({ error: "Informe um dominio valido, ex: crm.seudominio.com.br" });
@@ -338,20 +364,30 @@ export function adminRoutes(prisma: PrismaClient) {
           });
 
         // 3. Atualizar Usuário Admin se solicitado
-        if (adminEmail || shouldUpdatePassword) {
+        if (adminEmail || adminPhone || shouldUpdatePassword) {
           const admin = await tx.user.findFirst({
             where: { organizationId: id, role: 'ORG_ADMIN' }
           });
 
           if (admin) {
             const userUpdateData: any = {};
-            if (adminEmail) {
+            if (adminEmailResult?.ok) {
               // Verificar se o email já existe em outro usuário
               const emailConflict = await tx.user.findFirst({
-                where: { email: adminEmail, NOT: { id: admin.id } }
+                where: { email: adminEmailResult.email, NOT: { id: admin.id } }
               });
               if (emailConflict) throw new Error("Este e-mail já está em uso por outro usuário.");
-              userUpdateData.email = adminEmail;
+              userUpdateData.email = adminEmailResult.email;
+              userUpdateData.emailVerified = false;
+            }
+            if (adminPhoneResult?.ok) {
+              const phoneConflict = await tx.user.findFirst({
+                where: { phoneNormalized: adminPhoneResult.normalized, NOT: { id: admin.id } }
+              });
+              if (phoneConflict) throw new Error("Este telefone ja esta em uso por outro usuario.");
+              userUpdateData.phone = adminPhoneResult.raw;
+              userUpdateData.phoneNormalized = adminPhoneResult.normalized;
+              userUpdateData.phoneVerified = false;
             }
             if (shouldUpdatePassword) {
               userUpdateData.password = await bcrypt.hash(password, 10);
@@ -494,6 +530,10 @@ export function adminRoutes(prisma: PrismaClient) {
           id: true,
           name: true,
           email: true,
+          phone: true,
+          emailVerified: true,
+          phoneVerified: true,
+          verifiedContactAt: true,
           role: true,
           status: true,
           permissions: true,
@@ -512,16 +552,49 @@ export function adminRoutes(prisma: PrismaClient) {
   // Editar Usuário (SUPER_ADMIN)
   router.patch("/users/:id", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, email, role, status, permissions } = req.body;
+    const { name, email, phone, role, status, permissions } = req.body;
     const password = typeof req.body.password === "string" ? req.body.password.trim() : req.body.password;
     const organizationId = req.body.organizationId || null;
+    const emailResult = validateEmailAddress(email);
+    if (!emailResult.ok) return res.status(400).json({ error: emailResult.error });
+    const phoneResult = normalizeBrazilianPhone(phone);
+    if (!phoneResult.ok) return res.status(400).json({ error: phoneResult.error });
     if (password) {
       const passwordError = assertStrongPassword(password);
       if (passwordError) return res.status(400).json({ error: passwordError });
     }
 
     try {
-      const data: any = { name, email, role, status, permissions, organizationId };
+      const currentUser = await prisma.user.findUnique({
+        where: { id: req.params.id },
+        select: { email: true, phoneNormalized: true, emailVerified: true, phoneVerified: true }
+      });
+      if (!currentUser) return res.status(404).json({ error: "Usuario nao encontrado." });
+
+      const [emailConflict, phoneConflict] = await Promise.all([
+        prisma.user.findFirst({ where: { email: emailResult.email, NOT: { id: req.params.id } }, select: { id: true } }),
+        prisma.user.findFirst({ where: { phoneNormalized: phoneResult.normalized, NOT: { id: req.params.id } }, select: { id: true } }),
+      ]);
+      if (emailConflict) return res.status(409).json({ error: "Este e-mail ja esta em uso." });
+      if (phoneConflict) return res.status(409).json({ error: "Este telefone ja esta em uso." });
+
+      const emailChanged = currentUser.email !== emailResult.email;
+      const phoneChanged = currentUser.phoneNormalized !== phoneResult.normalized;
+      const nextEmailVerified = emailChanged ? false : currentUser.emailVerified;
+      const nextPhoneVerified = phoneChanged ? false : currentUser.phoneVerified;
+      const data: any = {
+        name,
+        email: emailResult.email,
+        phone: phoneResult.raw,
+        phoneNormalized: phoneResult.normalized,
+        role,
+        status,
+        permissions,
+        organizationId
+      };
+      if (emailChanged) data.emailVerified = false;
+      if (phoneChanged) data.phoneVerified = false;
+      if (!nextEmailVerified && !nextPhoneVerified) data.verifiedContactAt = null;
       if (password) {
         data.password = await bcrypt.hash(password, 10);
       }
@@ -674,21 +747,33 @@ export function adminRoutes(prisma: PrismaClient) {
   // Criar Usuário (SUPER_ADMIN)
   router.post("/users", async (req: AuthRequest, res) => {
     if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
-    const { name, email, role, status, permissions } = req.body;
+    const { name, email, phone, role, status, permissions } = req.body;
     const password = typeof req.body.password === "string" ? req.body.password.trim() : req.body.password;
     const organizationId = req.body.organizationId || null;
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({ error: "Nome, e-mail, telefone e senha sao obrigatorios." });
+    }
+    const emailResult = validateEmailAddress(email);
+    if (!emailResult.ok) return res.status(400).json({ error: emailResult.error });
+    const phoneResult = normalizeBrazilianPhone(phone);
+    if (!phoneResult.ok) return res.status(400).json({ error: phoneResult.error });
     const passwordError = assertStrongPassword(password);
     if (passwordError) return res.status(400).json({ error: passwordError });
 
     try {
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      const existingUser = await prisma.user.findUnique({ where: { email: emailResult.email } });
+      const existingPhone = await prisma.user.findUnique({ where: { phoneNormalized: phoneResult.normalized } });
       if (existingUser) return res.status(400).json({ error: "E-mail já está em uso." });
+
+      if (existingPhone) return res.status(400).json({ error: "Telefone ja esta em uso." });
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({
         data: {
           name,
-          email,
+          email: emailResult.email,
+          phone: phoneResult.raw,
+          phoneNormalized: phoneResult.normalized,
           password: hashedPassword,
           role: role || 'USER',
           status: status || 'ACTIVE',

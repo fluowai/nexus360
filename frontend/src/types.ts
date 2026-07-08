@@ -51,15 +51,35 @@ export interface ContentItem {
 export interface User {
   id: string;
   email: string;
+  phone?: string;
   name?: string;
   role: 'SUPER_ADMIN' | 'AGENCY_ADMIN' | 'ORG_ADMIN' | 'USER';
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   avatarUrl?: string;
   organizationId?: string;
+  orgId?: string;
+  orgName?: string;
+  orgSlug?: string;
+  orgType?: string;
   agencyId?: string;
   department?: string;
   permissions?: Record<string, string[]>;
   accessProfileId?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  contactVerification?: {
+    required: boolean;
+    complete: boolean;
+    emailVerified: boolean;
+    phoneVerified: boolean;
+    verifiedContactAt?: string | null;
+  };
+  subscriptionStatus?: string;
+  trialEndsAt?: string | null;
+  currentPeriodEnd?: string | null;
+  plan?: any;
+  usage?: any;
+  whitelabelOnboarding?: { complete?: boolean; step?: number };
   organization?: Organization;
   createdAt: string;
   updatedAt: string;

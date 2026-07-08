@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch, readJsonResponse, setAccessToken } from "../../lib/api";
 import { workspacePath } from "../../lib/workspaceRoute";
 import { useWhitelabel } from "../../lib/useWhitelabel";
-import { Mail, Lock, ArrowRight, Zap, Monitor } from "lucide-react";
+import { Mail, Phone, Lock, ArrowRight, Zap, Monitor } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function Login({ onAuthenticated }: { onAuthenticated?: (user: any) => void }) {
@@ -16,6 +16,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
+  const [phone, setPhone] = useState("");
   const { config: whiteLabel, customDomain } = useWhitelabel();
   const brandLabel = whiteLabel?.name || "Nexus360";
 
@@ -35,7 +36,7 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
 
       const endpoint = isRegister ? "/api/auth/register" : "/api/auth/login";
       const body = isRegister
-        ? { name, email, password, organizationName: orgName }
+        ? { name, email, phone, password, organizationName: orgName }
         : { email, password };
 
       const res = await apiFetch(endpoint, {
@@ -59,6 +60,12 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
       localStorage.setItem("nexus_beta_access", String(data.user.betaAccess || false));
       localStorage.setItem("nexus_is_test", String(data.user.isTestAccount || false));
       const whitelabelOnboardingComplete = Boolean(data.user.whitelabelOnboarding?.complete);
+
+      if (data.user.contactVerification?.required) {
+        localStorage.setItem("nexus_contact_verification_required", "true");
+        navigate("/verify-contact", { replace: true });
+        return;
+      }
       
       if (isRegister || (data.user.orgType !== "WHITELABEL" && !whitelabelOnboardingComplete)) {
         localStorage.removeItem("nexus_onboarding_done");
@@ -182,6 +189,23 @@ export default function Login({ onAuthenticated }: { onAuthenticated?: (user: an
                 />
               </div>
             </div>
+
+            {isRegister && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Telefone com DDD</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="tel"
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3.5 pl-12 pr-4 text-sm outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                    placeholder="(11) 99999-9999"
+                    value={phone}
+                    onChange={e => setPhone(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1">Senha</label>

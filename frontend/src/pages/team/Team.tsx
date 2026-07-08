@@ -1,13 +1,17 @@
 import { useState, useEffect } from "react";
-import { Users, Mail, Shield, Plus, Loader2, X, Check, Lock, Settings } from "lucide-react";
+import { Users, Mail, Phone, Shield, Plus, Loader2, X, Check, Lock, Settings } from "lucide-react";
 import { apiFetch } from "../../lib/api";
+import { menuGroups } from "../../lib/appNavigation";
 
 interface Member {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: string;
   status: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
   accessProfileId?: string;
   accessProfile?: { name: string };
 }
@@ -20,15 +24,28 @@ interface AccessProfile {
   _count: { users: number };
 }
 
-const AVAILABLE_MODULES = [
-  { id: 'crm', label: 'CRM (Leads, Oportunidades)' },
-  { id: 'finance', label: 'Financeiro' },
-  { id: 'ads', label: 'Gestão de Tráfego' },
-  { id: 'landing_pages', label: 'Landing Pages' },
-  { id: 'projects', label: 'Projetos e Demandas' },
-  { id: 'proposals', label: 'Propostas e Contratos' },
-  { id: 'content', label: 'Criativos e Conteúdos' },
-  { id: 'calendar', label: 'Agenda e Eventos' }
+const AVAILABLE_MODULES = Array.from(
+  menuGroups.reduce((map, group) => {
+    group.items.forEach((item) => {
+      if (!map.has(item.module)) {
+        map.set(item.module, { id: item.module, label: item.label, category: group.label });
+      }
+    });
+    (group.children || []).forEach((child) => {
+      if (!map.has(child.module)) {
+        map.set(child.module, { id: child.module, label: child.label, category: group.label });
+      }
+    });
+    return map;
+  }, new Map<string, { id: string; label: string; category: string }>())
+).map(([, value]) => value);
+
+const PERMISSION_ACTIONS = [
+  { id: 'view', label: 'Visualizar' },
+  { id: 'create', label: 'Criar' },
+  { id: 'edit', label: 'Editar' },
+  { id: 'delete', label: 'Excluir' },
+  { id: 'manage', label: 'Gerenciar' },
 ];
 
 export default function Team() {
@@ -44,7 +61,7 @@ export default function Team() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Forms state
-  const [memberForm, setMemberForm] = useState({ id: '', name: '', email: '', role: 'USER', accessProfileId: '', password: '' });
+  const [memberForm, setMemberForm] = useState({ id: '', name: '', email: '', phone: '', role: 'USER', accessProfileId: '', password: '' });
   const [profileForm, setProfileForm] = useState<{id: string, name: string, description: string, permissions: Record<string, string[]>}>({
     id: '', name: '', description: '', permissions: {}
   });
@@ -102,6 +119,7 @@ export default function Team() {
         const payload: Record<string, any> = {
           name: memberForm.name,
           email: memberForm.email,
+          phone: memberForm.phone,
           role: memberForm.role,
           accessProfileId: memberForm.accessProfileId || null
         };
@@ -125,6 +143,7 @@ export default function Team() {
           body: JSON.stringify({
             name: memberForm.name,
             email: memberForm.email,
+            phone: memberForm.phone,
             password,
             role: memberForm.role,
             accessProfileId: memberForm.accessProfileId || null
@@ -137,7 +156,7 @@ export default function Team() {
         }
       }
       setIsMemberModalOpen(false);
-      setMemberForm({ id: '', name: '', email: '', role: 'USER', accessProfileId: '', password: '' });
+      setMemberForm({ id: '', name: '', email: '', phone: '', role: 'USER', accessProfileId: '', password: '' });
       fetchData();
     } catch (error) {
       console.error("Error saving member:", error);
@@ -226,7 +245,7 @@ export default function Team() {
         <button 
           onClick={() => {
             if (activeTab === 'members') {
-              setMemberForm({ id: '', name: '', email: '', role: 'USER', accessProfileId: '', password: '' });
+              setMemberForm({ id: '', name: '', email: '', phone: '', role: 'USER', accessProfileId: '', password: '' });
               setIsMemberModalOpen(true);
             } else {
               setProfileForm({ id: '', name: '', description: '', permissions: {} });
@@ -277,12 +296,15 @@ export default function Team() {
                 <div className="flex items-center justify-between text-xs text-gray-500">
                   <div className="flex items-center gap-2"><Mail size={14} /><span>{m.email}</span></div>
                 </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center gap-2"><Phone size={14} /><span>{m.phone || 'Telefone pendente'}</span></div>
+                </div>
               </div>
 
               <div className="flex gap-2 w-full mt-4">
                 <button 
                   onClick={() => {
-                    setMemberForm({ ...m, password: '', accessProfileId: m.accessProfileId || '' });
+                    setMemberForm({ ...m, phone: m.phone || '', password: '', accessProfileId: m.accessProfileId || '' });
                     setIsMemberModalOpen(true);
                   }}
                   className="flex-1 py-2 bg-gray-50 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-100 transition-colors"
@@ -354,6 +376,10 @@ export default function Team() {
                 <label className="text-sm font-bold text-gray-700">E-mail</label>
                 <input required type="email" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.email} onChange={e => setMemberForm({...memberForm, email: e.target.value})} />
               </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-gray-700">Telefone com DDD</label>
+                <input required type="tel" className="w-full p-3 bg-gray-50 border border-gray-100 rounded-xl outline-none" value={memberForm.phone} onChange={e => setMemberForm({...memberForm, phone: e.target.value})} placeholder="(11) 99999-9999" />
+              </div>
               {(
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-gray-700">{memberForm.id ? "Nova senha (opcional)" : "Senha temporaria forte"}</label>
@@ -412,17 +438,20 @@ export default function Team() {
                   const perms = profileForm.permissions[mod.id] || [];
                   return (
                     <div key={mod.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col gap-3">
-                      <span className="font-bold text-gray-800">{mod.label}</span>
-                      <div className="flex gap-4">
-                        {['view', 'create', 'edit', 'delete'].map(action => (
-                          <label key={action} className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-600 select-none">
+                      <div>
+                        <span className="font-bold text-gray-800">{mod.label}</span>
+                        <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-400">{mod.category}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-4">
+                        {PERMISSION_ACTIONS.map(action => (
+                          <label key={action.id} className="flex items-center gap-2 cursor-pointer text-sm font-medium text-gray-600 select-none">
                             <input 
                               type="checkbox" 
                               className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
-                              checked={perms.includes(action)}
-                              onChange={() => togglePermission(mod.id, action)}
+                              checked={perms.includes(action.id)}
+                              onChange={() => togglePermission(mod.id, action.id)}
                             />
-                            {action === 'view' ? 'Visualizar' : action === 'create' ? 'Criar' : action === 'edit' ? 'Editar' : 'Excluir'}
+                            {action.label}
                           </label>
                         ))}
                       </div>

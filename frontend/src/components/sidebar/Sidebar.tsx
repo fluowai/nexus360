@@ -15,7 +15,7 @@ import type {
   AdminMenuItem,
   AppNavigationModel,
   IconComponent,
-  MenuItem
+  VisibleMenuGroup
 } from '../../lib/appNavigation';
 import type { User } from '../../types';
 import './Sidebar.css';
@@ -166,24 +166,6 @@ export const Sidebar: React.FC<{
   navigation,
   whiteLabel
 }) => {
-  const location = useLocation();
-
-  const renderMenuItem = (item: MenuItem) => {
-    const path = navigation.getPath(item.path);
-    return (
-      <SidebarItem
-        key={`${item.module}-${item.path}`}
-        icon={item.icon}
-        label={item.label}
-        path={path}
-        isActive={navigation.isItemActive(item)}
-        isAi={item.isAi}
-        badge={item.badge}
-        collapsed={collapsed}
-      />
-    );
-  };
-
   const renderAdminItem = (item: AdminMenuItem) => (
     <SidebarItem
       key={item.path}
@@ -207,6 +189,24 @@ export const Sidebar: React.FC<{
       {cluster.items.map(renderAdminItem)}
     </SidebarItem>
   );
+
+  const renderClientGroupShortcut = (group: VisibleMenuGroup) => {
+    const firstItem = group.visibleItems[0];
+    const firstChildItem = group.visibleChildren[0]?.items[0];
+    const targetPath = firstItem?.path || firstChildItem?.path;
+    if (!targetPath) return null;
+
+    return (
+      <SidebarItem
+        key={group.label}
+        icon={group.icon}
+        label={group.label}
+        path={navigation.getPath(targetPath)}
+        isActive={group.isActive}
+        collapsed={collapsed}
+      />
+    );
+  };
 
   return (
     <>
@@ -272,39 +272,9 @@ export const Sidebar: React.FC<{
               {navigation.adminClusters.map(renderAdminCluster)}
             </SidebarGroup>
           ) : (
-            <>
-              {navigation.visibleMenuGroups.map((group) => {
-                return (
-                  <SidebarGroup
-                    key={group.label}
-                    label={group.label}
-                    icon={group.icon}
-                    count={group.visibleCount}
-                    collapsed={collapsed}
-                    collapsible
-                    defaultOpen={group.isActive}
-                  >
-                    {group.visibleItems.map(renderMenuItem)}
-                    {group.visibleChildren.map((child) => {
-                      return (
-                        <SidebarItem key={child.module} icon={child.icon} label={child.label} collapsed={collapsed}>
-                          {child.items.map((subItem) => (
-                            <SidebarItem
-                              key={subItem.path}
-                              icon={ChevronRight}
-                              label={subItem.label}
-                              path={navigation.getPath(subItem.path)}
-                              isActive={location.pathname === navigation.getPath(subItem.path).split('?')[0]}
-                              collapsed={collapsed}
-                            />
-                          ))}
-                        </SidebarItem>
-                      );
-                    })}
-                  </SidebarGroup>
-                );
-              })}
-            </>
+            <SidebarGroup label="Menu" collapsed={collapsed}>
+              {navigation.visibleMenuGroups.map(renderClientGroupShortcut)}
+            </SidebarGroup>
           )}
         </div>
 

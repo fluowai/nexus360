@@ -107,7 +107,9 @@ Retorne APENAS um JSON válido (sem markdown, sem comentários) com esta estrutu
     try {
       const result = await runGovernedAiText(this.prisma, {
         message: prompt,
-        model: process.env.AI_CORE_ONBOARDING_MODEL || "gpt-4o-mini",
+        model: process.env.AI_CORE_ONBOARDING_MODEL ||
+          process.env.GROQ_MODEL ||
+          (process.env.GROQ_API_KEY ? "llama-3.3-70b-versatile" : "gpt-4o-mini"),
         temperature: 0.3,
         maxTokens: 4096,
         organizationId: orgId,

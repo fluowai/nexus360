@@ -54,7 +54,7 @@ const DEFAULT_MODELS = [
     displayName: "Groq Llama 3.3 70B",
     provider: "groq",
     runtime: "litellm",
-    modelId: "groq-llama",
+    modelId: "llama-3.3-70b-versatile",
     contextWindow: 32768,
     creditCost: 2,
     capabilities: { chat: true, fast: true, external: true },

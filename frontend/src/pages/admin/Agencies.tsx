@@ -14,6 +14,7 @@ import {
   RefreshCw,
   User,
   Mail,
+  Phone,
   Lock,
   Palette
 } from "lucide-react";
@@ -33,6 +34,7 @@ export default function AdminAgencies() {
     plan: 'Pro', 
     planId: null as string | null,
     adminEmail: '', 
+    adminPhone: '',
     adminPassword: '', 
     adminName: '',
     isTestAccount: false,
@@ -119,7 +121,7 @@ export default function AdminAgencies() {
       });
       if (res.ok) {
         setShowModal(false);
-        setNewOrg({ name: '', domain: '', slug: '', plan: 'Pro', planId: null, adminEmail: '', adminPassword: '', adminName: '', isTestAccount: false, betaAccess: false });
+        setNewOrg({ name: '', domain: '', slug: '', plan: 'Pro', planId: null, adminEmail: '', adminPhone: '', adminPassword: '', adminName: '', isTestAccount: false, betaAccess: false });
         fetchAgencies();
       } else {
         const data = await res.json();
@@ -166,6 +168,8 @@ export default function AdminAgencies() {
     if (typeof editData.domain === 'string') payload.domain = editData.domain.trim() || null;
     const adminEmail = typeof editData.adminEmail === 'string' ? editData.adminEmail.trim() : '';
     if (adminEmail) payload.adminEmail = adminEmail;
+    const adminPhone = typeof editData.adminPhone === 'string' ? editData.adminPhone.trim() : '';
+    if (adminPhone) payload.adminPhone = adminPhone;
     if (password) payload.password = password;
 
     try {
@@ -332,6 +336,7 @@ export default function AdminAgencies() {
                             plan: org.planObj?.name || org.plan || '',
                             planId: org.planId || '',
                             adminEmail: '',
+                            adminPhone: '',
                             password: ''
                           });
                           setIsEditing(true);
@@ -400,6 +405,50 @@ export default function AdminAgencies() {
                     value={newOrg.slug}
                     onChange={e => setNewOrg({ ...newOrg, slug: e.target.value })}
                     placeholder="imobiliaria-alpha"
+                  />
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
+                 <h3 className="text-[10px] font-bold text-blue-600 uppercase tracking-[2px] mb-4">Dados do Administrador</h3>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Nome do Admin</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                    value={newOrg.adminName}
+                    onChange={e => setNewOrg({...newOrg, adminName: e.target.value})}
+                    placeholder="Responsavel pelo CRM"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">E-mail do Admin</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    required
+                    type="email"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                    value={newOrg.adminEmail}
+                    onChange={e => setNewOrg({...newOrg, adminEmail: e.target.value})}
+                    placeholder="admin@cliente.com.br"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block pl-1">Telefone do Admin</label>
+                <div className="relative">
+                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    required
+                    type="tel"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                    value={newOrg.adminPhone}
+                    onChange={e => setNewOrg({...newOrg, adminPhone: e.target.value})}
+                    placeholder="(11) 99999-9999"
                   />
                 </div>
               </div>
@@ -653,6 +702,17 @@ export default function AdminAgencies() {
                   value={editData.adminEmail || ''}
                   onChange={e => setEditData({...editData, adminEmail: e.target.value})}
                   placeholder="Novo e-mail"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Telefone</label>
+                <input
+                  type="tel"
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                  value={editData.adminPhone || ''}
+                  onChange={e => setEditData({...editData, adminPhone: e.target.value})}
+                  placeholder="Novo telefone"
                 />
               </div>
 

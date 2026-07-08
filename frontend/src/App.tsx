@@ -79,6 +79,7 @@ const ClientPortal = lazy(() => import("./pages/client-portal/ClientPortal"));
 const ClientResults = lazy(() => import("./pages/client-portal/ClientResults"));
 const LegalPage = lazy(() => import("./pages/legal/LegalPage"));
 const Login = lazy(() => import("./pages/auth/Login"));
+const ContactVerification = lazy(() => import("./pages/auth/ContactVerification"));
 const CRMSalesPage = lazy(() => import("./pages/crm/CRMSalesPage"));
 const AcpHub = lazy(() => import("./pages/settings/AcpHub"));
 const GoogleLocal = lazy(() => import("./pages/marketing/GoogleLocal"));
@@ -96,6 +97,7 @@ const Billing = lazy(() => import("./pages/finance/Billing"));
 function isPublicPath(pathname: string) {
   return (
     pathname === '/login' ||
+    pathname === '/verify-contact' ||
     pathname === '/onboarding' ||
     pathname === '/onboarding/whitelabel' ||
     pathname === '/onboarding/whitelabel/preview' ||
@@ -266,16 +268,35 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
   const { pathname } = location;
 
   useEffect(() => {
-    if (isPublicPath(pathname) && !(pathname === '/login' && user)) return;
+    if (isPublicPath(pathname) && !(user && (pathname === '/login' || pathname === '/verify-contact'))) return;
     if (!user) return;
 
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const orgType = user?.orgType || localStorage.getItem('nexus_org_type');
     const whitelabelOnboardingComplete = user?.whitelabelOnboarding?.complete === true;
+    const contactVerificationRequired = user?.contactVerification?.required === true;
+    const subscriptionStatus = user?.subscriptionStatus || 'TRIAL';
+    const trialExpired = subscriptionStatus === 'TRIAL' &&
+      user?.trialEndsAt &&
+      new Date(user.trialEndsAt).getTime() < Date.now();
+    const subscriptionBlocked = ['EXPIRED', 'SUSPENDED', 'CANCELED'].includes(subscriptionStatus) || trialExpired;
+
+    if (!isSuperAdmin && contactVerificationRequired && pathname !== '/verify-contact') {
+      localStorage.setItem('nexus_contact_verification_required', 'true');
+      navigate('/verify-contact', { replace: true });
+      return;
+    }
 
     if (orgType === 'WHITELABEL' && !whitelabelOnboardingComplete && !isSuperAdmin) {
       localStorage.removeItem('nexus_onboarding_done');
       navigate('/onboarding/whitelabel', { replace: true });
+      return;
+    }
+
+    const billingPath = workspacePath('/billing', user?.orgSlug || localStorage.getItem('nexus_org_slug'));
+    const isBillingPath = pathname === '/billing' || pathname === billingPath;
+    if (!isSuperAdmin && subscriptionBlocked && !isBillingPath && pathname !== '/verify-contact') {
+      navigate(billingPath, { replace: true });
       return;
     }
 
@@ -328,7 +349,18 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
         navigate('/onboarding', { replace: true });
       }
     }
-  }, [navigate, pathname, selectedClientId, user?.role, user?.orgType, user?.whitelabelOnboarding?.complete]);
+  }, [
+    navigate,
+    pathname,
+    selectedClientId,
+    user?.role,
+    user?.orgType,
+    user?.orgSlug,
+    user?.trialEndsAt,
+    user?.subscriptionStatus,
+    user?.contactVerification?.required,
+    user?.whitelabelOnboarding?.complete
+  ]);
 }
 
 export default function App() {
@@ -408,6 +440,7 @@ export default function App() {
           <Route path="/site" element={<LandingPage />} />
           <Route path="/vendas" element={<CRMSalesPage />} />
           <Route path="/login" element={<Login onAuthenticated={setUser} />} />
+          <Route path="/verify-contact" element={<ContactVerification />} />
           <Route
             path="/onboarding"
             element={customDomain ? <WhitelabelDomainOnboarding onAuthenticated={setUser} /> : <Onboarding />}

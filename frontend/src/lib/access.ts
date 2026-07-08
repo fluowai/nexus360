@@ -29,33 +29,48 @@ export function useAccess(user: any) {
       return f.featureKey === key || f.featureKey.startsWith(`${key}.`);
     });
 
+    const hasPlanMatrix = planFeatures.length > 0;
+    const isSuperAdmin = role === 'SUPER_ADMIN';
+    const isTenantAdmin = role === 'ORG_ADMIN' || role === 'AGENCY_ADMIN';
+
+    const isModuleAllowedByPlan = (moduleKey: string) => {
+      if (!hasPlanMatrix) return true;
+      return candidatesFor(moduleKey).some((candidate) => isPlanFeatureEnabled(candidate));
+    };
+
+    const isFeatureAllowedByPlan = (featureKey: string) => {
+      if (!hasPlanMatrix) return true;
+      return isPlanFeatureEnabled(featureKey);
+    };
+
+    const hasModulePermission = (candidate: string) => {
+      const [permissionModule, permissionAction] = candidate.split('.');
+      const modulePermissions = userPermissions[permissionModule];
+      if (modulePermissions === '*' || (Array.isArray(modulePermissions) && modulePermissions.length > 0)) return true;
+      if (permissionAction && Array.isArray(modulePermissions) && modulePermissions.includes(permissionAction)) return true;
+      return false;
+    };
+
     return {
       hasModule: (moduleKey: string) => {
-        if (role === 'SUPER_ADMIN' || role === 'ORG_ADMIN' || role === 'AGENCY_ADMIN') return true;
+        if (isSuperAdmin) return true;
+        if (!isModuleAllowedByPlan(moduleKey)) return false;
+        if (isTenantAdmin) return true;
 
-        return candidatesFor(moduleKey).some((candidate) => {
-          const [permissionModule, permissionAction] = candidate.split('.');
-          const modulePermissions = userPermissions[permissionModule];
-          if (modulePermissions === '*' || (Array.isArray(modulePermissions) && modulePermissions.length > 0)) return true;
-          if (permissionAction && Array.isArray(modulePermissions) && modulePermissions.includes(permissionAction)) return true;
-
-          return isPlanFeatureEnabled(candidate);
-        });
+        return candidatesFor(moduleKey).some(hasModulePermission);
       },
 
       hasAnyModule: (moduleKeys: string[]) => moduleKeys.some((moduleKey) => {
-        if (role === 'SUPER_ADMIN' || role === 'ORG_ADMIN' || role === 'AGENCY_ADMIN') return true;
-        return candidatesFor(moduleKey).some((candidate) => {
-          const [permissionModule, permissionAction] = candidate.split('.');
-          const modulePermissions = userPermissions[permissionModule];
-          if (modulePermissions === '*' || (Array.isArray(modulePermissions) && modulePermissions.length > 0)) return true;
-          if (permissionAction && Array.isArray(modulePermissions) && modulePermissions.includes(permissionAction)) return true;
-          return isPlanFeatureEnabled(candidate);
-        });
+        if (isSuperAdmin) return true;
+        if (!isModuleAllowedByPlan(moduleKey)) return false;
+        if (isTenantAdmin) return true;
+        return candidatesFor(moduleKey).some(hasModulePermission);
       }),
 
       hasFeature: (featureKey: string) => {
-        if (role === 'SUPER_ADMIN' || role === 'ORG_ADMIN' || role === 'AGENCY_ADMIN') return true;
+        if (isSuperAdmin) return true;
+        if (!isFeatureAllowedByPlan(featureKey)) return false;
+        if (isTenantAdmin) return true;
 
         const [module, action] = featureKey.split('.');
         const modulePermissions = userPermissions[module];

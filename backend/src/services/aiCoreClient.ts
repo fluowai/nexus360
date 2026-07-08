@@ -31,15 +31,19 @@ type AiCoreChatResult = {
 };
 
 function aiCoreBaseUrl() {
-  return (process.env.AI_CORE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+  const baseUrl = process.env.AI_CORE_URL ||
+    (process.env.GROQ_API_KEY ? "https://api.groq.com/openai/v1" : "https://api.openai.com/v1");
+  return baseUrl.replace(/\/+$/, "");
 }
 
 function aiCoreApiKey() {
-  return process.env.AI_CORE_API_KEY || process.env.OPENAI_API_KEY || "";
+  return process.env.AI_CORE_API_KEY || process.env.GROQ_API_KEY || process.env.OPENAI_API_KEY || "";
 }
 
 function defaultModel() {
-  return process.env.AI_CORE_DEFAULT_MODEL || "gpt-4o-mini";
+  return process.env.AI_CORE_DEFAULT_MODEL ||
+    process.env.GROQ_MODEL ||
+    (process.env.GROQ_API_KEY ? "llama-3.3-70b-versatile" : "gpt-4o-mini");
 }
 
 function estimateCredits(tokens: number, hasContext: boolean) {

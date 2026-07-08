@@ -3,6 +3,10 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
+import {
+  normalizeBrazilianPhone,
+  validateEmailAddress,
+} from "../utils/contactValidation.js";
 
 export function teamRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -21,6 +25,9 @@ export function teamRoutes(prisma: PrismaClient) {
           id: true,
           name: true,
           email: true,
+          phone: true,
+          emailVerified: true,
+          phoneVerified: true,
           role: true,
           status: true,
           permissions: true,
@@ -42,7 +49,16 @@ export function teamRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    const { name, email, role, permissions, accessProfileId } = req.body;
+    const { name, email, phone, role, permissions, accessProfileId } = req.body;
+    if (!name || !email || !phone) {
+      return res.status(400).json({ error: "Nome, e-mail e telefone sao obrigatorios." });
+    }
+
+    const emailResult = validateEmailAddress(email);
+    if (!emailResult.ok) return res.status(400).json({ error: emailResult.error });
+    const phoneResult = normalizeBrazilianPhone(phone);
+    if (!phoneResult.ok) return res.status(400).json({ error: phoneResult.error });
+
     let { password } = req.body;
     password = typeof password === "string" ? password.trim() : password;
     const passwordError = assertStrongPassword(password);
@@ -54,14 +70,20 @@ export function teamRoutes(prisma: PrismaClient) {
     }
 
     try {
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      const existingUser = await prisma.user.findUnique({ where: { email: emailResult.email } });
       if (existingUser) return res.status(400).json({ error: "E-mail já cadastrado." });
+      const existingPhone = await prisma.user.findUnique({
+        where: { phoneNormalized: phoneResult.normalized },
+      });
+      if (existingPhone) return res.status(400).json({ error: "Telefone ja cadastrado." });
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({
         data: {
           name,
-          email,
+          email: emailResult.email,
+          phone: phoneResult.raw,
+          phoneNormalized: phoneResult.normalized,
           password: hashedPassword,
           role: role || 'USER',
           permissions: permissions || {},
@@ -85,7 +107,7 @@ export function teamRoutes(prisma: PrismaClient) {
       return res.status(403).json({ error: "Acesso negado." });
     }
 
-    const { name, email, permissions, accessProfileId, role, status } = req.body;
+    const { name, email, phone, permissions, accessProfileId, role, status } = req.body;
     let { password } = req.body;
     password = typeof password === "string" ? password.trim() : password;
 
@@ -106,16 +128,39 @@ export function teamRoutes(prisma: PrismaClient) {
 
       if (!user) return res.status(404).json({ error: "Membro não encontrado." });
 
-      if (email && email !== user.email) {
+      let nextEmail = email;
+      if (email !== undefined) {
+        const emailResult = validateEmailAddress(email);
+        if (!emailResult.ok) return res.status(400).json({ error: emailResult.error });
+        nextEmail = emailResult.email;
+      }
+
+      let nextPhone: string | undefined;
+      let nextPhoneNormalized: string | undefined;
+      if (phone !== undefined) {
+        const phoneResult = normalizeBrazilianPhone(phone);
+        if (!phoneResult.ok) return res.status(400).json({ error: phoneResult.error });
+        nextPhone = phoneResult.raw;
+        nextPhoneNormalized = phoneResult.normalized;
+      }
+
+      if (nextEmail && nextEmail !== user.email) {
         const emailConflict = await prisma.user.findFirst({
-          where: { email, NOT: { id: req.params.id } }
+          where: { email: nextEmail, NOT: { id: req.params.id } }
         });
         if (emailConflict) return res.status(400).json({ error: "E-mail jÃ¡ cadastrado." });
+      }
+      if (nextPhoneNormalized && nextPhoneNormalized !== user.phoneNormalized) {
+        const phoneConflict = await prisma.user.findFirst({
+          where: { phoneNormalized: nextPhoneNormalized, NOT: { id: req.params.id } }
+        });
+        if (phoneConflict) return res.status(400).json({ error: "Telefone ja cadastrado." });
       }
 
       const data: any = {
         ...(name !== undefined && { name }),
-        ...(email !== undefined && { email }),
+        ...(nextEmail !== undefined && { email: nextEmail, emailVerified: false }),
+        ...(nextPhone !== undefined && { phone: nextPhone, phoneNormalized: nextPhoneNormalized, phoneVerified: false }),
         ...(permissions !== undefined && { permissions }),
         ...(accessProfileId !== undefined && { accessProfileId }),
         ...(role !== undefined && { role }),

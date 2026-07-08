@@ -21,7 +21,7 @@ export function useAuth() {
     };
 
     const fetchUser = async () => {
-      const publicPaths = ['/login', '/onboarding', '/onboarding/whitelabel', '/onboarding/whitelabel/preview', '/site', '/vendas'];
+      const publicPaths = ['/login', '/verify-contact', '/onboarding', '/onboarding/whitelabel', '/onboarding/whitelabel/preview', '/site', '/vendas'];
       const isPublicPath =
         publicPaths.includes(window.location.pathname) ||
         window.location.pathname.startsWith('/meet') ||

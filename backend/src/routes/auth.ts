@@ -19,6 +19,13 @@ import {
   setRefreshTokenCookie,
 } from "../utils/security.js";
 import { findTenantHostContext } from "../utils/tenantHost.js";
+import {
+  emailDomain,
+  hasVerifiedContact,
+  normalizeBrazilianPhone,
+  validateEmailAddress,
+} from "../utils/contactValidation.js";
+import { refreshOrganizationSubscriptionState } from "../services/subscriptionState.js";
 
 const getJwtSecret = () => {
   if (!process.env.JWT_SECRET) {
@@ -55,6 +62,66 @@ const serializeWhitelabelOnboarding = (organization: any) => {
     provisioningStatus: settings.whitelabelOnboardingComplete ? "active" : "onboarding",
   };
 };
+
+const buildOrgSlug = (value: unknown) => {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || `org-${Date.now().toString(36)}`;
+};
+
+async function generateUniqueOrganizationSlug(client: any, value: unknown) {
+  const base = buildOrgSlug(value);
+  for (let index = 0; index < 20; index += 1) {
+    const slug = index === 0 ? base : `${base}-${index + 1}`;
+    const existing = await client.organization.findUnique({ where: { slug } });
+    if (!existing) return slug;
+  }
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+function serializeContactVerification(user: any) {
+  const verified = hasVerifiedContact(user);
+  return {
+    required: !verified,
+    complete: verified,
+    emailVerified: Boolean(user?.emailVerified),
+    phoneVerified: Boolean(user?.phoneVerified),
+    verifiedContactAt: user?.verifiedContactAt || null,
+  };
+}
+
+function validateSignupContact(input: { email: unknown; phone: unknown }) {
+  const emailResult = validateEmailAddress(input.email);
+  if (!emailResult.ok) return { ok: false as const, error: emailResult.error };
+
+  const phoneResult = normalizeBrazilianPhone(input.phone);
+  if (!phoneResult.ok) return { ok: false as const, error: phoneResult.error };
+
+  return {
+    ok: true as const,
+    email: emailResult.email,
+    domain: emailResult.domain || emailDomain(emailResult.email),
+    phone: phoneResult.raw,
+    phoneNormalized: phoneResult.normalized,
+  };
+}
+
+function verificationCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+function hashVerificationCode(code: string) {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}
+
+function shouldExposeVerificationCode() {
+  return process.env.NODE_ENV !== "production" && process.env.EXPOSE_DEV_VERIFICATION_CODES !== "false";
+}
 
 export function authRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -155,9 +222,10 @@ export function authRoutes(prisma: PrismaClient) {
         return;
       }
 
+      const organization = await refreshOrganizationSubscriptionState(prisma, user.organization);
       let orgId = user.organizationId;
-      let orgName = user.organization?.name || "Sem Organização";
-      let orgSlug = user.organization?.slug || "";
+      let orgName = organization?.name || "Sem Organização";
+      let orgSlug = organization?.slug || "";
 
       if (user.role === "SUPER_ADMIN" && !orgId) {
         const firstOrg = await prisma.organization.findFirst();
@@ -229,7 +297,7 @@ export function authRoutes(prisma: PrismaClient) {
         userAgent: getClientUA(req),
       });
 
-      const orgType = user.organization?.type || "CLIENT";
+      const orgType = organization?.type || "CLIENT";
 
       return res.json({
         success: true,
@@ -238,8 +306,12 @@ export function authRoutes(prisma: PrismaClient) {
           id: user.id,
           name: user.name,
           email: user.email,
+          phone: user.phone,
           role: user.role,
           status: user.status,
+          emailVerified: user.emailVerified,
+          phoneVerified: user.phoneVerified,
+          contactVerification: serializeContactVerification(user),
           permissions: user.accessProfile
             ? user.accessProfile.permissions
             : user.permissions,
@@ -248,15 +320,16 @@ export function authRoutes(prisma: PrismaClient) {
           orgName,
           orgSlug,
           orgType,
-          whitelabelOnboarding: serializeWhitelabelOnboarding(user.organization),
+          whitelabelOnboarding: serializeWhitelabelOnboarding(organization),
           agencyId: user.agencyId,
-          subscriptionStatus:
-            user.organization?.subscriptionStatus || "TRIAL",
-          betaAccess: user.organization?.betaAccess || false,
-          isTestAccount: user.organization?.isTestAccount || false,
-          plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
+          subscriptionStatus: organization?.subscriptionStatus || "TRIAL",
+          trialEndsAt: organization?.trialEndsAt || null,
+          currentPeriodEnd: organization?.currentPeriodEnd || null,
+          betaAccess: organization?.betaAccess || false,
+          isTestAccount: organization?.isTestAccount || false,
+          plan: serializePlan(organization?.planObj || { name: organization?.plan || "Free" }),
           usage: {
-            leads: user.organization?._count?.leads || 0,
+            leads: organization?._count?.leads || 0,
           },
         },
       });
@@ -348,8 +421,9 @@ export function authRoutes(prisma: PrismaClient) {
         return;
       }
 
+      const organization = await refreshOrganizationSubscriptionState(prisma, user.organization);
       let orgId = user.organizationId;
-      let orgName = user.organization?.name || "Sem Organização";
+      let orgName = organization?.name || "Sem Organização";
 
       if (user.role === "SUPER_ADMIN" && !orgId) {
         const firstOrg = await prisma.organization.findFirst();
@@ -401,15 +475,24 @@ export function authRoutes(prisma: PrismaClient) {
           id: user.id,
           name: user.name,
           email: user.email,
+          phone: user.phone,
           role: user.role,
+          emailVerified: user.emailVerified,
+          phoneVerified: user.phoneVerified,
+          contactVerification: serializeContactVerification(user),
           orgId,
           orgName,
-          orgType: user.organization?.type || "CLIENT",
-          whiteLabelConfig: user.organization?.whiteLabelConfig || null,
-          whitelabelOnboarding: serializeWhitelabelOnboarding(user.organization),
-          plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
+          orgType: organization?.type || "CLIENT",
+          whiteLabelConfig: organization?.whiteLabelConfig || null,
+          whitelabelOnboarding: serializeWhitelabelOnboarding(organization),
+          subscriptionStatus: organization?.subscriptionStatus || "TRIAL",
+          trialEndsAt: organization?.trialEndsAt || null,
+          currentPeriodEnd: organization?.currentPeriodEnd || null,
+          betaAccess: organization?.betaAccess || false,
+          isTestAccount: organization?.isTestAccount || false,
+          plan: serializePlan(organization?.planObj || { name: organization?.plan || "Free" }),
           usage: {
-            leads: user.organization?._count?.leads || 0,
+            leads: organization?._count?.leads || 0,
           },
         },
       });
@@ -444,15 +527,162 @@ export function authRoutes(prisma: PrismaClient) {
     }
   });
 
+  router.post("/verification/start", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Nao autenticado." });
+
+      const channel = String(req.body?.channel || "EMAIL").trim().toUpperCase();
+      if (!["EMAIL", "PHONE"].includes(channel)) {
+        return res.status(400).json({ error: "Canal invalido. Use EMAIL ou PHONE." });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          emailVerified: true,
+          phoneVerified: true,
+          verifiedContactAt: true,
+        },
+      });
+
+      if (!user) return res.status(404).json({ error: "Usuario nao encontrado." });
+      if (channel === "EMAIL" && user.emailVerified) {
+        return res.json({ success: true, alreadyVerified: true, contactVerification: serializeContactVerification(user) });
+      }
+      if (channel === "PHONE" && user.phoneVerified) {
+        return res.json({ success: true, alreadyVerified: true, contactVerification: serializeContactVerification(user) });
+      }
+
+      const target = channel === "EMAIL" ? user.email : user.phone;
+      if (!target) return res.status(400).json({ error: "Contato nao cadastrado para este canal." });
+
+      await prisma.accountVerification.updateMany({
+        where: { userId, channel, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+
+      const code = verificationCode();
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+      await prisma.accountVerification.create({
+        data: {
+          userId,
+          channel,
+          target,
+          codeHash: hashVerificationCode(code),
+          expiresAt,
+        },
+      });
+
+      console.info("[ACCOUNT_VERIFICATION_CODE]", {
+        userId,
+        channel,
+        target,
+        code: shouldExposeVerificationCode() ? code : "[hidden]",
+      });
+
+      return res.json({
+        success: true,
+        channel,
+        target,
+        expiresAt,
+        delivery: process.env.NODE_ENV === "production" ? "provider_required" : "dev_echo",
+        ...(shouldExposeVerificationCode() ? { devCode: code } : {}),
+      });
+    } catch (error) {
+      console.error("[VERIFICATION_START_ERROR]", error);
+      return res.status(500).json({ error: "Falha ao iniciar verificacao." });
+    }
+  });
+
+  router.post("/verification/confirm", authenticateToken, async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Nao autenticado." });
+
+      const channel = String(req.body?.channel || "EMAIL").trim().toUpperCase();
+      const code = String(req.body?.code || "").trim();
+      if (!["EMAIL", "PHONE"].includes(channel)) {
+        return res.status(400).json({ error: "Canal invalido. Use EMAIL ou PHONE." });
+      }
+      if (!/^\d{6}$/.test(code)) {
+        return res.status(400).json({ error: "Codigo invalido." });
+      }
+
+      const verification = await prisma.accountVerification.findFirst({
+        where: {
+          userId,
+          channel,
+          consumedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!verification) {
+        return res.status(400).json({ error: "Codigo expirado ou inexistente." });
+      }
+
+      if (verification.attempts >= 5) {
+        return res.status(429).json({ error: "Muitas tentativas. Gere um novo codigo." });
+      }
+
+      if (verification.codeHash !== hashVerificationCode(code)) {
+        await prisma.accountVerification.update({
+          where: { id: verification.id },
+          data: { attempts: { increment: 1 } },
+        });
+        return res.status(400).json({ error: "Codigo incorreto." });
+      }
+
+      const user = await prisma.$transaction(async (tx) => {
+        await tx.accountVerification.update({
+          where: { id: verification.id },
+          data: { consumedAt: new Date() },
+        });
+
+        return tx.user.update({
+          where: { id: userId },
+          data: {
+            verifiedContactAt: new Date(),
+            ...(channel === "EMAIL" ? { emailVerified: true } : { phoneVerified: true }),
+          },
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            emailVerified: true,
+            phoneVerified: true,
+            verifiedContactAt: true,
+          },
+        });
+      });
+
+      return res.json({
+        success: true,
+        contactVerification: serializeContactVerification(user),
+      });
+    } catch (error) {
+      console.error("[VERIFICATION_CONFIRM_ERROR]", error);
+      return res.status(500).json({ error: "Falha ao confirmar verificacao." });
+    }
+  });
+
   // ==================== REGISTER CUSTOM DOMAIN OWNER ====================
   router.post("/register/custom-domain-admin", async (req, res) => {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone } = req.body;
 
-    if (!name || !email || !password) {
+    if (!name || !email || !phone || !password) {
       return res.status(400).json({
-        error: "Nome, e-mail e senha sao obrigatorios.",
+        error: "Nome, e-mail, telefone e senha sao obrigatorios.",
       });
     }
+
+    const contact = validateSignupContact({ email, phone });
+    if (!contact.ok) return res.status(400).json({ error: contact.error });
 
     const passwordError = assertStrongPassword(password);
     if (passwordError) {
@@ -507,11 +737,20 @@ export function authRoutes(prisma: PrismaClient) {
         });
       }
 
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      const existingUser = await prisma.user.findUnique({ where: { email: contact.email } });
       if (existingUser) {
         return res.status(400).json({
           error: "Este email ja esta em uso.",
           code: "EMAIL_ALREADY_EXISTS",
+        });
+      }
+      const existingPhone = await prisma.user.findUnique({
+        where: { phoneNormalized: contact.phoneNormalized },
+      });
+      if (existingPhone) {
+        return res.status(400).json({
+          error: "Este telefone ja esta em uso.",
+          code: "PHONE_ALREADY_EXISTS",
         });
       }
 
@@ -536,7 +775,9 @@ export function authRoutes(prisma: PrismaClient) {
         const user = await tx.user.create({
           data: {
             name,
-            email,
+            email: contact.email,
+            phone: contact.phone,
+            phoneNormalized: contact.phoneNormalized,
             password: hashedPassword,
             role: "ORG_ADMIN",
             status: "ACTIVE",
@@ -596,8 +837,12 @@ export function authRoutes(prisma: PrismaClient) {
           id: result.user.id,
           name: result.user.name,
           email: result.user.email,
+          phone: result.user.phone,
           role: result.user.role,
           status: result.user.status,
+          emailVerified: result.user.emailVerified,
+          phoneVerified: result.user.phoneVerified,
+          contactVerification: serializeContactVerification(result.user),
           orgId: result.org.id,
           orgName: result.org.name,
           orgSlug: result.org.slug,
@@ -621,13 +866,16 @@ export function authRoutes(prisma: PrismaClient) {
 
   // ==================== REGISTER WHITELABEL ====================
   router.post("/register/whitelabel", async (req, res) => {
-    const { name, email, password, organizationName, brandName, logoUrl, primaryColor, secondaryColor } = req.body;
+    const { name, email, phone, password, organizationName, brandName, logoUrl, primaryColor, secondaryColor } = req.body;
 
-    if (!name || !email || !password || !organizationName) {
+    if (!name || !email || !phone || !password || !organizationName) {
       return res.status(400).json({
-        error: "Todos os campos (nome, email, senha, nome da agência) são obrigatórios.",
+        error: "Todos os campos (nome, email, telefone, senha, nome da agência) são obrigatórios.",
       });
     }
+
+    const contact = validateSignupContact({ email, phone });
+    if (!contact.ok) return res.status(400).json({ error: contact.error });
 
     const passwordError = assertStrongPassword(password);
     if (passwordError) {
@@ -646,9 +894,14 @@ export function authRoutes(prisma: PrismaClient) {
         });
       }
 
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      const existingUser = await prisma.user.findUnique({ where: { email: contact.email } });
       if (existingUser)
         return res.status(400).json({ error: "Este email já está em uso." });
+      const existingPhone = await prisma.user.findUnique({
+        where: { phoneNormalized: contact.phoneNormalized },
+      });
+      if (existingPhone)
+        return res.status(400).json({ error: "Este telefone ja esta em uso." });
 
       const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -664,12 +917,8 @@ export function authRoutes(prisma: PrismaClient) {
           data: {
             name: organizationName,
             type: "WHITELABEL",
-            slug: organizationName
-              .toLowerCase()
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .replace(/[^a-z0-9]/g, "-"),
-            domain: email.split("@")[1],
+            slug: await generateUniqueOrganizationSlug(tx, organizationName),
+            domain: contact.domain,
             plan: "Free",
             whiteLabelConfig: wlConfig,
             settings: { whitelabelOnboardingStep: 1, whitelabelOnboardingComplete: false },
@@ -678,7 +927,9 @@ export function authRoutes(prisma: PrismaClient) {
         const user = await tx.user.create({
           data: {
             name,
-            email,
+            email: contact.email,
+            phone: contact.phone,
+            phoneNormalized: contact.phoneNormalized,
             password: hashedPassword,
             role: "ORG_ADMIN",
             organizationId: org.id,
@@ -730,7 +981,11 @@ export function authRoutes(prisma: PrismaClient) {
           id: result.user.id,
           name: result.user.name,
           email: result.user.email,
+          phone: result.user.phone,
           role: result.user.role,
+          emailVerified: result.user.emailVerified,
+          phoneVerified: result.user.phoneVerified,
+          contactVerification: serializeContactVerification(result.user),
           orgId: result.org.id,
           orgName: result.org.name,
           orgSlug: result.org.slug,
@@ -745,14 +1000,17 @@ export function authRoutes(prisma: PrismaClient) {
 
   // ==================== REGISTER ====================
   router.post("/register", async (req, res) => {
-    const { name, email, password, organizationName, planId } = req.body;
+    const { name, email, phone, password, organizationName, planId } = req.body;
 
-    if (!name || !email || !password || !organizationName) {
+    if (!name || !email || !phone || !password || !organizationName) {
       return res.status(400).json({
         error:
-          "Todos os campos (nome, email, senha, nome da agência) são obrigatórios.",
+          "Todos os campos (nome, email, telefone, senha, nome da agência) são obrigatórios.",
       });
     }
+
+    const contact = validateSignupContact({ email, phone });
+    if (!contact.ok) return res.status(400).json({ error: contact.error });
 
     const passwordError = assertStrongPassword(password);
     if (passwordError) {
@@ -771,9 +1029,16 @@ export function authRoutes(prisma: PrismaClient) {
         });
       }
 
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      const existingUser = await prisma.user.findUnique({ where: { email: contact.email } });
       if (existingUser)
         return res.status(400).json({ error: "Este email já está em uso." });
+
+      const existingPhone = await prisma.user.findUnique({
+        where: { phoneNormalized: contact.phoneNormalized },
+      });
+      if (existingPhone) {
+        return res.status(400).json({ error: "Este telefone ja esta em uso." });
+      }
 
       const hashedPassword = await bcrypt.hash(password, 12);
       const selectedPlan = planId
@@ -789,18 +1054,14 @@ export function authRoutes(prisma: PrismaClient) {
         return res.status(400).json({ error: "O plano selecionado não está disponível." });
       }
 
-      const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      const trialEndsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
       const result = await prisma.$transaction(async (tx) => {
         const org = await tx.organization.create({
           data: {
             name: organizationName,
-            slug: organizationName
-              .toLowerCase()
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .replace(/[^a-z0-9]/g, "-"),
-            domain: email.split("@")[1],
+            slug: await generateUniqueOrganizationSlug(tx, organizationName),
+            domain: contact.domain,
             plan: selectedPlan?.name || "Free",
             planId: selectedPlan?.id || null,
             subscriptionStatus: "TRIAL",
@@ -823,7 +1084,9 @@ export function authRoutes(prisma: PrismaClient) {
         const user = await tx.user.create({
           data: {
             name,
-            email,
+            email: contact.email,
+            phone: contact.phone,
+            phoneNormalized: contact.phoneNormalized,
             password: hashedPassword,
             role: "ORG_ADMIN",
             organizationId: org.id,
@@ -876,10 +1139,15 @@ export function authRoutes(prisma: PrismaClient) {
           id: result.user.id,
           name: result.user.name,
           email: result.user.email,
+          phone: result.user.phone,
           role: result.user.role,
+          emailVerified: result.user.emailVerified,
+          phoneVerified: result.user.phoneVerified,
+          contactVerification: serializeContactVerification(result.user),
           orgId: result.org.id,
           orgName: result.org.name,
           orgSlug: result.org.slug,
+          orgType: result.org.type || "CLIENT",
           subscriptionStatus: "TRIAL",
           trialEndsAt,
           plan: selectedPlan
@@ -923,9 +1191,10 @@ export function authRoutes(prisma: PrismaClient) {
         return;
       }
 
+      const organization = await refreshOrganizationSubscriptionState(prisma, user.organization);
       let orgId = user.organizationId;
-      let orgName = user.organization?.name || "No Org";
-      let orgSlug = user.organization?.slug || "";
+      let orgName = organization?.name || "No Org";
+      let orgSlug = organization?.slug || "";
 
       if (user.role === "SUPER_ADMIN" && !orgId) {
         const firstOrg = await prisma.organization.findFirst();
@@ -940,7 +1209,12 @@ export function authRoutes(prisma: PrismaClient) {
         id: user.id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
+        status: user.status,
+        emailVerified: user.emailVerified,
+        phoneVerified: user.phoneVerified,
+        contactVerification: serializeContactVerification(user),
         permissions: user.accessProfile
           ? user.accessProfile.permissions
           : user.permissions,
@@ -948,17 +1222,18 @@ export function authRoutes(prisma: PrismaClient) {
         orgId,
         orgName,
         orgSlug,
-        orgType: user.organization?.type || "CLIENT",
-        whiteLabelConfig: user.organization?.whiteLabelConfig || null,
-        whitelabelOnboarding: serializeWhitelabelOnboarding(user.organization),
+        orgType: organization?.type || "CLIENT",
+        whiteLabelConfig: organization?.whiteLabelConfig || null,
+        whitelabelOnboarding: serializeWhitelabelOnboarding(organization),
         agencyId: user.agencyId,
-        subscriptionStatus:
-          user.organization?.subscriptionStatus || "TRIAL",
-        betaAccess: user.organization?.betaAccess || false,
-        isTestAccount: user.organization?.isTestAccount || false,
-        plan: serializePlan(user.organization?.planObj || { name: user.organization?.plan || "Free" }),
+        subscriptionStatus: organization?.subscriptionStatus || "TRIAL",
+        trialEndsAt: organization?.trialEndsAt || null,
+        currentPeriodEnd: organization?.currentPeriodEnd || null,
+        betaAccess: organization?.betaAccess || false,
+        isTestAccount: organization?.isTestAccount || false,
+        plan: serializePlan(organization?.planObj || { name: organization?.plan || "Free" }),
         usage: {
-          leads: user.organization?._count?.leads || 0,
+          leads: organization?._count?.leads || 0,
         },
       });
     } catch (error: any) {

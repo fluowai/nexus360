@@ -442,6 +442,11 @@ model SupportTicket {
 model User {
   id       String  @id @default(uuid())
   email    String  @unique
+  phone    String?
+  phoneNormalized String? @unique
+  emailVerified Boolean @default(false)
+  phoneVerified Boolean @default(false)
+  verifiedContactAt DateTime?
   name     String?
   password String
   role     String  @default("USER") // SUPER_ADMIN, AGENCY_ADMIN, ORG_ADMIN, USER
@@ -482,6 +487,7 @@ model User {
   
   conversations        Conversation[]
   refreshTokens        RefreshToken[]
+  accountVerifications AccountVerification[]
   
   // Nexus Prospect AI
   prospectMissions       ProspectMission[]
@@ -495,6 +501,7 @@ model User {
   @@index([organizationId])
   @@index([agencyId])
   @@index([workspaceId])
+  @@index([phoneNormalized])
 }
 
 model AccessProfile {
@@ -2569,6 +2576,23 @@ model RefreshToken {
 
   @@index([userId])
   @@index([token])
+}
+
+model AccountVerification {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel    String   // EMAIL | PHONE
+  target     String
+  codeHash   String
+  attempts   Int      @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, channel])
+  @@index([expiresAt])
+  @@index([consumedAt])
 }
 
 // ==================== TIMELINE E HISTÓRICO ====================

@@ -67,6 +67,7 @@ export default function AdminWhiteLabel() {
     domain: '',
     plan: 'Pro',
     adminEmail: '',
+    adminPhone: '',
     adminPassword: '',
     adminName: '',
   });
@@ -245,7 +246,7 @@ export default function AdminWhiteLabel() {
   };
 
   const resetForm = () => {
-    setForm({ name: '', slug: '', domain: '', plan: 'Pro', adminEmail: '', adminPassword: '', adminName: '' });
+    setForm({ name: '', slug: '', domain: '', plan: 'Pro', adminEmail: '', adminPhone: '', adminPassword: '', adminName: '' });
     setBranding({ name: '', logoUrl: '', faviconUrl: '', primaryColor: '#2563eb', secondaryColor: '#1e40af' });
   };
 
@@ -627,8 +628,18 @@ export default function AdminWhiteLabel() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">E-mail do Admin (opcional)</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Nome do Admin</label>
                     <input
+                      className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                      value={form.adminName}
+                      onChange={e => setForm({...form, adminName: e.target.value})}
+                      placeholder="Responsavel pelo white-label"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">E-mail do Admin</label>
+                    <input
+                      required
                       type="email"
                       className="w-full px-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
                       value={form.adminEmail}
@@ -637,9 +648,24 @@ export default function AdminWhiteLabel() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Senha do Admin (opcional)</label>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Telefone do Admin</label>
+                    <div className="relative">
+                      <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                      <input
+                        required
+                        type="tel"
+                        className="w-full pl-12 pr-4 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none"
+                        value={form.adminPhone}
+                        onChange={e => setForm({...form, adminPhone: e.target.value})}
+                        placeholder="(11) 99999-9999"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Senha do Admin</label>
                     <div className="relative">
                       <input
+                        required
                         className="w-full px-4 pr-12 py-3 bg-gray-50 rounded-xl outline-none focus:ring-2 focus:ring-primary border-none font-mono"
                         value={form.adminPassword}
                         onChange={e => setForm({...form, adminPassword: e.target.value})}

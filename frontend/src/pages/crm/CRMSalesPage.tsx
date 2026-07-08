@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowRight, BarChart3, Bot, Check, ChevronDown, CircleCheck, Clock3,
   CreditCard, Headphones, Layers3, Menu, MessageCircle, Rocket, ShieldCheck,
-  Sparkles, Target, Users, Workflow, X, Zap,
+  Phone, Sparkles, Target, Users, Workflow, X, Zap,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import NexusLogo from "../../components/NexusLogo";
@@ -68,7 +68,7 @@ export default function CRMSalesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showAllFaq, setShowAllFaq] = useState<number | null>(0);
-  const [form, setForm] = useState({ name: "", email: "", organizationName: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", organizationName: "", password: "" });
 
   useEffect(() => {
     publicApiFetch("/api/billing/plans")
@@ -111,6 +111,11 @@ export default function CRMSalesPage() {
       localStorage.setItem("nexus_org_slug", data.user.orgSlug || "");
       localStorage.setItem("nexus_org_type", data.user.orgType || "CLIENT");
       localStorage.removeItem("nexus_onboarding_done");
+      if (data.user.contactVerification?.required) {
+        localStorage.setItem("nexus_contact_verification_required", "true");
+        navigate("/verify-contact");
+        return;
+      }
       navigate("/onboarding");
     } catch (err: any) {
       setError(err.message || "Não foi possível iniciar o teste.");
@@ -120,8 +125,8 @@ export default function CRMSalesPage() {
   };
 
   const faqs = [
-    ["Preciso cadastrar cartão para testar?", "Não. Você pode explorar o Nexus360 por 7 dias sem informar cartão de crédito."],
-    ["O que acontece ao fim dos 7 dias?", "Você escolhe se deseja contratar o plano. Nada é cobrado automaticamente durante o teste."],
+    ["Preciso cadastrar cartão para testar?", "Não. Você pode explorar o Nexus360 por 3 dias sem informar cartão de crédito."],
+    ["O que acontece ao fim dos 3 dias?", "Você escolhe se deseja contratar o plano. Nada é cobrado automaticamente durante o teste."],
     ["Posso mudar de plano depois?", "Sim. Você pode começar com o plano mais adequado para o momento da empresa e evoluir quando precisar de mais capacidade."],
     ["Consigo migrar dados de outra ferramenta?", "Sim. O time pode orientar a migração de planilhas, CRMs e bases atuais conforme o plano contratado."],
   ];
@@ -140,7 +145,7 @@ export default function CRMSalesPage() {
           <div className="hidden items-center gap-3 md:flex">
             <Link to="/login" className="px-4 py-3 text-sm font-bold text-[#12372A]">Entrar</Link>
             <button onClick={() => plans[0] && startTrial(plans[0])} className="rounded-xl bg-[#0F9F6E] px-5 py-3 text-sm font-black text-white shadow-lg shadow-emerald-200 transition hover:-translate-y-0.5 hover:bg-[#087A55]">
-              Testar por 7 dias
+              Testar por 3 dias
             </button>
           </div>
           <button className="text-[#12372A] md:hidden" onClick={() => setMenuOpen(!menuOpen)} aria-label="Abrir menu">
@@ -182,7 +187,7 @@ export default function CRMSalesPage() {
                 </a>
               </div>
               <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold text-[#587064]">
-                <span className="flex items-center gap-2"><Check size={16} className="text-[#0F9F6E]" /> 7 dias grátis</span>
+                <span className="flex items-center gap-2"><Check size={16} className="text-[#0F9F6E]" /> 3 dias grátis</span>
                 <span className="flex items-center gap-2"><Check size={16} className="text-[#0F9F6E]" /> Sem cartão</span>
                 <span className="flex items-center gap-2"><Check size={16} className="text-[#0F9F6E]" /> Cancele quando quiser</span>
               </div>
@@ -264,7 +269,7 @@ export default function CRMSalesPage() {
 
         <section id="planos" className="px-5 py-24 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <div className="text-center"><div className="text-xs font-black uppercase tracking-[.22em] text-[#0F9F6E]">Planos para cada fase</div><h2 className="mt-4 text-4xl font-black tracking-[-.04em] sm:text-5xl">Comece por 7 dias. Decida depois.</h2><p className="mt-5 text-lg text-[#587064]">Sem cartão de crédito e sem cobrança automática durante o teste.</p></div>
+            <div className="text-center"><div className="text-xs font-black uppercase tracking-[.22em] text-[#0F9F6E]">Planos para cada fase</div><h2 className="mt-4 text-4xl font-black tracking-[-.04em] sm:text-5xl">Comece por 3 dias. Decida depois.</h2><p className="mt-5 text-lg text-[#587064]">Sem cartão de crédito e sem cobrança automática durante o teste.</p></div>
             <div className={`mt-14 grid gap-6 ${plans.length >= 3 ? "lg:grid-cols-3" : "mx-auto max-w-4xl md:grid-cols-2"}`}>
               {plans.map((plan) => {
                 const featured = plan.id === featuredId;
@@ -274,7 +279,7 @@ export default function CRMSalesPage() {
                   <div className="mt-7"><span className="text-4xl font-black tracking-[-.04em]">{formatMoney(plan.priceMonthly)}</span><span className="text-sm font-bold text-[#71887C]"> /mês</span></div>
                   <div className="my-7 h-px bg-[#E3EFE8]" />
                   <div className="flex-1 space-y-3">{planFeatures(plan).map((feature) => <div key={feature} className="flex items-center gap-3 text-sm font-semibold text-[#405B4F]"><Check size={17} className="shrink-0 text-[#0F9F6E]" /> {feature}</div>)}</div>
-                  <button onClick={() => startTrial(plan)} className={`mt-8 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 font-black transition hover:-translate-y-0.5 ${featured ? "bg-[#0F9F6E] text-white shadow-lg shadow-emerald-200" : "border border-[#0F9F6E] bg-white text-[#0B7C57] hover:bg-[#F0FBF5]"}`}>Testar grátis por 7 dias <ArrowRight size={18} /></button>
+                  <button onClick={() => startTrial(plan)} className={`mt-8 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 font-black transition hover:-translate-y-0.5 ${featured ? "bg-[#0F9F6E] text-white shadow-lg shadow-emerald-200" : "border border-[#0F9F6E] bg-white text-[#0B7C57] hover:bg-[#F0FBF5]"}`}>Testar grátis por 3 dias <ArrowRight size={18} /></button>
                 </div>;
               })}
             </div>
@@ -289,7 +294,7 @@ export default function CRMSalesPage() {
           </div>
         </section>
 
-        <section className="bg-[#0F9F6E] px-5 py-20 text-white lg:px-8"><div className="mx-auto flex max-w-5xl flex-col items-center text-center"><NexusLogo light /><h2 className="mt-8 text-4xl font-black tracking-[-.04em] sm:text-5xl">Sua empresa já tem potencial. Agora ela pode ter um sistema.</h2><p className="mt-5 max-w-2xl text-lg text-emerald-50">Experimente o Nexus360 por 7 dias e veja sua operação por inteiro.</p><button onClick={() => plans[0] && startTrial(plans[0])} className="mt-8 rounded-2xl bg-white px-8 py-4 font-black text-[#0B7C57] shadow-xl transition hover:-translate-y-1">Começar agora</button></div></section>
+        <section className="bg-[#0F9F6E] px-5 py-20 text-white lg:px-8"><div className="mx-auto flex max-w-5xl flex-col items-center text-center"><NexusLogo light /><h2 className="mt-8 text-4xl font-black tracking-[-.04em] sm:text-5xl">Sua empresa já tem potencial. Agora ela pode ter um sistema.</h2><p className="mt-5 max-w-2xl text-lg text-emerald-50">Experimente o Nexus360 por 3 dias e veja sua operação por inteiro.</p><button onClick={() => plans[0] && startTrial(plans[0])} className="mt-8 rounded-2xl bg-white px-8 py-4 font-black text-[#0B7C57] shadow-xl transition hover:-translate-y-1">Começar agora</button></div></section>
       </main>
 
       <footer className="bg-[#064E3B] px-5 py-10 text-[#D8F3E6]"><div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-5 sm:flex-row"><NexusLogo light /><div className="text-sm">© {new Date().getFullYear()} Nexus360. Todos os direitos reservados.</div><div className="flex gap-5 text-sm"><Link to="/legal/privacy">Privacidade</Link><Link to="/legal/terms">Termos</Link></div></div></footer>
@@ -298,12 +303,13 @@ export default function CRMSalesPage() {
         {selectedPlan && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#052E22]/70 p-4 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: .96, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: .96 }} className="max-h-[95vh] w-full max-w-lg overflow-y-auto rounded-[30px] bg-white p-7 shadow-2xl sm:p-9">
-              <div className="flex items-start justify-between gap-4"><div><div className="text-xs font-black uppercase tracking-[.18em] text-[#0F9F6E]">Teste grátis de 7 dias</div><h3 className="mt-2 text-3xl font-black tracking-[-.04em]">Comece no plano {selectedPlan.name}</h3></div><button onClick={() => setSelectedPlan(null)} className="rounded-xl bg-[#EEF7F2] p-2 text-[#587064]"><X /></button></div>
+              <div className="flex items-start justify-between gap-4"><div><div className="text-xs font-black uppercase tracking-[.18em] text-[#0F9F6E]">Teste grátis de 3 dias</div><h3 className="mt-2 text-3xl font-black tracking-[-.04em]">Comece no plano {selectedPlan.name}</h3></div><button onClick={() => setSelectedPlan(null)} className="rounded-xl bg-[#EEF7F2] p-2 text-[#587064]"><X /></button></div>
               <div className="mt-5 flex items-center justify-between rounded-2xl bg-[#ECF9F2] p-4"><div><div className="text-xs font-bold text-[#587064]">Após o período de teste</div><div className="mt-1 font-black">{formatMoney(selectedPlan.priceMonthly)}/mês</div></div><div className="flex items-center gap-2 text-xs font-bold text-[#0F9F6E]"><CreditCard size={16} /> sem cartão agora</div></div>
               <form onSubmit={submitTrial} className="mt-6 space-y-4">
                 <label className="block"><span className="mb-2 block text-xs font-black uppercase tracking-wider text-[#587064]">Seu nome</span><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-2xl border border-[#D5E7DD] px-4 py-3.5 outline-none transition focus:border-[#0F9F6E] focus:ring-4 focus:ring-[#0F9F6E]/10" placeholder="Como podemos te chamar?" /></label>
                 <label className="block"><span className="mb-2 block text-xs font-black uppercase tracking-wider text-[#587064]">Empresa</span><input required value={form.organizationName} onChange={(e) => setForm({ ...form, organizationName: e.target.value })} className="w-full rounded-2xl border border-[#D5E7DD] px-4 py-3.5 outline-none transition focus:border-[#0F9F6E] focus:ring-4 focus:ring-[#0F9F6E]/10" placeholder="Nome da sua empresa" /></label>
                 <label className="block"><span className="mb-2 block text-xs font-black uppercase tracking-wider text-[#587064]">E-mail profissional</span><input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-2xl border border-[#D5E7DD] px-4 py-3.5 outline-none transition focus:border-[#0F9F6E] focus:ring-4 focus:ring-[#0F9F6E]/10" placeholder="voce@empresa.com.br" /></label>
+                <label className="block"><span className="mb-2 block text-xs font-black uppercase tracking-wider text-[#587064]">Telefone com DDD</span><div className="relative"><Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-[#71887C]" size={18} /><input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full rounded-2xl border border-[#D5E7DD] px-4 py-3.5 pl-12 outline-none transition focus:border-[#0F9F6E] focus:ring-4 focus:ring-[#0F9F6E]/10" placeholder="(11) 99999-9999" /></div></label>
                 <label className="block"><span className="mb-2 block text-xs font-black uppercase tracking-wider text-[#587064]">Crie uma senha</span><input required type="password" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-2xl border border-[#D5E7DD] px-4 py-3.5 outline-none transition focus:border-[#0F9F6E] focus:ring-4 focus:ring-[#0F9F6E]/10" placeholder="8+ caracteres, maiúscula, minúscula e número" /></label>
                 {error && <div className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">{error}</div>}
                 <button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0F9F6E] px-5 py-4 font-black text-white shadow-lg shadow-emerald-200 transition hover:bg-[#087A55] disabled:opacity-60">{loading ? "Criando seu ambiente..." : "Iniciar meu teste grátis"} {!loading && <ArrowRight size={18} />}</button>

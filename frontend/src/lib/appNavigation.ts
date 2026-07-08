@@ -161,11 +161,11 @@ export const menuGroups: MenuGroup[] = [
   {
     label: 'Prospeccao',
     icon: Target,
-    modules: ['prospecting', 'whatsapp_funnels', 'sales', 'google_local'],
+    modules: ['prospecting', 'qualification', 'whatsapp_funnels', 'sales', 'google_local'],
     items: [
       { module: 'prospecting', icon: Target, label: 'Captacao de Leads', path: '/prospecting/capture' },
       { module: 'google_local', icon: MapPinned, label: 'Google Local', path: '/google-local' },
-      { module: 'prospecting', icon: CheckCircle, label: 'Qualificacao de Leads', path: '/qualification/forms' },
+      { module: 'qualification', icon: CheckCircle, label: 'Qualificacao de Leads', path: '/qualification/forms' },
       { module: 'sales', icon: Zap, label: 'Sales Machine', path: '/sales-machine' },
       { module: 'whatsapp_funnels', icon: BarChart3, label: 'Funis IA WhatsApp', path: '/prospecting/funnels' },
     ],
@@ -173,10 +173,10 @@ export const menuGroups: MenuGroup[] = [
   {
     label: 'CRM',
     icon: UsersRound,
-    modules: ['crm', 'whatsapp'],
+    modules: ['crm', 'clients', 'whatsapp'],
     items: [
       { module: 'crm', icon: Users, label: 'CRM & Pipelines', path: '/crm', startsWith: true },
-      { module: 'crm', icon: Building2, label: 'Clientes', path: '/clients', startsWith: true },
+      { module: 'clients', icon: Building2, label: 'Clientes', path: '/clients', startsWith: true },
       { module: 'whatsapp', icon: MessageCircle, label: 'Mensagens', path: '/whatsapp?tab=messages' },
       { module: 'whatsapp', icon: PlugZap, label: 'Conexoes WhatsApp', path: '/whatsapp?tab=instances' },
       { module: 'whatsapp', icon: KanbanSquare, label: 'Kanban', path: '/crm?tab=funil' },
@@ -346,7 +346,7 @@ export function useAppNavigation(user: User | null): AppNavigationModel {
   const canSeeModule = useCallback((moduleKey: string) => {
     const enabledByExperience = !experienceModules || experienceModules.has(moduleKey);
     if (!enabledByExperience) return false;
-    if (moduleKey === 'google_local') return googleLocalEnabled;
+    if (moduleKey === 'google_local') return googleLocalEnabled && (isSuper || access.hasModule(moduleKey));
     return isSuper || access.hasModule(moduleKey);
   }, [access, experienceModules, googleLocalEnabled, isSuper]);
 

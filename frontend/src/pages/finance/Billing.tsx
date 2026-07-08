@@ -29,7 +29,7 @@ export default function Billing() {
     try {
       const [usageRes, plansRes] = await Promise.all([
         apiFetch('/api/usage/metrics'),
-        apiFetch('/api/admin/plans') // Planos públicos
+        apiFetch('/api/billing/plans')
       ]);
       
       if (usageRes.ok) setUsage(await usageRes.json());
@@ -45,6 +45,13 @@ export default function Billing() {
     const percentage = (used / max) * 100;
     return Math.min(percentage, 100);
   };
+
+  const formatDate = (value?: string | null) => {
+    if (!value) return 'A definir';
+    return new Date(value).toLocaleDateString('pt-BR');
+  };
+
+  const renewalDate = usage?.currentPeriodEnd || usage?.trialEndsAt;
 
   const [submitting, setSubmitting] = useState<string | null>(null);
 
@@ -144,7 +151,7 @@ export default function Billing() {
                 <div className="flex items-center gap-4 text-gray-400 text-sm font-medium">
                   <div className="flex items-center gap-2">
                     <Calendar size={16} />
-                    <span>Próxima renovação: 12/06/2026</span>
+                    <span>{usage?.status === 'TRIAL' ? 'Teste ate' : 'Proxima renovacao'}: {formatDate(renewalDate)}</span>
                   </div>
                 </div>
               </div>
@@ -267,4 +274,3 @@ export default function Billing() {
     </div>
   );
 }
-

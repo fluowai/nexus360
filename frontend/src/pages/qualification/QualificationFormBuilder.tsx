@@ -131,7 +131,7 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [generatingAi, setGeneratingAi] = useState(false);
-  const [aiBrief, setAiBrief] = useState({ niche: "", ticket: "", objective: "" });
+  const [aiBrief, setAiBrief] = useState({ niche: "", targetAudience: "", offer: "", ticket: "", objective: "" });
   const [aiNotice, setAiNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -184,8 +184,8 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
   };
 
   const generateWithAi = async () => {
-    if (!aiBrief.niche.trim()) { setError("Informe o nicho para a IA gerar o formulÃ¡rio"); return; }
-    if (!aiBrief.ticket.trim()) { setError("Informe o ticket mÃ©dio ou oferta"); return; }
+    if (!aiBrief.niche.trim()) { setError("Informe o nicho do publico-alvo para a IA gerar o formulario"); return; }
+    if (!aiBrief.offer.trim()) { setError("Informe o que voce vende para esse publico-alvo"); return; }
     setGeneratingAi(true);
     setError("");
     setAiNotice("");
@@ -270,7 +270,7 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
               IA Groq
             </div>
             <h2 className="font-black text-gray-900 text-lg">Criar com ajuda da IA</h2>
-            <p className="text-sm text-gray-500">Informe nicho e ticket para gerar um rascunho editavel de campos ICP, score e roteamento.</p>
+            <p className="text-sm text-gray-500">Separe quem voce quer atingir da oferta que voce vende para a IA nao confundir o mercado com o produto final.</p>
           </div>
           {aiNotice && (
             <span className="shrink-0 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider">
@@ -278,19 +278,39 @@ export function QualificationFormBuilder({ form, onSave, onCancel }: Props) {
             </span>
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Nicho</label>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Nicho do publico-alvo</label>
             <input
               type="text"
               value={aiBrief.niche}
               onChange={(e) => setAiBrief({ ...aiBrief, niche: e.target.value })}
-              placeholder="Ex: Farmacias, Imobiliarias, Clinicas"
+              placeholder="Ex: Imobiliarias, Farmacias, Clinicas"
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 outline-none text-sm"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Ticket / oferta</label>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Quem responde (opcional)</label>
+            <input
+              type="text"
+              value={aiBrief.targetAudience}
+              onChange={(e) => setAiBrief({ ...aiBrief, targetAudience: e.target.value })}
+              placeholder="Ex: donos, socios ou gestores comerciais"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 outline-none text-sm"
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">O que voce vende</label>
+            <input
+              type="text"
+              value={aiBrief.offer}
+              onChange={(e) => setAiBrief({ ...aiBrief, offer: e.target.value })}
+              placeholder="Ex: servicos de marketing e implantacao de CRM para imobiliarias"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 outline-none text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Ticket medio (opcional)</label>
             <input
               type="text"
               value={aiBrief.ticket}

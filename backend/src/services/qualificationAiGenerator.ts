@@ -27,7 +27,9 @@ type RoutingRule = {
 
 type GenerateQualificationInput = {
   niche: string;
-  ticket: string;
+  targetAudience?: string;
+  offer?: string;
+  ticket?: string;
   objective?: string;
   fieldCount?: number;
 };
@@ -79,59 +81,79 @@ function parseGroqJson(raw: string) {
   }
 }
 
-function fallbackFields(niche: string, ticket: string): IcpField[] {
+function fallbackFields(input: GenerateQualificationInput): IcpField[] {
+  const niche = String(input.niche || "seu mercado").trim();
+  const offer = String(input.offer || "a solucao").trim();
+  const ticket = String(input.ticket || "").trim();
+  const budgetLabel = ticket ? `investir cerca de ${ticket} em ${offer}` : `contratar ${offer}`;
+
   return [
     {
-      key: "maior_desafio",
-      label: `Qual e o maior desafio hoje em ${niche}?`,
-      type: "textarea",
+      key: "perfil_decisor",
+      label: `Qual e seu papel na decisao sobre ${offer}?`,
+      type: "select",
       required: true,
       order: 1,
-      weight: 15,
+      weight: 20,
+      options: ["Sou decisor final", "Sou socio ou diretor", "Influencio a decisao", "Estou apenas pesquisando"],
+      scoreMap: {
+        "Sou decisor final": 20,
+        "Sou socio ou diretor": 18,
+        "Influencio a decisao": 12,
+        "Estou apenas pesquisando": 3,
+      },
+    },
+    {
+      key: "maior_desafio",
+      label: `Qual e o maior desafio da sua empresa hoje que te faria avaliar ${offer}?`,
+      type: "textarea",
+      required: true,
+      order: 2,
+      weight: 18,
+    },
+    {
+      key: "processo_atual",
+      label: `Como a sua operacao em ${niche} resolve esse ponto hoje?`,
+      type: "select",
+      required: true,
+      options: ["Processo manual ou planilhas", "Ferramentas separadas", "Ja temos solucao, mas queremos melhorar", "Ainda nao existe processo claro"],
+      order: 3,
+      weight: 18,
+      scoreMap: {
+        "Processo manual ou planilhas": 18,
+        "Ferramentas separadas": 15,
+        "Ja temos solucao, mas queremos melhorar": 14,
+        "Ainda nao existe processo claro": 6,
+      },
     },
     {
       key: "urgencia",
-      label: "Quando voce pretende resolver isso?",
+      label: `Quando voces pretendem avaliar ou implementar ${offer}?`,
       type: "select",
       required: true,
       options: ["Imediatamente", "Nos proximos 30 dias", "Nos proximos 90 dias", "Ainda pesquisando"],
-      order: 2,
-      weight: 20,
+      order: 4,
+      weight: 18,
       scoreMap: {
-        "Imediatamente": 20,
-        "Nos proximos 30 dias": 16,
+        "Imediatamente": 18,
+        "Nos proximos 30 dias": 15,
         "Nos proximos 90 dias": 8,
         "Ainda pesquisando": 3,
       },
     },
     {
       key: "orcamento_disponivel",
-      label: `Existe budget para um investimento proximo de ${ticket}?`,
+      label: `Existe budget para ${budgetLabel}?`,
       type: "select",
       required: true,
       options: ["Sim, ja esta previsto", "Depende da proposta", "Ainda nao tenho budget", "Nao sei informar"],
-      order: 3,
-      weight: 25,
+      order: 5,
+      weight: 26,
       scoreMap: {
-        "Sim, ja esta previsto": 25,
+        "Sim, ja esta previsto": 26,
         "Depende da proposta": 16,
         "Ainda nao tenho budget": 4,
         "Nao sei informar": 2,
-      },
-    },
-    {
-      key: "poder_decisao",
-      label: "Voce participa da decisao de compra?",
-      type: "select",
-      required: true,
-      options: ["Sou decisor final", "Influencio a decisao", "Preciso envolver socios/gestores", "Estou apenas pesquisando"],
-      order: 4,
-      weight: 20,
-      scoreMap: {
-        "Sou decisor final": 20,
-        "Influencio a decisao": 14,
-        "Preciso envolver socios/gestores": 10,
-        "Estou apenas pesquisando": 3,
       },
     },
   ];
@@ -191,7 +213,7 @@ function sanitizeGeneratedForm(parsed: any, input: GenerateQualificationInput): 
     })
     .filter((field: IcpField | null): field is IcpField => Boolean(field));
 
-  const icpFields: IcpField[] = (fields.length >= 3 ? fields : fallbackFields(input.niche, input.ticket))
+  const icpFields: IcpField[] = (fields.length >= 3 ? fields : fallbackFields(input))
     .slice(0, 10)
     .map((field: IcpField, index: number): IcpField => ({ ...field, order: index + 1 }));
 
@@ -215,9 +237,15 @@ function sanitizeGeneratedForm(parsed: any, input: GenerateQualificationInput): 
     .filter((rule: RoutingRule | null): rule is RoutingRule => Boolean(rule))
     .slice(0, 6);
 
+  const niche = String(input.niche || "publico-alvo").trim();
+  const offer = String(input.offer || "oferta").trim();
+  const ticket = String(input.ticket || "").trim();
+
   return {
-    name: String(parsed?.name || `Qualificacao de Leads - ${input.niche}`).trim(),
-    description: String(parsed?.description || `Formulario para qualificar leads do nicho ${input.niche} com ticket ${input.ticket}.`).trim(),
+    name: String(parsed?.name || `Qualificacao ${niche} - ${offer}`).trim(),
+    description: String(
+      parsed?.description || `Formulario para qualificar ${niche} como compradores de ${offer}${ticket ? ` com ticket ${ticket}` : ""}.`,
+    ).trim(),
     icpFields,
     routingRules: routingRules.length ? routingRules : [{ field: icpFields[0].key, operator: "contains", value: "", target: "SDR", scoreMin: 60 }],
     allowScheduling: parsed?.allowScheduling !== false,
@@ -234,9 +262,11 @@ export async function generateQualificationFormWithGroq(
   input: GenerateQualificationInput,
 ): Promise<GeneratedQualificationForm> {
   const niche = String(input.niche || "").trim();
+  const targetAudience = String(input.targetAudience || "").trim();
+  const offer = String(input.offer || "").trim();
   const ticket = String(input.ticket || "").trim();
   if (!niche) throw new Error("Informe o nicho para gerar o formulario.");
-  if (!ticket) throw new Error("Informe o ticket para gerar o formulario.");
+  if (!offer) throw new Error("Informe o que voce vende para esse publico-alvo.");
 
   const keys = await getOrgAIKeys(prisma, organizationId);
   if (!keys.groqKey) {
@@ -244,14 +274,19 @@ export async function generateQualificationFormWithGroq(
   }
 
   const fieldCount = clampInt(input.fieldCount, 6, 4, 10);
-  const system = `Voce e um especialista em marketing, CRM e qualificacao ICP B2B/B2C.
+  const system = `Voce e um especialista em marketing, CRM e qualificacao ICP para vendas consultivas B2B/B2C.
 Responda sempre em JSON puro, sem markdown.
 Gere formularios objetivos, com campos de ICP que ajudem vendas a separar lead frio, morno e quente.
+Trate "nicho" como o mercado-alvo e "oferta" como o produto/servico vendido.
+O respondente e um potencial comprador da oferta, nao o consumidor final do produto do nicho dele.
+Se o nicho for "imobiliarias" e a oferta for marketing/CRM, gere perguntas sobre captacao, atendimento, conversao, CRM e maturidade comercial da imobiliaria; nunca sobre comprar apartamento ou escolher imovel.
 Nao inclua campos de contato como nome, email ou telefone, pois eles ja existem no formulario publico.`;
 
   const user = `Crie um formulario de qualificacao de leads para:
-- Nicho: ${niche}
-- Ticket medio/oferta: ${ticket}
+- Nicho do publico-alvo: ${niche}
+- Quem deve responder: ${targetAudience || "decisor, socio, gestor ou influenciador da compra"}
+- Oferta que sera vendida: ${offer}
+- Ticket medio: ${ticket || "nao informado"}
 - Objetivo adicional: ${input.objective || "captar e qualificar leads para abordagem comercial"}
 - Quantidade desejada de campos ICP: ${fieldCount}
 
@@ -280,11 +315,12 @@ Retorne exatamente este formato JSON:
 }
 
 Regras:
-1. Use perguntas de dor, urgencia, budget, autoridade de decisao e maturidade.
-2. Para select/multi_select, gere 3 a 5 opcoes e scoreMap coerente com o ticket.
-3. Pesos devem somar aproximadamente 100.
-4. Crie pelo menos uma regra para CLOSER quando scoreMin >= 75 e outra para SDR quando scoreMin >= 45.
-5. Tudo em portugues do Brasil.`;
+1. Use perguntas para qualificar a compra da oferta, nao o interesse do lead no produto final do proprio nicho.
+2. Inclua dor ligada a oferta, processo/ferramentas atuais, volume ou maturidade, urgencia, budget e autoridade de decisao.
+3. Para select/multi_select, gere 3 a 5 opcoes e scoreMap coerente com a oferta e o ticket.
+4. Pesos devem somar aproximadamente 100.
+5. Crie pelo menos uma regra para CLOSER quando scoreMin >= 75 e outra para SDR quando scoreMin >= 45.
+6. Tudo em portugues do Brasil.`;
 
   const response = await fetch(GROQ_CHAT_COMPLETIONS_URL, {
     method: "POST",
@@ -320,5 +356,5 @@ Regras:
   const content = payload?.choices?.[0]?.message?.content || "";
   if (!content) throw new Error("A Groq nao retornou conteudo para o formulario.");
 
-  return sanitizeGeneratedForm(parseGroqJson(content), { ...input, niche, ticket });
+  return sanitizeGeneratedForm(parseGroqJson(content), { ...input, niche, targetAudience, offer, ticket });
 }

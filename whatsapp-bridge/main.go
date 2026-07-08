@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
@@ -80,6 +81,7 @@ type connectRequest struct {
 	OrganizationID string `json:"organizationId"`
 	ChannelID      string `json:"channelId"`
 	Phone          string `json:"phone"`
+	ConnectedJID   string `json:"connectedJid"`
 }
 
 type sendRequest struct {
@@ -192,7 +194,11 @@ func (a *app) handleConnect(w http.ResponseWriter, r *http.Request, channelID st
 	}
 
 	go s.connect(a)
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": s.Status, "qrCode": s.QRCode})
+	s.mu.Lock()
+	status := s.Status
+	qrCode := s.QRCode
+	s.mu.Unlock()
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": status, "qrCode": qrCode})
 }
 
 func (a *app) handleDisconnect(w http.ResponseWriter, r *http.Request, channelID string) {
@@ -222,9 +228,14 @@ func (a *app) handleStatus(w http.ResponseWriter, r *http.Request, channelID str
 	s.mu.Lock()
 	status := s.Status
 	qrCode := s.QRCode
-	connected := s.Client != nil && s.Client.IsConnected()
-	profile := a.selfProfile(s)
+	client := s.Client
 	s.mu.Unlock()
+
+	connected := client != nil && client.IsLoggedIn()
+	if connected {
+		status = "connected"
+	}
+	profile := a.selfProfile(s)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":        true,
@@ -530,16 +541,35 @@ func (a *app) getOrCreateSession(req connectRequest) (*session, error) {
 	}
 	a.mu.Unlock()
 
-	dbPath := filepath.Join(a.dataDir, "sessions.db")
 	dbLog := waLog.Stdout("Database", "WARN", true)
 	ctx := context.Background()
-	container, err := sqlstore.New(ctx, "sqlite", "file:"+dbPath+"?_pragma=foreign_keys(1)", dbLog)
+	var container *sqlstore.Container
+	var err error
+
+	dbUrl := os.Getenv("DATABASE_URL")
+	if dbUrl != "" {
+		container, err = sqlstore.New(ctx, "postgres", dbUrl, dbLog)
+	} else {
+		dbPath := filepath.Join(a.dataDir, "sessions.db")
+		container, err = sqlstore.New(ctx, "sqlite", "file:"+dbPath+"?_pragma=foreign_keys(1)", dbLog)
+	}
+
 	if err != nil {
 		return nil, err
 	}
-	deviceStore, err := container.GetFirstDevice(ctx)
-	if err != nil {
-		return nil, err
+	deviceStore := container.NewDevice()
+	if req.ConnectedJID != "" {
+		jid, parseErr := types.ParseJID(strings.TrimSpace(req.ConnectedJID))
+		if parseErr != nil {
+			return nil, fmt.Errorf("connectedJid invalido: %w", parseErr)
+		}
+		storedDevice, getErr := container.GetDevice(ctx, jid)
+		if getErr != nil {
+			return nil, getErr
+		}
+		if storedDevice != nil {
+			deviceStore = storedDevice
+		}
 	}
 
 	clientLog := waLog.Stdout("Client", "INFO", true)
@@ -567,7 +597,11 @@ func (s *session) connect(a *app) {
 		s.mu.Unlock()
 		return
 	}
-	if s.Client.IsConnected() {
+	if s.Status == "connecting" || s.Status == "qr" {
+		s.mu.Unlock()
+		return
+	}
+	if s.Client.IsLoggedIn() {
 		s.Status = "connected"
 		s.mu.Unlock()
 		a.postStatus(s, "connected", nil)
@@ -584,30 +618,65 @@ func (s *session) connect(a *app) {
 			a.postStatus(s, "error", map[string]any{"error": err.Error()})
 			return
 		}
-		if err := s.Client.Connect(); err != nil {
+		connectCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := s.Client.ConnectContext(connectCtx); err != nil {
+			cancel()
 			a.postStatus(s, "error", map[string]any{"error": err.Error()})
 			return
 		}
-		for evt := range qrChan {
-			if evt.Event == "code" {
-				s.mu.Lock()
-				s.QRCode = evt.Code
-				s.Status = "qr"
-				s.mu.Unlock()
-				a.postStatus(s, "qr", map[string]any{"qrCode": evt.Code, "qrPng": qrDataURL(evt.Code)})
-			} else {
-				a.postStatus(s, evt.Event, nil)
-				if evt.Event == "success" {
-					break
+		cancel()
+
+		qrTimeout := time.NewTimer(45 * time.Second)
+		defer qrTimeout.Stop()
+		for {
+			select {
+			case evt, ok := <-qrChan:
+				if !ok {
+					if !s.Client.IsLoggedIn() {
+						a.postStatus(s, "error", map[string]any{"error": "Canal de QR encerrado antes de gerar o codigo"})
+					}
+					return
 				}
+				if evt.Event == "code" {
+					if !qrTimeout.Stop() {
+						select {
+						case <-qrTimeout.C:
+						default:
+						}
+					}
+					qrTimeout.Reset(45 * time.Second)
+					s.mu.Lock()
+					s.QRCode = evt.Code
+					s.Status = "qr"
+					s.mu.Unlock()
+					a.postStatus(s, "qr", map[string]any{"qrCode": evt.Code, "qrPng": qrDataURL(evt.Code)})
+				} else if evt.Event == "success" {
+					a.postStatus(s, "connected", a.selfProfile(s))
+					return
+				} else if evt.Event == "timeout" {
+					a.postStatus(s, "error", map[string]any{"error": "QR Code expirou antes de ser escaneado"})
+					s.Client.Disconnect()
+					return
+				} else {
+					a.postStatus(s, evt.Event, nil)
+				}
+			case <-qrTimeout.C:
+				a.postStatus(s, "error", map[string]any{"error": "Tempo esgotado aguardando QR Code do WhatsApp"})
+				s.Client.Disconnect()
+				return
 			}
 		}
-	} else if err := s.Client.Connect(); err != nil {
-		a.postStatus(s, "error", map[string]any{"error": err.Error()})
-		return
+	} else {
+		connectCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		err := s.Client.ConnectContext(connectCtx)
+		cancel()
+		if err != nil {
+			a.postStatus(s, "error", map[string]any{"error": err.Error()})
+			return
+		}
 	}
 
-	if s.Client.IsConnected() {
+	if s.Client.IsLoggedIn() {
 		a.postStatus(s, "connected", a.selfProfile(s))
 	}
 }
@@ -1054,14 +1123,18 @@ func (a *app) postStatus(s *session, status string, extra map[string]any) {
 	s.Status = status
 	if qr, ok := extra["qrCode"].(string); ok {
 		s.QRCode = qr
+	} else if status != "qr" {
+		s.QRCode = ""
 	}
+	qrCode := s.QRCode
 	s.mu.Unlock()
+
 	payload := map[string]any{
 		"type":           "status",
 		"organizationId": s.OrganizationID,
 		"channelId":      s.ChannelID,
 		"status":         status,
-		"qrCode":         s.QRCode,
+		"qrCode":         qrCode,
 		"qrPng":          "",
 	}
 	for k, v := range extra {

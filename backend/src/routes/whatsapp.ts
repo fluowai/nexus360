@@ -775,10 +775,12 @@ export function whatsappRoutes(prisma: PrismaClient) {
         },
       });
 
+      const channelConfig = (channel.config as any) || {};
       const result = await callBridge(`/sessions/${channel.id}/connect`, {
         organizationId: req.user!.orgId,
         channelId: channel.id,
-        phone: (channel.config as any)?.phone || (String(channel.identifier || "").startsWith("instance:") ? "" : channel.identifier),
+        phone: channelConfig.phone || (String(channel.identifier || "").startsWith("instance:") ? "" : channel.identifier),
+        connectedJid: channelConfig.connectedJid || "",
       }).catch(async (error: any) => {
         await prisma.channel.update({
           where: { id: channel.id },
@@ -1191,17 +1193,21 @@ export function whatsappInternalRoutes(prisma: PrismaClient) {
       if (payload.type === "status") {
         const channel = await prisma.channel.findUnique({ where: { id: payload.channelId } });
         if (channel) {
+          const currentConfig = (channel.config as any) || {};
+          const errorMessage = payload.error || payload.message || null;
           await prisma.channel.update({
             where: { id: channel.id },
             data: {
               config: {
-                ...((channel.config as any) || {}),
+                ...currentConfig,
                 status: payload.status,
                 qrCode: payload.qrCode || null,
                 qrPng: payload.qrPng || null,
-                pushName: payload.pushName || (channel.config as any)?.pushName || null,
-                profilePictureUrl: payload.profilePictureUrl || (channel.config as any)?.profilePictureUrl || null,
-                connectedJid: payload.connectedJid || (channel.config as any)?.connectedJid || null,
+                pushName: payload.pushName || currentConfig.pushName || null,
+                profilePictureUrl: payload.profilePictureUrl || currentConfig.profilePictureUrl || null,
+                connectedJid: payload.connectedJid || currentConfig.connectedJid || null,
+                lastConnectError: payload.status === "error" ? String(errorMessage || "Erro ao gerar QR Code") : null,
+                lastConnectErrorAt: payload.status === "error" ? new Date().toISOString() : null,
                 lastEventAt: new Date().toISOString(),
               },
             },

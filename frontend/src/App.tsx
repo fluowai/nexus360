@@ -131,9 +131,15 @@ const Layout = ({
   whiteLabel?: any;
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const location = useLocation();
   const navigation = useAppNavigation(user);
+
+  useEffect(() => {
+    if (isPublicPath(location.pathname)) return;
+    setIsCollapsed(true);
+    setIsMobileMenuOpen(false);
+  }, [location.pathname, location.search]);
 
   if (isPublicPath(location.pathname)) {
     return <>{children}</>;

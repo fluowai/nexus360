@@ -533,7 +533,7 @@ func (a *app) getOrCreateSession(req connectRequest) (*session, error) {
 	dbPath := filepath.Join(a.dataDir, "sessions.db")
 	dbLog := waLog.Stdout("Database", "WARN", true)
 	ctx := context.Background()
-	container, err := sqlstore.New(ctx, "sqlite", "file:"+dbPath+"?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New(ctx, "sqlite", "file:"+dbPath+"?_pragma=foreign_keys(1)", dbLog)
 	if err != nil {
 		return nil, err
 	}

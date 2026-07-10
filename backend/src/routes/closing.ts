@@ -3,6 +3,8 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { getPaymentProvider } from "../services/paymentProvider.js";
 import { buildContractData, generateContractHtml, generateContractNumber } from "../services/contractGenerator.js";
+import { AutoContractService } from "../services/autoContract.js";
+import { CallIntegrationService } from "../services/callIntegration.js";
 
 export function closingRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -455,6 +457,89 @@ export function closingRoutes(prisma: PrismaClient) {
     } catch (error) {
       console.error("[CLOSING_WEBHOOK_ERROR]", error);
       res.status(500).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  // ==================== AUTO-CONTRACT (Máquina de Vendas) ====================
+  router.post("/contract/auto-generate", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { clientId, soldProductId } = req.body;
+
+      if (!clientId || !soldProductId) {
+        return res.status(400).json({ error: "clientId e soldProductId são obrigatórios" });
+      }
+
+      const autoContractService = new AutoContractService(prisma);
+      const result = await autoContractService.generateAndSendContract(clientId, soldProductId, orgId);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/contract/:id/confirm-close", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const userId = req.user!.id;
+      const { contractId } = req.params;
+
+      const autoContractService = new AutoContractService(prisma);
+      const result = await autoContractService.confirmContractAndClose(contractId, orgId, userId);
+
+      if (!result.success) {
+        return res.status(400).json({ error: result.message });
+      }
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ==================== CALL INTEGRATION ====================
+  router.post("/call/create", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { calendarEventId } = req.body;
+
+      if (!calendarEventId) {
+        return res.status(400).json({ error: "calendarEventId é obrigatório" });
+      }
+
+      const callService = new CallIntegrationService(prisma);
+      const session = await callService.createCallSession(calendarEventId, orgId);
+
+      if (!session) {
+        return res.status(404).json({ error: "Evento não encontrado ou erro ao criar sessão" });
+      }
+
+      res.json({ success: true, session });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/call/link/:eventId", async (req: AuthRequest, res, next) => {
+    try {
+      const orgId = req.user!.orgId;
+      const { eventId } = req.params;
+
+      const callService = new CallIntegrationService(prisma);
+      const session = await callService.getCallLinkForEvent(eventId, orgId);
+
+      if (!session) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+
+      res.json({ success: true, session });
+    } catch (error) {
+      next(error);
     }
   });
 

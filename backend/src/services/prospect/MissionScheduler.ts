@@ -5,6 +5,8 @@ import { DossierAgent } from "./DossierAgent.js";
 import { FilterAgent } from "./FilterAgent.js";
 import { LeadCaptureService } from "../../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../../modules/lead-capture/lead-ai.service.js";
+import { LeadEnrichmentService } from "../leadEnrichment.js";
+import { WhatsAppValidationService } from "../whatsappValidation.js";
 import { enrollCapturedLeadsInFunnel } from "../../routes/prospectingFunnels.js";
 import { upsertDecisionMakersFromLead, pickBestDecisionMaker } from "../prospectingAutomation.js";
 
@@ -19,6 +21,8 @@ export class MissionScheduler {
   private filterAgent: FilterAgent;
   private leadCaptureService: LeadCaptureService;
   private leadAiService: LeadAiService;
+  private leadEnrichmentService: LeadEnrichmentService;
+  private whatsappValidationService: WhatsAppValidationService;
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
@@ -28,6 +32,8 @@ export class MissionScheduler {
     this.filterAgent = new FilterAgent(prisma);
     this.leadCaptureService = new LeadCaptureService(prisma);
     this.leadAiService = new LeadAiService(prisma);
+    this.leadEnrichmentService = new LeadEnrichmentService(prisma);
+    this.whatsappValidationService = new WhatsAppValidationService(prisma);
   }
 
   public start() {
@@ -316,6 +322,40 @@ export class MissionScheduler {
           error.message
         );
       }
+    }
+
+    // Enriquecimento adicional: CNPJ, Instagram, website, telefone secundário
+    try {
+      await this.leadEnrichmentService.enrichLead(leadId, orgId);
+      await this.logAgent(missionId, "LeadEnrichment", "enrichLead", "success", "Enriquecimento CNPJ/redes sociais concluído.");
+    } catch (error: any) {
+      await this.logAgent(missionId, "LeadEnrichment", "enrichLead", "warning", error.message);
+    }
+
+    // Validação WhatsApp: verificar se número tem WhatsApp ativo e comparar pushname
+    try {
+      const lead = await this.prisma.capturedLead.findFirst({
+        where: { id: leadId, organizationId: orgId }
+      });
+
+      if (lead?.phone) {
+        const phoneDigits = lead.phoneNormalized || lead.phone;
+        const validation = await this.whatsappValidationService.validateWhatsApp(
+          phoneDigits,
+          lead.businessName || "",
+        );
+        await this.whatsappValidationService.saveValidationResult(leadId, validation);
+
+        await this.logAgent(
+          missionId,
+          "WhatsAppValidation",
+          "validateWhatsApp",
+          validation.hasWhatsApp ? "success" : "warning",
+          validation.validationNotes.join("; ")
+        );
+      }
+    } catch (error: any) {
+      await this.logAgent(missionId, "WhatsAppValidation", "validateWhatsApp", "warning", error.message);
     }
 
     // Extrai decisores dos dados enriquecidos (CNPJ sócios + gestão LinkedIn)

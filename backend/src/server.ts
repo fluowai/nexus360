@@ -433,6 +433,7 @@ import { AutomationWorker } from "./workers/automationWorker.js";
 import { FollowUpWorker } from "./workers/followUpWorker.js";
 import { SdrAgentWorker } from "./workers/sdrAgentWorker.js";
 import { ProspectingDispatchWorker } from "./workers/prospectingDispatchWorker.js";
+import { SmartFollowUpWorker } from "./workers/smartFollowUpWorker.js";
 
 const automationWorker = new AutomationWorker(prisma);
 automationWorker.start();
@@ -442,6 +443,8 @@ const prospectingDispatchWorker = new ProspectingDispatchWorker(prisma);
 prospectingDispatchWorker.start();
 const sdrAgentWorker = new SdrAgentWorker(prisma);
 sdrAgentWorker.start();
+const smartFollowUpWorker = new SmartFollowUpWorker(prisma);
+smartFollowUpWorker.start();
 
 // Socket.io para eventos em tempo real
 import { createServer } from "http";
@@ -473,6 +476,7 @@ export function gracefulShutdown(exitCode = 0) {
   followUpWorker.stop();
   prospectingDispatchWorker.stop();
   sdrAgentWorker.stop();
+  smartFollowUpWorker.stop();
 
   prisma.$disconnect().catch(() => {});
   cache.disconnect().catch(() => {});

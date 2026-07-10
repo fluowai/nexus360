@@ -622,80 +622,190 @@ function renderSectionsToHtml(sections: any[], theme: any, pageSlug: string = ""
   const t = theme || {};
   const primary = t.primaryColor || "#3B82F6";
   const secondary = t.secondaryColor || "#1E40AF";
+  const accent = t.accentColor || "#10B981";
   const fontFamily = t.fontFamily || "'Inter', system-ui, sans-serif";
 
   let html = `<style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:${fontFamily}; color:#1e293b; line-height:1.6; -webkit-font-smoothing:antialiased; }
-    .container { max-width:1120px; margin:0 auto; padding:0 24px; }
-    .section { padding:80px 0; }
-    .section:nth-child(even) { background:#f8fafc; }
-    h1 { font-size:clamp(2rem,5vw,3.5rem); font-weight:800; line-height:1.15; }
-    h2 { font-size:clamp(1.5rem,3vw,2.25rem); font-weight:700; line-height:1.25; margin-bottom:16px; }
-    h3 { font-size:1.25rem; font-weight:600; }
-    .btn { display:inline-flex; align-items:center; gap:8px; padding:16px 32px; border-radius:12px; font-weight:700; font-size:1rem; text-decoration:none; transition:all .2s; cursor:pointer; border:none; }
-    .btn-primary { background:${primary}; color:#fff; }
-    .btn-primary:hover { opacity:.9; transform:translateY(-1px); }
+    html { scroll-behavior:smooth; }
+    body { font-family:${fontFamily}; color:#172033; background:#f7f7f3; line-height:1.6; -webkit-font-smoothing:antialiased; }
+    a { color:inherit; }
+    img { max-width:100%; display:block; }
+    .container { max-width:1160px; margin:0 auto; padding:0 24px; }
+    .section { padding:86px 0; background:#f7f7f3; }
+    .section-soft { background:#eef7f5; }
+    .section-white { background:#fff; }
+    .eyebrow { color:${primary}; font-size:.75rem; font-weight:900; letter-spacing:.16em; text-transform:uppercase; }
+    h1 { font-size:clamp(2.55rem,6vw,5.45rem); font-weight:900; line-height:.98; letter-spacing:0; color:#101827; }
+    h2 { font-size:clamp(2rem,3.8vw,3.45rem); font-weight:900; line-height:1.04; letter-spacing:0; color:#101827; margin-bottom:18px; }
+    h3 { font-size:1.2rem; font-weight:850; color:#101827; }
+    .lead { color:#526072; font-size:1.1rem; line-height:1.85; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:15px 24px; border-radius:12px; font-weight:850; font-size:1rem; text-decoration:none; transition:all .2s; cursor:pointer; border:none; min-height:52px; }
+    .btn-primary { background:${primary}; color:#fff; box-shadow:0 18px 38px ${primary}26; }
+    .btn-primary:hover { transform:translateY(-2px); filter:saturate(1.08); }
+    .btn-secondary { background:#fff; color:#172033; border:1px solid #dde5ec; }
     .text-center { text-align:center; }
-    .grid-3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:32px; }
-    .card { background:#fff; border-radius:16px; padding:32px; box-shadow:0 1px 3px rgba(0,0,0,.06); border:1px solid #f1f5f9; }
-    .card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
-    .icon-wrap { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:16px; font-size:24px; }
-    .testimonial { font-style:italic; font-size:1.05rem; color:#475569; position:relative; padding:24px; background:#fff; border-radius:16px; border:1px solid #f1f5f9; }
-    .faq-item { border-bottom:1px solid #e2e8f0; padding:20px 0; }
-    .faq-question { font-weight:600; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+    .grid-3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:20px; }
+    .card { background:#fff; border-radius:8px; padding:28px; box-shadow:0 18px 50px rgba(15,23,42,.07); border:1px solid #e8eef2; }
+    .icon-wrap { width:46px; height:46px; border-radius:8px; display:flex; align-items:center; justify-content:center; margin-bottom:18px; font-size:24px; }
+    .testimonial { font-size:1.05rem; color:#475569; position:relative; padding:28px; background:#fff; border-radius:8px; border:1px solid #e8eef2; box-shadow:0 18px 50px rgba(15,23,42,.06); }
+    .faq-item { border-bottom:1px solid #dde5ec; padding:22px 0; }
+    .faq-question { font-weight:850; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:18px; color:#101827; }
     .faq-answer { margin-top:12px; color:#64748b; }
-    .step-num { width:40px; height:40px; border-radius:50%; background:${primary}15; color:${primary}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.1rem; flex-shrink:0; }
-    .form-input { width:100%; padding:14px 16px; border:1px solid #e2e8f0; border-radius:12px; font-size:1rem; outline:none; transition:border-color .2s; }
+    .step-num { width:44px; height:44px; border-radius:8px; background:${primary}14; color:${primary}; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:1.05rem; flex-shrink:0; }
+    .form-input { width:100%; padding:15px 16px; border:1px solid #dbe3ea; border-radius:8px; font-size:1rem; outline:none; transition:border-color .2s, box-shadow .2s; background:#fff; }
     .form-input:focus { border-color:${primary}; box-shadow:0 0 0 3px ${primary}20; }
-    .hero-section { padding:120px 0 80px; background:linear-gradient(135deg, ${primary}08, ${secondary}08); }
-    @media(max-width:768px) { .section { padding:48px 0; } .hero-section { padding:80px 0 48px; } }
+    .hero-section { position:relative; overflow:hidden; min-height:720px; padding:26px 0 80px; background:radial-gradient(circle at 15% 10%, ${primary}18, transparent 32%), linear-gradient(135deg,#ffffff 0%,#f6faf8 48%,${secondary}12 100%); }
+    .lp-nav { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:70px; }
+    .brand { display:flex; align-items:center; gap:12px; min-width:0; }
+    .brand-logo { width:52px; height:52px; border-radius:8px; background:#fff; border:1px solid #dde5ec; object-fit:contain; padding:5px; box-shadow:0 10px 28px rgba(15,23,42,.08); }
+    .brand-mark { width:52px; height:52px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:${primary}; color:#fff; font-weight:900; font-size:1rem; box-shadow:0 12px 30px ${primary}2d; }
+    .brand-name { font-weight:900; color:#101827; line-height:1.1; }
+    .brand-sub { font-size:.72rem; font-weight:850; color:#6b7788; text-transform:uppercase; letter-spacing:.14em; margin-top:3px; }
+    .hero-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(360px,.86fr); gap:52px; align-items:center; }
+    .hero-copy { max-width:650px; }
+    .hero-copy .lead { margin-top:24px; max-width:610px; }
+    .hero-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:34px; }
+    .hero-meta { display:flex; flex-wrap:wrap; gap:10px; margin-top:28px; color:#526072; font-weight:750; font-size:.92rem; }
+    .hero-meta span { display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid #e3e9ee; border-radius:999px; padding:8px 12px; }
+    .hero-media { position:relative; }
+    .hero-photo { width:100%; aspect-ratio:4/5; object-fit:cover; border-radius:8px; box-shadow:0 34px 80px rgba(15,23,42,.22); border:1px solid rgba(255,255,255,.8); }
+    .hero-photo-placeholder { width:100%; aspect-ratio:4/5; border-radius:8px; background:linear-gradient(135deg,${primary},${secondary}); display:flex; align-items:center; justify-content:center; color:#fff; font-size:4rem; font-weight:900; box-shadow:0 34px 80px rgba(15,23,42,.22); }
+    .hero-badge { position:absolute; left:-22px; bottom:24px; background:#fff; border-radius:8px; padding:16px 18px; box-shadow:0 18px 45px rgba(15,23,42,.18); min-width:180px; border:1px solid #e8eef2; }
+    .hero-badge strong { display:block; color:#101827; font-size:1.5rem; line-height:1; }
+    .hero-badge span { color:#64748b; font-weight:750; font-size:.82rem; }
+    .mini-gallery { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px; }
+    .mini-gallery img { height:86px; width:100%; object-fit:cover; border-radius:8px; border:3px solid #fff; box-shadow:0 12px 30px rgba(15,23,42,.12); }
+    .trustbar { margin-top:-34px; position:relative; z-index:2; }
+    .trustbar-grid { display:grid; grid-template-columns:repeat(4,1fr); background:#fff; border:1px solid #e3e9ee; border-radius:8px; box-shadow:0 24px 70px rgba(15,23,42,.1); overflow:hidden; }
+    .trustbar-item { padding:22px; border-right:1px solid #edf1f5; }
+    .trustbar-item:last-child { border-right:0; }
+    .trustbar-value { font-weight:900; color:#101827; font-size:1.28rem; line-height:1.15; }
+    .trustbar-label { color:#64748b; font-size:.82rem; font-weight:750; margin-top:5px; }
+    .split-text { display:grid; grid-template-columns:.82fr 1fr; gap:48px; align-items:center; }
+    .gallery-grid { display:grid; grid-template-columns:1.25fr repeat(2,1fr); gap:14px; margin-top:34px; }
+    .gallery-grid img { width:100%; height:230px; object-fit:cover; border-radius:8px; }
+    .gallery-grid img:first-child { grid-row:span 2; height:474px; }
+    .contact-strip { background:#101827; color:#fff; border-radius:8px; padding:34px; display:flex; justify-content:space-between; gap:24px; align-items:center; box-shadow:0 26px 70px rgba(15,23,42,.24); }
+    .contact-strip h2 { color:#fff; font-size:clamp(1.7rem,3vw,2.55rem); margin-bottom:8px; }
+    .contact-strip p, .contact-strip span { color:#cbd5e1; }
+    .footer-note { background:#101827; color:#cbd5e1; padding:34px 0; font-size:.9rem; }
+    @media(max-width:900px) {
+      .hero-section { min-height:auto; padding:18px 0 56px; }
+      .lp-nav { margin-bottom:44px; align-items:flex-start; }
+      .hero-grid, .split-text { grid-template-columns:1fr; gap:34px; }
+      .hero-photo, .hero-photo-placeholder { aspect-ratio:16/11; }
+      .hero-badge { left:16px; bottom:16px; }
+      .trustbar { margin-top:0; }
+      .trustbar-grid { grid-template-columns:repeat(2,1fr); }
+      .trustbar-item:nth-child(2) { border-right:0; }
+      .gallery-grid { grid-template-columns:1fr 1fr; }
+      .gallery-grid img:first-child { grid-column:1/-1; grid-row:auto; height:260px; }
+      .contact-strip { flex-direction:column; align-items:flex-start; }
+    }
+    @media(max-width:640px) {
+      .container { padding:0 18px; }
+      .section { padding:58px 0; }
+      .lp-nav .btn { display:none; }
+      h1 { font-size:clamp(2.25rem,13vw,3.7rem); }
+      .hero-actions { flex-direction:column; }
+      .btn { width:100%; }
+      .trustbar-grid, .gallery-grid { grid-template-columns:1fr; }
+      .trustbar-item { border-right:0; border-bottom:1px solid #edf1f5; }
+      .trustbar-item:last-child { border-bottom:0; }
+      .gallery-grid img, .gallery-grid img:first-child { height:235px; }
+    }
   </style>`;
 
   for (const section of sections || []) {
     if (section.props?.visible === false) continue;
     const p = section.props || {};
     const sh = (v: any) => sanitizeStoredHtml(String(v ?? ""));
+    const safeUrl = (v: any) => sh(v);
+    const logo = p.logoUrl
+      ? `<img src="${safeUrl(p.logoUrl)}" alt="${sh(p.brandName || "Logo")}" class="brand-logo" />`
+      : `<div class="brand-mark">${sh(p.logoInitials || "N")}</div>`;
 
     switch (section.type) {
       case "HeroBlock":
-        html += `<div class="hero-section"><div class="container text-center">
-          <h1>${sh(p.headline)}</h1>
-          ${p.subheadline ? `<p style="font-size:1.25rem;color:#64748b;margin-top:16px;max-width:640px;margin-inline:auto">${sh(p.subheadline)}</p>` : ""}
-          ${p.ctaText ? `<div style="margin-top:32px"><a class="btn btn-primary" href="${sh(p.ctaUrl || "#form")}">${sh(p.ctaText)}</a></div>` : ""}
-          ${p.imageUrl ? `<img src="${sh(p.imageUrl)}" alt="" style="margin-top:48px;max-width:100%;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.1)" />` : ""}
-        </div></div>`;
+        html += `<section class="hero-section"><div class="container">
+          <div class="lp-nav">
+            <div class="brand">
+              ${logo}
+              <div style="min-width:0">
+                <div class="brand-name">${sh(p.brandName || p.headline || "Site profissional")}</div>
+                <div class="brand-sub">${sh(p.eyebrow || "Atendimento local")}</div>
+              </div>
+            </div>
+            ${p.ctaText ? `<a class="btn btn-primary" href="${safeUrl(p.ctaUrl || "#form")}">${sh(p.ctaText)}</a>` : ""}
+          </div>
+          <div class="hero-grid">
+            <div class="hero-copy">
+              ${p.eyebrow ? `<div class="eyebrow">${sh(p.eyebrow)}</div>` : ""}
+              <h1>${sh(p.headline)}</h1>
+              ${p.subheadline ? `<p class="lead">${sh(p.subheadline)}</p>` : ""}
+              <div class="hero-actions">
+                ${p.ctaText ? `<a class="btn btn-primary" href="${safeUrl(p.ctaUrl || "#form")}">${sh(p.ctaText)}</a>` : ""}
+                ${p.secondaryCtaText ? `<a class="btn btn-secondary" href="${safeUrl(p.secondaryCtaUrl || "#form")}">${sh(p.secondaryCtaText)}</a>` : ""}
+              </div>
+              <div class="hero-meta">
+                ${p.rating ? `<span>${Number(p.rating).toFixed(1)}/5 no Google</span>` : ""}
+                ${p.reviewsCount ? `<span>${sh(p.reviewsCount)} avaliacoes</span>` : ""}
+                ${p.phone ? `<span>${sh(p.phone)}</span>` : ""}
+                ${p.address ? `<span>${sh(p.address)}</span>` : ""}
+              </div>
+            </div>
+            <div class="hero-media">
+              ${p.imageUrl ? `<img src="${safeUrl(p.imageUrl)}" alt="${sh(p.brandName || p.headline)}" class="hero-photo" />` : `<div class="hero-photo-placeholder">${sh(p.logoInitials || "N")}</div>`}
+              ${(p.rating || p.reviewsCount) ? `<div class="hero-badge"><strong>${p.rating ? Number(p.rating).toFixed(1) : "Google"}</strong><span>${p.reviewsCount ? `${sh(p.reviewsCount)} avaliacoes` : "perfil verificado"}</span></div>` : ""}
+              ${Array.isArray(p.galleryImages) && p.galleryImages.length > 1 ? `<div class="mini-gallery">${p.galleryImages.slice(0, 3).map((img: string) => `<img src="${safeUrl(img)}" alt="" />`).join("")}</div>` : ""}
+            </div>
+          </div>
+        </div></section>`;
+        break;
+
+      case "TrustBarBlock":
+        html += `<section class="trustbar"><div class="container"><div class="trustbar-grid">
+          ${(p.items || []).map((item: any) => `<div class="trustbar-item"><div class="trustbar-value">${sh(item.value)}</div><div class="trustbar-label">${sh(item.label)}</div></div>`).join("")}
+        </div></div></section>`;
         break;
 
       case "ProblemBlock":
-        html += `<div class="section"><div class="container text-center" style="max-width:720px;margin-inline:auto">
-          <h2>${sh(p.title)}</h2>
-          <p style="font-size:1.125rem;color:#64748b">${sh(p.description)}</p>
-        </div></div>`;
+        html += `<section class="section section-white"><div class="container split-text">
+          <div><div class="eyebrow">Primeira impressao</div><h2>${sh(p.title)}</h2></div>
+          <p class="lead">${sh(p.description)}</p>
+        </div></section>`;
         break;
 
       case "SolutionBlock":
-        html += `<div class="section"><div class="container text-center" style="max-width:720px;margin-inline:auto">
+        html += `<section class="section section-soft"><div class="container text-center" style="max-width:760px;margin-inline:auto">
           <h2>${sh(p.title)}</h2>
-          <p style="font-size:1.125rem;color:#64748b">${sh(p.description)}</p>
-        </div></div>`;
+          <p class="lead">${sh(p.description)}</p>
+        </div></section>`;
         break;
 
       case "BenefitsBlock":
-        html += `<div class="section"><div class="container">
+        html += `<section id="${sh(p.id || "")}" class="section section-soft"><div class="container">
           <h2 class="text-center">${sh(p.title)}</h2>
           <div class="grid-3" style="margin-top:40px">${(p.items || []).map((item: any) => `
             <div class="card">
               <div class="icon-wrap" style="background:${primary}15;color:${primary}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
               <h3>${sh(item.title)}</h3>
-              <p style="color:#64748b;margin-top:8px;font-size:.95rem">${sh(item.description)}</p>
+              <p style="color:#64748b;margin-top:10px;font-size:.98rem;line-height:1.7">${sh(item.description)}</p>
             </div>`).join("")}
           </div>
-        </div></div>`;
+        </div></section>`;
+        break;
+
+      case "GalleryBlock":
+        html += `<section class="section section-white"><div class="container">
+          <div style="max-width:720px"><div class="eyebrow">Fotos reais</div><h2>${sh(p.title)}</h2>${p.description ? `<p class="lead">${sh(p.description)}</p>` : ""}</div>
+          <div class="gallery-grid">${(p.images || []).slice(0, 5).map((img: string) => `<img src="${safeUrl(img)}" alt="${sh(p.title)}" loading="lazy" />`).join("")}</div>
+        </div></section>`;
         break;
 
       case "HowItWorksBlock":
-        html += `<div class="section"><div class="container">
+        html += `<section class="section section-white"><div class="container">
           <h2 class="text-center">${sh(p.title)}</h2>
           <div style="margin-top:48px;display:flex;flex-direction:column;gap:24px;max-width:640px;margin-inline:auto">${(p.steps || []).map((step: any, i: number) => `
             <div style="display:flex;gap:16px;align-items:flex-start">
@@ -703,11 +813,11 @@ function renderSectionsToHtml(sections: any[], theme: any, pageSlug: string = ""
               <div><h3>${sh(step.title)}</h3><p style="color:#64748b;margin-top:4px">${sh(step.description)}</p></div>
             </div>`).join("")}
           </div>
-        </div></div>`;
+        </div></section>`;
         break;
 
       case "SocialProofBlock":
-        html += `<div class="section"><div class="container">
+        html += `<section class="section section-soft"><div class="container">
           <h2 class="text-center">${sh(p.title)}</h2>
           <div class="grid-3" style="margin-top:40px">${(p.testimonials || []).map((t: any) => `
             <div class="testimonial">
@@ -718,11 +828,27 @@ function renderSectionsToHtml(sections: any[], theme: any, pageSlug: string = ""
               </div>
             </div>`).join("")}
           </div>
-        </div></div>`;
+        </div></section>`;
+        break;
+
+      case "ContactStripBlock":
+        html += `<section class="section section-white"><div class="container">
+          <div class="contact-strip">
+            <div>
+              <h2>${sh(p.title)}</h2>
+              ${p.description ? `<p>${sh(p.description)}</p>` : ""}
+              <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:18px;font-weight:750">
+                ${p.phone ? `<span>${sh(p.phone)}</span>` : ""}
+                ${p.address ? `<span>${sh(p.address)}</span>` : ""}
+              </div>
+            </div>
+            ${p.ctaText ? `<a class="btn" style="background:${accent};color:#fff" href="${safeUrl(p.ctaUrl || "#form")}">${sh(p.ctaText)}</a>` : ""}
+          </div>
+        </div></section>`;
         break;
 
       case "FAQBlock":
-        html += `<div class="section"><div class="container" style="max-width:720px;margin-inline:auto">
+        html += `<section class="section section-white"><div class="container" style="max-width:760px;margin-inline:auto">
           <h2 class="text-center">${sh(p.title)}</h2>
           <div style="margin-top:32px">${(p.items || []).map((item: any) => `
             <div class="faq-item">
@@ -730,50 +856,51 @@ function renderSectionsToHtml(sections: any[], theme: any, pageSlug: string = ""
               <div class="faq-answer">${sh(item.answer)}</div>
             </div>`).join("")}
           </div>
-        </div></div>`;
+        </div></section>`;
         break;
 
       case "CTABlock":
-        html += `<div class="section" style="background:linear-gradient(135deg,${primary},${secondary});color:#fff">
+        html += `<section class="section" style="background:linear-gradient(135deg,${primary},${secondary});color:#fff">
           <div class="container text-center">
             <h2 style="color:#fff">${sh(p.headline)}</h2>
             ${p.subheadline ? `<p style="font-size:1.125rem;opacity:.9;margin-top:12px">${sh(p.subheadline)}</p>` : ""}
             ${p.ctaText ? `<div style="margin-top:32px"><a class="btn" style="background:#fff;color:${primary}" href="${sh(p.ctaUrl || "#form")}">${sh(p.ctaText)}</a></div>` : ""}
           </div>
-        </div>`;
+        </section>`;
         break;
 
       case "FormBlock":
-        html += `<div id="form" class="section"><div class="container" style="max-width:560px;margin-inline:auto">
-          <h2 class="text-center">${p.title || "Solicite um contato"}</h2>
-          ${p.description ? `<p class="text-center" style="color:#64748b;margin-bottom:32px">${p.description}</p>` : ""}
-          <form id="lp-form-${pageSlug}" style="display:flex;flex-direction:column;gap:16px">
+        html += `<section id="form" class="section section-soft"><div class="container" style="max-width:620px;margin-inline:auto">
+          <h2 class="text-center">${sh(p.title || "Solicite um contato")}</h2>
+          ${p.description ? `<p class="text-center lead" style="margin-bottom:32px">${sh(p.description)}</p>` : ""}
+          <form id="lp-form-${pageSlug}" class="card" style="display:flex;flex-direction:column;gap:16px">
             ${(p.fields || ["nome", "telefone", "email", "mensagem"]).map((f: string) => {
-              const labelMap: Record<string, string> = { nome:"Nome", telefone:"Telefone", email:"E-mail", mensagem:"Mensagem", empresa:"Empresa" };
-              const typeMap: Record<string, string> = { email:"email", telefone:"tel" };
-              const isTextarea = f === "mensagem";
+              const labelMap: Record<string, string> = { nome:"Nome", name:"Nome", telefone:"Telefone", phone:"Telefone", email:"E-mail", mensagem:"Mensagem", message:"Mensagem", empresa:"Empresa" };
+              const nameMap: Record<string, string> = { nome:"name", telefone:"phone", mensagem:"message", empresa:"company" };
+              const typeMap: Record<string, string> = { email:"email", telefone:"tel", phone:"tel" };
+              const isTextarea = f === "mensagem" || f === "message";
               const placeholder = labelMap[f] || f;
-              const inputName = f;
+              const inputName = nameMap[f] || f;
               if (isTextarea) {
                 return `<textarea class="form-input" name="${inputName}" placeholder="${placeholder}" style="min-height:100px;resize:vertical"></textarea>`;
               }
-              return `<input class="form-input" type="${typeMap[f] || "text"}" name="${inputName}" placeholder="${placeholder}" required="${f === "email" || f === "nome" ? "required" : ""}" />`;
+              return `<input class="form-input" type="${typeMap[f] || "text"}" name="${inputName}" placeholder="${placeholder}" ${f === "email" || f === "nome" || f === "name" ? "required" : ""} />`;
             }).join("")}
             <input type="hidden" name="utmSource" />
             <input type="hidden" name="utmMedium" />
             <input type="hidden" name="utmCampaign" />
-            <button type="submit" class="btn btn-primary" style="justify-content:center;font-size:1.1rem;padding:18px 32px">${p.buttonText || "Enviar"}</button>
+            <button type="submit" class="btn btn-primary" style="justify-content:center;font-size:1.1rem;padding:18px 32px">${sh(p.buttonText || "Enviar")}</button>
           </form>
           <div id="lp-form-success" style="display:none;text-align:center;padding:40px;background:#f0fdf4;border-radius:16px;margin-top:24px">
             <h3 style="color:#16a34a">Obrigado! Recebemos seu contato.</h3>
             <p style="color:#64748b;margin-top:8px">Entraremos em contato em breve.</p>
           </div>
-        </div></div>`;
+        </div></section>`;
         break;
     }
   }
 
-  return html;
+  return `${html}<footer class="footer-note"><div class="container">Pagina publicada para contato comercial e conversao de buscas locais.</div></footer>`;
 }
 
 export function landingPagePublicRoutes(prisma: PrismaClient) {
@@ -868,12 +995,19 @@ export function landingPagePublicRoutes(prisma: PrismaClient) {
           e.preventDefault();
           const data = new FormData(form);
           const body = Object.fromEntries(data.entries());
+          const normalizedBody = {
+            ...body,
+            name: body.name || body.nome,
+            email: body.email,
+            phone: body.phone || body.telefone,
+            message: body.message || body.mensagem,
+          };
 
           try {
             const res = await fetch('${apiUrl}/api/landing-pages/${page.slug}/lead', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
+              body: JSON.stringify(normalizedBody),
             });
             if (res.ok) {
               form.style.display = 'none';

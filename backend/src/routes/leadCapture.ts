@@ -43,6 +43,79 @@ function cleanPhone(value?: string | null) {
   return String(value || "").replace(/\D/g, "");
 }
 
+function isLikelyImageUrl(value: string): boolean {
+  const clean = value.trim();
+  if (!/^https?:\/\//i.test(clean) && !/^data:image\//i.test(clean)) return false;
+  return /\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(clean)
+    || /googleusercontent|ggpht|gstatic|streetviewpixels|unsplash|images\.pexels|cloudinary|cdn/i.test(clean);
+}
+
+function collectImageUrls(input: unknown, parentKey = "", depth = 0): string[] {
+  if (!input || depth > 5) return [];
+  const keyHint = /logo|photo|foto|image|imagem|thumb|cover|capa|banner|avatar|picture/i.test(parentKey);
+
+  if (typeof input === "string") {
+    return keyHint && isLikelyImageUrl(input) ? [input.trim()] : [];
+  }
+
+  if (Array.isArray(input)) {
+    return input.flatMap((item) => collectImageUrls(item, parentKey, depth + 1));
+  }
+
+  if (typeof input === "object") {
+    return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) =>
+      collectImageUrls(value, `${parentKey}.${key}`, depth + 1)
+    );
+  }
+
+  return [];
+}
+
+function dedupeUrls(urls: string[]): string[] {
+  return [...new Set(urls.filter(Boolean).map((url) => url.trim()))];
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "N";
+}
+
+function extractSalesSiteAssets(lead: any) {
+  const raw = lead.rawData || {};
+  const rawImages = dedupeUrls(collectImageUrls(raw));
+  const logoUrls = dedupeUrls([
+    ...collectImageUrls(raw.logo, "logo"),
+    ...collectImageUrls(raw.logo_url, "logo_url"),
+    ...collectImageUrls(raw.logoUrl, "logoUrl"),
+    ...collectImageUrls(raw.business_logo, "business_logo"),
+    ...collectImageUrls(raw.profile_photo, "profile_photo"),
+  ]);
+  const thumbnailUrls = dedupeUrls([
+    ...collectImageUrls(raw.thumbnail, "thumbnail"),
+    ...collectImageUrls(raw.imageUrl, "imageUrl"),
+    ...collectImageUrls(raw.image_url, "image_url"),
+    ...collectImageUrls(raw.photo, "photo"),
+    ...collectImageUrls(raw.photo_url, "photo_url"),
+    ...collectImageUrls(raw.photos, "photos"),
+    ...collectImageUrls(raw.images, "images"),
+  ]);
+  const gallery = dedupeUrls([...thumbnailUrls, ...rawImages]).slice(0, 8);
+  const logoUrl = logoUrls[0] || null;
+  const heroImage = gallery.find((url) => url !== logoUrl) || gallery[0] || null;
+
+  return {
+    logoUrl,
+    logoInitials: getInitials(lead.businessName),
+    heroImage,
+    gallery,
+    source: gallery.length ? "google-business-profile" : "generated",
+  };
+}
+
 function resolveSalesTheme(category?: string | null) {
   const normalized = String(category || "").toLowerCase();
   if (/psic|terap|sa[uú]de|clinic|medic|odont/.test(normalized)) {
@@ -69,7 +142,7 @@ function buildProspectingSalesCopy(lead: any, publicUrl: string) {
   ].join("\n\n");
 }
 
-function buildProspectingSiteSections(lead: any, heroImage: string, publicUrl: string) {
+function buildProspectingSiteSections(lead: any, assets: any, heroImage: string, publicUrl: string) {
   const category = lead.category || "servicos profissionais";
   const location = [lead.city, lead.state].filter(Boolean).join("/") || "sua regiao";
   const ratingText = lead.rating ? `${Number(lead.rating).toFixed(1)} estrelas no Google` : "presenca local no Google";
@@ -84,43 +157,76 @@ function buildProspectingSiteSections(lead: any, heroImage: string, publicUrl: s
     {
       type: "HeroBlock",
       props: {
-        headline: `${lead.businessName}: ${category} em ${location}`,
-        subheadline: "Uma pagina direta, profissional e preparada para transformar visitas do Google em conversas pelo WhatsApp.",
+        brandName: lead.businessName,
+        logoUrl: assets.logoUrl,
+        logoInitials: assets.logoInitials,
+        eyebrow: `${category} em ${location}`,
+        headline: `Atendimento profissional em ${category} com a confianca de quem ja esta no Google`,
+        subheadline: `${lead.businessName} agora com uma pagina moderna para apresentar servicos, fotos, avaliacao, localizacao e contato rapido pelo WhatsApp.`,
         ctaText: "Falar pelo WhatsApp",
         ctaUrl,
+        secondaryCtaText: "Ver diferenciais",
+        secondaryCtaUrl: "#diferenciais",
         imageUrl: heroImage,
-        alignment: "center",
+        rating: lead.rating,
+        reviewsCount: lead.reviewsCount,
+        address: lead.address,
+        phone: lead.phoneNormalized || lead.phone,
+        galleryImages: assets.gallery,
+        alignment: "split",
+        visible: true
+      }
+    },
+    {
+      type: "TrustBarBlock",
+      props: {
+        items: [
+          { label: ratingText, value: lead.rating ? `${Number(lead.rating).toFixed(1)}/5` : "Google" },
+          { label: "Avaliacoes", value: lead.reviewsCount ? String(lead.reviewsCount) : "Perfil local" },
+          { label: "Atendimento", value: lead.phone ? "WhatsApp" : "Formulario" },
+          { label: "Regiao", value: location }
+        ],
         visible: true
       }
     },
     {
       type: "ProblemBlock",
       props: {
-        title: "Clientes pesquisam antes de chamar",
-        description: "Quando uma empresa aparece no Google sem site, parte da confianca fica no caminho. Esta pagina organiza informacoes, diferenciais, prova social e contato em uma experiencia clara.",
+        title: "Clientes pesquisam, comparam e decidem em poucos segundos",
+        description: `Esta pagina organiza o que o cliente precisa ver antes de chamar: quem e a ${lead.businessName}, onde atende, sinais de confianca, fotos do perfil e um caminho simples para contato.`,
         visible: true
       }
     },
     {
       type: "BenefitsBlock",
       props: {
-        title: "O que este site resolve",
+        id: "diferenciais",
+        title: "Por que escolher este atendimento",
         items: [
-          { icon: "Check", title: "Mais credibilidade", description: `${ratingText} e ${reviewsText} destacados de forma profissional.` },
-          { icon: "Check", title: "Contato sem atrito", description: "Botao de WhatsApp e formulario para facilitar o primeiro contato." },
-          { icon: "Check", title: "Presenca local", description: `Conteudo alinhado para quem busca ${category} em ${location}.` }
+          { icon: "Check", title: "Credibilidade visivel", description: `${ratingText} e ${reviewsText} apresentados com linguagem clara e profissional.` },
+          { icon: "Check", title: "Contato sem atrito", description: "Botao de WhatsApp, telefone e formulario para facilitar o primeiro contato." },
+          { icon: "Check", title: "Presenca local forte", description: `Conteudo alinhado para quem busca ${category} em ${location}.` }
         ],
         visible: true
       }
     },
+    ...(assets.gallery.length ? [{
+      type: "GalleryBlock",
+      props: {
+        title: "Conheca o espaco e a estrutura",
+        description: "Fotos recuperadas do perfil do Google Meu Negocio para deixar a pagina mais real e confiavel.",
+        images: assets.gallery,
+        visible: true
+      }
+    }] : []),
     {
       type: "HowItWorksBlock",
       props: {
-        title: "Como o cliente chega ate voce",
+        title: "Como o cliente chega ate o atendimento",
         steps: [
           { step: "1", title: "Encontra no Google", description: "O perfil local desperta o interesse na busca." },
-          { step: "2", title: "Acessa o site", description: "A pagina apresenta servicos, confianca e caminho de contato." },
-          { step: "3", title: "Chama no WhatsApp", description: "A conversa comeca com menos duvida e mais intencao." }
+          { step: "2", title: "Confere a pagina", description: "A pagina apresenta servicos, fotos, confianca e caminho de contato." },
+          { step: "3", title: "Chama no WhatsApp", description: "A conversa comeca com menos duvida e mais intencao de compra." }
         ],
         visible: true
       }
@@ -131,12 +237,24 @@ function buildProspectingSiteSections(lead: any, heroImage: string, publicUrl: s
         title: "Sinais de confianca",
         testimonials: [
           {
-            name: "Perfil no Google",
+            name: lead.businessName,
             role: lead.category || "Empresa local",
             text: `${lead.businessName} aparece com ${ratingText} e ${reviewsText}.`,
-            photoUrl: ""
+            photoUrl: assets.logoUrl || assets.gallery[0] || ""
           }
         ],
+        visible: true
+      }
+    },
+    {
+      type: "ContactStripBlock",
+      props: {
+        title: "Pronto para agendar ou tirar duvidas?",
+        description: "Use o WhatsApp para falar com a equipe agora.",
+        ctaText: "Abrir WhatsApp",
+        ctaUrl,
+        phone: lead.phoneNormalized || lead.phone,
+        address: lead.address,
         visible: true
       }
     },
@@ -155,8 +273,8 @@ function buildProspectingSiteSections(lead: any, heroImage: string, publicUrl: s
     {
       type: "CTABlock",
       props: {
-        headline: "Transforme buscas locais em conversas reais",
-        subheadline: "Um site simples e bem feito ajuda quem pesquisa no Google a confiar e chamar.",
+        headline: "Uma pagina profissional muda a primeira impressao",
+        subheadline: "Quando fotos, provas e contato aparecem juntos, a busca local vira conversa com mais facilidade.",
         ctaText: "Quero falar agora",
         ctaUrl,
         visible: true
@@ -389,20 +507,25 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
       const publicUrl = `${baseUrl}/lp/${slug}`;
       const theme = resolveSalesTheme(lead.category);
       const logoConcept = `${lead.businessName} - logo textual provisoria, estilo profissional, simples e memoravel`;
+      const assets = extractSalesSiteAssets(lead);
       const heroPrompt = [
         "professional website hero image",
         lead.category || "local business",
         lead.city || lead.state || "Brazil",
         "clean commercial photography, trustworthy, modern, no text, no watermark"
       ].join(", ");
-      const heroImage = await imageAI.generate(heroPrompt, req.body?.imageApiKey);
-      const sections = buildProspectingSiteSections(lead, heroImage, publicUrl);
+      const heroImage = assets.heroImage || await imageAI.generate(heroPrompt, req.body?.imageApiKey);
+      const sections = buildProspectingSiteSections(lead, assets, heroImage, publicUrl);
       const whatsappMessage = buildProspectingSalesCopy(lead, publicUrl);
       const salesSitePackage = {
         landingPageId: null as string | null,
         url: publicUrl,
         slug,
         logoConcept,
+        logoUrl: assets.logoUrl,
+        logoInitials: assets.logoInitials,
+        gallery: assets.gallery,
+        assetSource: assets.source,
         heroPrompt,
         heroImage,
         generatedAt: new Date().toISOString(),
@@ -431,11 +554,18 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
             phone: lead.phoneNormalized || lead.phone,
             googleMapsUrl: lead.googleMapsUrl,
             rating: lead.rating,
-            reviewsCount: lead.reviewsCount
+            reviewsCount: lead.reviewsCount,
+            logoUrl: assets.logoUrl,
+            gallery: assets.gallery,
+            assetSource: assets.source
           },
           theme: {
             ...theme,
             logoConcept,
+            logoUrl: assets.logoUrl,
+            logoInitials: assets.logoInitials,
+            gallery: assets.gallery,
+            assetSource: assets.source,
             generatedFor: "prospecting-sales-site"
           }
         }
@@ -447,7 +577,9 @@ export function leadCaptureRoutes(prisma: PrismaClient) {
         `URL: ${publicUrl}`,
         `LandingPageId: ${page.id}`,
         `Logo/conceito: ${logoConcept}`,
-        `Imagem hero: ${heroPrompt}`,
+        assets.logoUrl ? `Logo importada: ${assets.logoUrl}` : `Logo fallback: monograma ${assets.logoInitials}`,
+        assets.gallery.length ? `Fotos importadas do perfil: ${assets.gallery.length}` : "Fotos importadas do perfil: 0",
+        `Imagem hero: ${assets.heroImage ? "perfil Google Meu Negocio" : heroPrompt}`,
         "Copy WhatsApp:",
         whatsappMessage
       ].join("\n");

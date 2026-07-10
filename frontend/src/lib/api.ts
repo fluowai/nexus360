@@ -149,9 +149,10 @@ export async function apiFetch(path: string, options: RequestInit = {}, retries 
 
   try {
     const controller = new AbortController();
+    const timeoutMs = (options as any).timeoutMs || 30000;
     const timeoutId = setTimeout(() => {
       controller.abort(new DOMException('Request timed out', 'TimeoutError'));
-    }, 15000);
+    }, timeoutMs);
 
     let response: Response;
     try {

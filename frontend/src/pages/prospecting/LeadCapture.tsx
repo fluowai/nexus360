@@ -1058,6 +1058,7 @@ export default function LeadCapture() {
     try {
       const res = await apiFetch('/api/lead-capture/search', {
         method: 'POST',
+        ...( { timeoutMs: 60000 } as any),
         body: JSON.stringify({
           ...searchParams,
           autoEnrollFunnel: autoFunnel.enabled,

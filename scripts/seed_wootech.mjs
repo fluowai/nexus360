@@ -481,7 +481,7 @@ async function upsertWootechAccount() {
           landingPageSlug: LANDING_SLUG,
           landingDomain: LANDING_DOMAIN,
           crmDomain: CRM_DOMAIN,
-          landingPageUrl: `/lp/${LANDING_SLUG}`,
+          landingPageUrl: `https://${LANDING_DOMAIN}`,
         },
       },
       update: {
@@ -510,7 +510,7 @@ async function upsertWootechAccount() {
           landingPageSlug: LANDING_SLUG,
           landingDomain: LANDING_DOMAIN,
           crmDomain: CRM_DOMAIN,
-          landingPageUrl: `/lp/${LANDING_SLUG}`,
+          landingPageUrl: `https://${LANDING_DOMAIN}`,
         },
       },
     });

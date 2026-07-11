@@ -42,6 +42,7 @@ const WhitelabelDomainOnboarding = lazy(() => import("./pages/auth/WhitelabelDom
 const WhitelabelOnboarding = lazy(() => import("./pages/auth/WhitelabelOnboardingWizard"));
 const WhitelabelOnboardingPreview = lazy(() => import("./pages/auth/WhitelabelOnboardingPreview"));
 const AgentsHub = lazy(() => import("./pages/settings/AgentsHub"));
+const Autopilot = lazy(() => import("./pages/settings/Autopilot"));
 const AISettings = lazy(() => import("./pages/settings/AISettings"));
 const Finance = lazy(() => import("./pages/finance/Finance"));
 const Tasks = lazy(() => import("./pages/operations/Tasks"));
@@ -434,6 +435,7 @@ export default function App() {
           <Route path="/closer" element={<CloserDashboard />} />
           <Route path="/proposals" element={<Proposals />} />
           <Route path="/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
+          <Route path="/autopilot" element={<Autopilot selectedClientId={selectedClientId} />} />
           <Route path="/acp" element={<AcpHub selectedClientId={selectedClientId} />} />
           <Route path="/ai-settings" element={<AISettings />} />
           <Route path="/prompt-architect" element={<PromptArchitect />} />
@@ -506,6 +508,7 @@ export default function App() {
           <Route path="/:slug/closer" element={<CloserDashboard />} />
           <Route path="/:slug/proposals" element={<Proposals />} />
           <Route path="/:slug/agents-hub" element={<AgentsHub selectedClientId={selectedClientId} />} />
+          <Route path="/:slug/autopilot" element={<Autopilot selectedClientId={selectedClientId} />} />
           <Route path="/:slug/acp" element={<AcpHub selectedClientId={selectedClientId} />} />
           <Route path="/:slug/google-local" element={<GoogleLocal />} />
           <Route path="/:slug/ai-settings" element={<AISettings />} />

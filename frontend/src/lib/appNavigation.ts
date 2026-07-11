@@ -138,6 +138,7 @@ export const RESERVED_WORKSPACE_SEGMENTS = new Set([
   'sales-machine',
   'proposals',
   'agents-hub',
+  'autopilot',
   'ai-settings',
   'prompt-architect',
   'billing',
@@ -210,6 +211,7 @@ export const menuGroups: MenuGroup[] = [
     modules: ['ai', 'prompt_architect', 'knowledge_base'],
     items: [
       { module: 'ai', icon: Bot, label: 'Agentes de IA', path: '/agents-hub', isAi: true },
+      { module: 'ai', icon: Rocket, label: 'Autopilot', path: '/autopilot', isAi: true, badge: 'novo' },
       { module: 'prompt_architect', icon: Brain, label: 'Arquiteto de Prompts', path: '/prompt-architect', isAi: true },
       { module: 'ai', icon: Zap, label: 'Orquestrador ACP', path: '/acp', isAi: true, badge: 'v2' },
       { module: 'knowledge_base', icon: BookOpen, label: 'Base de Conhecimento', path: '/knowledge-base' },

@@ -62,6 +62,7 @@ import { notificationRoutes } from "./routes/notifications.js";
 import { deliveryRoutes } from "./routes/delivery.js";
 import { acpRoutes } from "./routes/acp.js";
 import { agentQueueRoutes } from "./routes/agentQueue.js";
+import { autopilotRoutes } from "./routes/autopilot.js";
 import { serviceCatalogRoutes } from "./routes/serviceCatalog.js";
 import { timeTrackingRoutes } from "./routes/timeTracking.js";
 import { healthScoreRoutes } from "./routes/healthScore.js";
@@ -114,7 +115,13 @@ const allowedOrigins = new Set([
   `https://www.${panelHostname}`,
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
 ]);
+
+function isLocalDevHost(hostname: string) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
 
 async function isRegisteredTenantHost(hostname: string) {
   return Boolean(await findTenantHostContext(prisma, hostname));
@@ -149,7 +156,7 @@ const corsOptions: cors.CorsOptions = {
       const normalizedHost = normalizeRequestHost(hostname);
       const isAllowed =
         allowedOrigins.has(origin) ||
-        normalizedHost === 'localhost' ||
+        isLocalDevHost(normalizedHost) ||
         await isRegisteredTenantHost(normalizedHost);
 
       return callback(null, isAllowed);
@@ -383,6 +390,7 @@ const protectedRoutes = [
   { path: "/api/outbound", router: outboundRoutes },
   { path: "/api/acp", router: acpRoutes },
   { path: "/api/agent-queue", router: agentQueueRoutes },
+  { path: "/api/autopilot", router: autopilotRoutes },
   { path: "/api/storage", router: storageRoutes },
   { path: "/api/landing-pages", router: landingPageRoutes },
   { path: "/api/google-local", router: googleLocalRoutes },

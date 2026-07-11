@@ -15,6 +15,7 @@ import {
 import { auditFromRequest } from "../utils/auditLogger.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { classifyAndTagWhatsAppConversation, tagWhatsAppEntity } from "../services/whatsappIntelligence.js";
+import { processWhatsappOperationalMessage } from "../services/agencyOperatingSystem.js";
 import {
   createDispatchAttempt,
   detectOptOut,
@@ -558,6 +559,11 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
   });
   const category = (intelligence as any)?.classification?.category;
   const labels = (intelligence as any)?.classification?.labels || ["WhatsApp"];
+  const transcript = (intelligence as any)?.classification?.transcript || null;
+  const operationalText = [messageContent || messageCaption, transcript]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .join("\n\nTranscricao do audio:\n");
   const shouldCreateLead = !payload.fromMe
     && !payload.isGroup
     && !isWhatsAppGroupJid(chatJid)
@@ -567,6 +573,30 @@ async function upsertInboundWhatsAppMessage(prisma: PrismaClient, payload: any) 
     : conversation.leadId || null;
   if (leadId) {
     await tagWhatsAppEntity(prisma, organizationId, labels, leadId, "CONTACT");
+  }
+
+  if (!payload.fromMe) {
+    await processWhatsappOperationalMessage(prisma, {
+      organizationId,
+      conversationId: conversation.id,
+      messageId: message.id,
+      leadId,
+      text: operationalText,
+      mediaType,
+      fileUrl: payload.message?.fileUrl || null,
+      senderName: payload.pushName || payload.senderPushName || displayName,
+    }).catch((error: any) => {
+      console.warn("[WHATSAPP_OPERATIONAL_INTAKE_SKIPPED]", error?.message || error);
+      return null;
+    });
+    emitAutomationEvent("whatsapp.message.received", {
+      organizationId,
+      conversationId: conversation.id,
+      messageId: message.id,
+      leadId,
+      text: operationalText,
+      mediaType,
+    });
   }
 
   if (prospectingRun && !payload.fromMe) {

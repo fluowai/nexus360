@@ -6,6 +6,7 @@ import {
   getOrganizationExperienceState,
   provisionExperienceFromOnboardingResponse,
 } from "../services/experienceProvisioning.js";
+import { bootstrapAgencyOperatingSystem, parseServices } from "../services/agencyOperatingSystem.js";
 
 function buildOrgSlug(value: unknown) {
   return String(value || "")
@@ -89,6 +90,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
         leadChannels, hasSdr, hasCloser, hasPostSales,
         painPoints, biggestProblem,
         deliveryProcess, hasOnboarding, hasChecklist, hasRenewal, hasUpsell,
+        servicesOffered,
       } = req.body;
 
       if (!businessName || !businessType || !targetAudience) {
@@ -100,6 +102,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
       });
 
       const recommendedModules = suggestModules(businessType, req.body);
+      const services = parseServices(servicesOffered);
       const data = {
         businessName,
         businessType,
@@ -121,7 +124,7 @@ export function onboardingRoutes(prisma: PrismaClient) {
         hasChecklist: !!hasChecklist,
         hasRenewal: !!hasRenewal,
         hasUpsell: !!hasUpsell,
-        rawAnswers: { ...req.body, recommendedModules },
+        rawAnswers: { ...req.body, servicesOffered: services, recommendedModules },
         organizationId: orgId,
         appliedAt: null,
       };
@@ -138,7 +141,23 @@ export function onboardingRoutes(prisma: PrismaClient) {
         },
       });
 
-      res.json({ success: true, response, recommendedModules });
+      const normalizedType = String(businessType || "").toLowerCase();
+      const shouldBootstrapAgency = normalizedType.includes("agenc") ||
+        normalizedType.includes("marketing") ||
+        services.length > 0;
+      const agencyOperatingSystem = shouldBootstrapAgency
+        ? await bootstrapAgencyOperatingSystem(prisma, {
+            organizationId: orgId,
+            userId: req.user?.id,
+            businessName,
+            businessType,
+            targetAudience,
+            services,
+            deliveryProcess,
+          })
+        : null;
+
+      res.json({ success: true, response, recommendedModules, agencyOperatingSystem });
     } catch (error) {
       next(error);
     }

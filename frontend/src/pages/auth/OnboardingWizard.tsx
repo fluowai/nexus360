@@ -22,6 +22,7 @@ const steps = [
 interface StepData {
   businessName: string;
   businessType: string;
+  servicesOffered: string;
   targetAudience: string;
   averageTicket: string;
   salesCycle: string;
@@ -67,6 +68,7 @@ interface SavedExperience {
 const initialData: StepData = {
   businessName: "",
   businessType: "",
+  servicesOffered: "Gestao de trafego pago\nCriacao de landing pages\nProspeccao ativa BDR\nQualificacao SDR\nFechamento closer\nCriativos e copies\nGestao de WhatsApp e follow-up\nCustomer Success e relatorios",
   targetAudience: "",
   averageTicket: "",
   salesCycle: "",
@@ -434,6 +436,16 @@ export default function OnboardingWizard() {
                         className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-xl"
                         value={formData.targetAudience}
                         onChange={e => setFormData({...formData, targetAudience: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Servicos que a Nexus deve executar</label>
+                      <textarea
+                        rows={6}
+                        placeholder="Um servico por linha. Ex: Gestao de trafego pago, landing pages, BDR, SDR, closer..."
+                        className="w-full px-6 py-5 bg-slate-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-base resize-none"
+                        value={formData.servicesOffered}
+                        onChange={e => setFormData({...formData, servicesOffered: e.target.value})}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-6">

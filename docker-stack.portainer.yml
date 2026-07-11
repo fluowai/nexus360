@@ -125,7 +125,7 @@ services:
         - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
 
   google-maps-scraper:
-    image: ghcr.io/fluowai/nexus360-google-maps-scraper:latest
+    image: ghcr.io/fluowai/nexus360-google-maps-scraper:b9065f7f57a2445c2b9e2130450491a4294102e6
     command:
       - "-web"
       - "-addr"

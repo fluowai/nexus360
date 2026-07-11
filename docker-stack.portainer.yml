@@ -30,6 +30,12 @@ services:
         - "traefik.http.routers.nexus360_custom_static.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_custom_static.priority=200"
         - "traefik.http.routers.nexus360_custom_static.service=nexus360_frontend"
+        - "traefik.http.routers.nexus360_wootech_crm.rule=Host(`crm.wootech.com.br`)"
+        - "traefik.http.routers.nexus360_wootech_crm.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_wootech_crm.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_wootech_crm.tls.domains[0].main=crm.wootech.com.br"
+        - "traefik.http.routers.nexus360_wootech_crm.priority=300"
+        - "traefik.http.routers.nexus360_wootech_crm.service=nexus360_frontend"
         - "traefik.http.services.nexus360_frontend.loadbalancer.server.port=80"
 
   api:
@@ -122,6 +128,18 @@ services:
         - "traefik.http.routers.nexus360_custom_static_api.tls.certresolver=letsencryptresolver"
         - "traefik.http.routers.nexus360_custom_static_api.priority=210"
         - "traefik.http.routers.nexus360_custom_static_api.service=nexus360_api"
+        - "traefik.http.routers.nexus360_wootech_landing.rule=Host(`wootech.com.br`)"
+        - "traefik.http.routers.nexus360_wootech_landing.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_wootech_landing.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_wootech_landing.tls.domains[0].main=wootech.com.br"
+        - "traefik.http.routers.nexus360_wootech_landing.priority=300"
+        - "traefik.http.routers.nexus360_wootech_landing.service=nexus360_api"
+        - "traefik.http.routers.nexus360_wootech_crm_api.rule=Host(`crm.wootech.com.br`) && (PathPrefix(`/api`) || PathPrefix(`/lp`))"
+        - "traefik.http.routers.nexus360_wootech_crm_api.entrypoints=websecure"
+        - "traefik.http.routers.nexus360_wootech_crm_api.tls.certresolver=letsencryptresolver"
+        - "traefik.http.routers.nexus360_wootech_crm_api.tls.domains[0].main=crm.wootech.com.br"
+        - "traefik.http.routers.nexus360_wootech_crm_api.priority=310"
+        - "traefik.http.routers.nexus360_wootech_crm_api.service=nexus360_api"
         - "traefik.http.services.nexus360_api.loadbalancer.server.port=10000"
 
   google-maps-scraper:

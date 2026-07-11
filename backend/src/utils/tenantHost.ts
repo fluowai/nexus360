@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { getInternalWorkspaceUrls } from "./domainConfig.js";
+import { isCrmDomainProvider, verifyAndProvisionDomain } from "../services/domainProvisioning.js";
 
 const RESERVED_WORKSPACE_SLUGS = new Set([
   "admin",
@@ -61,7 +62,7 @@ export async function findVerifiedTenantDomain(prisma: PrismaClient, hostValue: 
 
   try {
     const domain = await prisma.domain.findFirst({
-      where: { name: host, status: "verified" },
+      where: { name: host },
       include: {
         organization: {
           select: { id: true, name: true, slug: true, type: true, settings: true, whiteLabelConfig: true },
@@ -70,11 +71,18 @@ export async function findVerifiedTenantDomain(prisma: PrismaClient, hostValue: 
     });
 
     if (!domain) return null;
+    if (!isCrmDomainProvider(domain.provider)) return null;
+
+    const resolvedDomain = domain.status === "verified"
+      ? domain
+      : (await verifyAndProvisionDomain(prisma, domain, domain.organization.slug)).domain;
+
+    if (resolvedDomain.status !== "verified") return null;
 
     return {
       host,
-      domain: domain.name,
-      status: domain.status,
+      domain: resolvedDomain.name,
+      status: resolvedDomain.status,
       organization: domain.organization,
     };
   } catch (error: any) {

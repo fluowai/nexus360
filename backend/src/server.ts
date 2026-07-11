@@ -124,7 +124,19 @@ function isLocalDevHost(hostname: string) {
 }
 
 async function isRegisteredTenantHost(hostname: string) {
-  return Boolean(await findTenantHostContext(prisma, hostname));
+  if (await findTenantHostContext(prisma, hostname)) return true;
+  const host = normalizeRequestHost(hostname);
+  if (!host) return false;
+  return Boolean(await prisma.landingPage.findFirst({
+    where: {
+      status: "published",
+      OR: [
+        { customDomain: host },
+        { domain: host },
+      ],
+    },
+    select: { id: true },
+  }));
 }
 
 async function enforceTenantDomain(req: any, res: any, next: any) {
@@ -260,6 +272,42 @@ app.get("/api/domain/context", async (req, res, next) => {
     }
 
     if (!host) return res.json({ customDomain: false });
+
+    const landingPageDomain = await prisma.landingPage.findFirst({
+      where: {
+        status: "published",
+        OR: [
+          { customDomain: host },
+          { domain: host },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        organization: {
+          select: { id: true, name: true, slug: true, type: true, whiteLabelConfig: true },
+        },
+      },
+    });
+
+    if (landingPageDomain) {
+      return res.json({
+        customDomain: true,
+        domain: host,
+        status: "verified",
+        kind: "landing-page",
+        landingPage: {
+          id: landingPageDomain.id,
+          name: landingPageDomain.name,
+          slug: landingPageDomain.slug,
+          publicPath: `/lp/${landingPageDomain.slug}`,
+          publicUrl: `https://${host}`,
+        },
+        organization: serializeContextOrganization(landingPageDomain.organization),
+        whitelabelOnboarding: serializeContextOnboarding(landingPageDomain.organization),
+      });
+    }
 
     const tenantDomain = await findTenantHostContext(prisma, host);
 

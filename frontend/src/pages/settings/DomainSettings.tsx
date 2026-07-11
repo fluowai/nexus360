@@ -264,7 +264,7 @@ export default function DomainSettings() {
               </div>
               <div className="flex items-start gap-3">
                 <span className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">3</span>
-                <p className="text-blue-800/80">Clique em <strong>Validar DNS</strong> e o CRM já abre no domínio do cliente</p>
+                <p className="text-blue-800/80">O sistema valida automaticamente e libera o CRM assim que o DNS propagar</p>
               </div>
             </div>
           </div>
@@ -333,7 +333,7 @@ export default function DomainSettings() {
                       className="px-5 py-2.5 rounded-xl bg-gray-950 text-white text-xs font-bold hover:bg-black disabled:opacity-60 flex items-center gap-2 transition-all"
                     >
                       {verifyingId === domain.id ? <Loader2 className="animate-spin" size={14} /> : <RefreshCw size={14} />}
-                      Validar DNS
+                      Revalidar DNS
                     </button>
                     <button
                       onClick={() => handleDelete(domain)}
@@ -381,7 +381,7 @@ export default function DomainSettings() {
                       />
                     </div>
                     <p className="text-xs text-gray-500 mt-2">
-                      Após alterar o DNS, aguarde a propagação (5-30 min) e clique em <strong>Validar DNS</strong>.
+                      Após alterar o DNS, aguarde a propagação (5-30 min). O sistema revalida automaticamente; use <strong>Revalidar DNS</strong> se quiser conferir na hora.
                       O certificado HTTPS é gerado automaticamente pelo Traefik/Let's Encrypt.
                     </p>
                     {domain.dns.internalUrl && (

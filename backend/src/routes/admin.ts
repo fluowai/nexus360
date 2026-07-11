@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { assertStrongPassword } from "../utils/security.js";
 import { DOMAIN_REGEX, getDnsInstructions, normalizeDomain, verifyDomainDns } from "../utils/domainConfig.js";
 import { removeTraefikDomainConfig, syncTraefikDomainConfig, writeTraefikDomainConfig } from "../services/traefikDomainConfig.js";
+import { refreshPendingDomainList, verifyAndProvisionDomain } from "../services/domainProvisioning.js";
 import {
   normalizeBrazilianPhone,
   validateEmailAddress,
@@ -152,7 +153,11 @@ export function adminRoutes(prisma: PrismaClient) {
         },
         orderBy: { createdAt: 'desc' }
       });
-      res.json(orgs);
+      const refreshedOrgs = await Promise.all(orgs.map(async (org: any) => ({
+        ...org,
+        domains: await refreshPendingDomainList(prisma, org.domains || []),
+      })));
+      res.json(refreshedOrgs);
     } catch (error) {
       console.error("[ADMIN_ORGS_GET_ERROR]", error);
       const details = error instanceof Error ? error.message : "Unknown error";
@@ -271,7 +276,7 @@ export function adminRoutes(prisma: PrismaClient) {
           await tx.domain.create({
             data: {
               name: normalizedDomain,
-              provider: 'docker',
+              provider: 'crm',
               status: verification.verified ? "verified" : "pending",
               organizationId: org.id,
             },
@@ -415,10 +420,10 @@ export function adminRoutes(prisma: PrismaClient) {
             domainSync = { name: normalizedDomain, verified: verification.verified };
             await tx.domain.upsert({
               where: { name: normalizedDomain },
-              update: { organizationId: id, provider: 'docker', status: verification.verified ? "verified" : "pending" },
+              update: { organizationId: id, provider: 'crm', status: verification.verified ? "verified" : "pending" },
               create: {
                 name: normalizedDomain,
-                provider: 'docker',
+                provider: 'crm',
                 status: verification.verified ? "verified" : "pending",
                 organizationId: id,
               },
@@ -641,10 +646,10 @@ export function adminRoutes(prisma: PrismaClient) {
 
         const domainRecord = await tx.domain.upsert({
           where: { name: domain },
-          update: { organizationId: orgId, provider: "docker", status: verification.verified ? "verified" : existing?.status || "pending" },
+          update: { organizationId: orgId, provider: "crm", status: verification.verified ? "verified" : existing?.status || "pending" },
           create: {
             name: domain,
-            provider: "docker",
+            provider: "crm",
             status: verification.verified ? "verified" : "pending",
             organizationId: orgId,
           },
@@ -692,20 +697,16 @@ export function adminRoutes(prisma: PrismaClient) {
       });
       if (!domain) return res.status(404).json({ error: "Dominio nao encontrado" });
 
-      const verification = await verifyDomainDns(domain.name, domain.organization.slug);
-      const updated = await prisma.domain.update({
-        where: { id: domain.id },
-        data: { status: verification.verified ? "verified" : "pending" },
-      });
+      const result = await verifyAndProvisionDomain(prisma, domain, domain.organization.slug);
 
       res.json({
         success: true,
         domain: {
-          ...updated,
+          ...result.domain,
           dns: getDnsInstructions(domain.name, domain.organization.slug),
         },
-        verification,
-        traefik: await syncTraefikDomainConfig(domain.name, verification.verified),
+        verification: result.verification,
+        traefik: result.traefik,
       });
     } catch (error: any) {
       console.error("[Admin Domain Verify Error]", error);
@@ -721,7 +722,7 @@ export function adminRoutes(prisma: PrismaClient) {
 
     try {
       const domains = await prisma.domain.findMany({
-        where: { status: "verified" },
+        where: { status: { in: ["verified", "pending"] } },
         select: { name: true },
         orderBy: { createdAt: "asc" },
       });

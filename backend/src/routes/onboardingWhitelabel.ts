@@ -163,8 +163,8 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
 
         await tx.domain.upsert({
           where: { name: normalizedDomain },
-          update: { organizationId: orgId, provider: "docker", status: verification.verified ? "verified" : "pending" },
-          create: { name: normalizedDomain, provider: "docker", status: verification.verified ? "verified" : "pending", organizationId: orgId },
+          update: { organizationId: orgId, provider: "crm", status: verification.verified ? "verified" : "pending" },
+          create: { name: normalizedDomain, provider: "crm", status: verification.verified ? "verified" : "pending", organizationId: orgId },
         });
 
         await tx.organization.update({
@@ -181,9 +181,7 @@ export function onboardingWhitelabelRoutes(prisma: PrismaClient) {
         });
       });
 
-      const traefik = verification.verified
-        ? await syncTraefikDomainConfig(normalizedDomain, verification.verified)
-        : undefined;
+      const traefik = await syncTraefikDomainConfig(normalizedDomain, verification.verified);
 
       if (previousDomain) {
         await removeTraefikDomainConfig(previousDomain).catch(() => {});

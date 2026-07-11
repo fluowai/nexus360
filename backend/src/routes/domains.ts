@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.js";
 import { DOMAIN_REGEX, getDnsInstructions, normalizeDomain, verifyDomainDns } from "../utils/domainConfig.js";
 import { removeTraefikDomainConfig, syncTraefikDomainConfig } from "../services/traefikDomainConfig.js";
+import { refreshPendingDomainList, verifyAndProvisionDomain } from "../services/domainProvisioning.js";
 
 export function domainRoutes(prisma: PrismaClient) {
   const router = Router();
@@ -14,11 +15,15 @@ export function domainRoutes(prisma: PrismaClient) {
 
     try {
       const domains = await prisma.domain.findMany({
-        where: { organizationId: orgId },
+        where: {
+          organizationId: orgId,
+          OR: [{ provider: "crm" }, { provider: "docker" }],
+        },
         include: { organization: { select: { slug: true } } },
         orderBy: { createdAt: "desc" },
       });
-      res.json(domains.map(domain => ({
+      const refreshedDomains = await refreshPendingDomainList(prisma, domains);
+      res.json(refreshedDomains.map(domain => ({
         ...domain,
         dns: getDnsInstructions(domain.name, domain.organization.slug),
       })));
@@ -31,7 +36,6 @@ export function domainRoutes(prisma: PrismaClient) {
   router.post("/", async (req: AuthRequest, res) => {
     const orgId = req.user?.orgId;
     const name = normalizeDomain(req.body?.name);
-    const provider = "docker";
 
     if (!orgId) return res.status(401).json({ error: "Unauthorized" });
     if (!DOMAIN_REGEX.test(name)) {
@@ -51,10 +55,10 @@ export function domainRoutes(prisma: PrismaClient) {
       const verification = await verifyDomainDns(name, org?.slug);
       const domain = await prisma.domain.upsert({
         where: { name },
-        update: { provider, status: verification.verified ? "verified" : existing?.status || "pending" },
+        update: { provider: "crm", status: verification.verified ? "verified" : existing?.status || "pending" },
         create: {
           name,
-          provider,
+          provider: "crm",
           status: verification.verified ? "verified" : "pending",
           organizationId: orgId,
         },
@@ -83,22 +87,22 @@ export function domainRoutes(prisma: PrismaClient) {
 
     try {
       const domain = await prisma.domain.findFirst({
-        where: { id: req.params.id, organizationId: orgId },
+        where: {
+          id: req.params.id,
+          organizationId: orgId,
+          OR: [{ provider: "crm" }, { provider: "docker" }],
+        },
         include: { organization: { select: { slug: true } } },
       });
       if (!domain) return res.status(404).json({ error: "Dominio nao encontrado" });
 
-      const verification = await verifyDomainDns(domain.name, domain.organization?.slug);
-      const updated = await prisma.domain.update({
-        where: { id: domain.id },
-        data: { status: verification.verified ? "verified" : "pending" },
-      });
+      const result = await verifyAndProvisionDomain(prisma, domain, domain.organization?.slug);
 
       res.json({
-        ...updated,
+        ...result.domain,
         dns: getDnsInstructions(domain.name, domain.organization?.slug),
-        verification,
-        traefik: await syncTraefikDomainConfig(domain.name, verification.verified),
+        verification: result.verification,
+        traefik: result.traefik,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message || "Falha ao validar DNS" });
@@ -111,7 +115,11 @@ export function domainRoutes(prisma: PrismaClient) {
 
     try {
       const domain = await prisma.domain.findFirst({
-        where: { id: req.params.id, organizationId: orgId },
+        where: {
+          id: req.params.id,
+          organizationId: orgId,
+          OR: [{ provider: "crm" }, { provider: "docker" }],
+        },
       });
       if (!domain) return res.status(404).json({ error: "Dominio nao encontrado" });
 

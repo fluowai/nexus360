@@ -308,13 +308,16 @@ export async function removeTraefikDomainConfig(domain: string): Promise<Traefik
   }
 }
 
-export async function syncTraefikDomainConfig(domain: string, verified: boolean): Promise<TraefikSyncResult> {
-  return verified ? writeTraefikDomainConfig(domain) : removeTraefikDomainConfig(domain);
+export async function syncTraefikDomainConfig(domain: string, _verified: boolean): Promise<TraefikSyncResult> {
+  // Keep pending domains routed too. When DNS starts pointing to the stack,
+  // Traefik can issue the certificate and the app can auto-promote the DB
+  // status from pending to verified without support touching the stack.
+  return writeTraefikDomainConfig(domain);
 }
 
 export async function syncVerifiedTraefikDomains(prisma: PrismaClient) {
   const domains = await prisma.domain.findMany({
-    where: { status: "verified" },
+    where: { status: { in: ["verified", "pending"] } },
     select: { name: true },
   });
 

@@ -101,6 +101,11 @@ export function useWhitelabel() {
         const res = await publicApiFetch(path);
         if (res.ok) {
           const data = await readJsonResponse(res, "Contexto white label indisponivel.");
+          if (data.kind === "landing-page" && data.landingPage?.publicPath && window.location.pathname === "/") {
+            window.location.replace(data.landingPage.publicPath);
+            return;
+          }
+
           setCustomDomain(Boolean(data.customDomain));
 
           if (data.organization) {

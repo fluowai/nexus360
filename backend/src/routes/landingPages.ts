@@ -8,6 +8,7 @@ import { auditFromRequest } from "../utils/auditLogger.js";
 import { emitAutomationEvent } from "../workers/automationWorker.js";
 import { runGovernedAiText } from "../services/aiExecution.js";
 import { getOrgAIKeys } from "../utils/aiKeys.js";
+import { normalizeRequestHost } from "../utils/tenantHost.js";
 
 function generateSlug(name: string): string {
   return name
@@ -903,8 +904,147 @@ function renderSectionsToHtml(sections: any[], theme: any, pageSlug: string = ""
   return `${html}<footer class="footer-note"><div class="container">Pagina publicada para contato comercial e conversao de buscas locais.</div></footer>`;
 }
 
+async function findPublishedLandingPageByHost(prisma: PrismaClient, hostValue: string | string[] | undefined) {
+  const host = normalizeRequestHost(hostValue);
+  if (!host) return null;
+
+  return prisma.landingPage.findFirst({
+    where: {
+      status: "published",
+      OR: [
+        { customDomain: host },
+        { domain: host },
+      ],
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+async function sendPublicLandingPage(prisma: PrismaClient, req: any, res: any, page: any) {
+  if (!page || (page.status !== "published" && !page.content)) {
+    return res.status(404).send(`<!DOCTYPE html><html><head><title>Página não encontrada</title><style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc;color:#1e293b}h1{font-size:2rem}</style></head><body><h1>Página não encontrada</h1></body></html>`);
+  }
+
+  await prisma.landingPage.update({ where: { id: page.id }, data: { views: { increment: 1 } } });
+
+  const theme = page.theme as any || {};
+  const sections = page.sections as any[] || [];
+  const pageContent = sections.length > 0
+    ? renderSectionsToHtml(sections, theme, page.slug)
+    : (page.content || "");
+
+  const tracking = page.tracking as any || {};
+  const gaId = tracking?.gaId || "";
+  const pixelId = tracking?.pixelId || "";
+  const apiUrl = `${req.protocol}://${req.get("host")}`;
+
+  const gaScript = gaId ? `
+        <script async src="https://www.googletagmanager.com/gtag/js?id=${gaId}"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js',new Date());
+          gtag('config','${gaId}');
+        </script>` : "";
+
+  const pixelScript = pixelId ? `
+        <script>
+          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init','${pixelId}');
+          fbq('track','PageView');
+        </script>` : "";
+
+  const shMeta = (v: any) => sanitizeStoredHtml(String(v ?? "")).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+  const html = `<!DOCTYPE html>
+  <html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>${shMeta(page.metaTitle || page.name)}</title>
+    <meta name="description" content="${shMeta(page.metaDescription)}" />
+    <meta property="og:title" content="${shMeta(page.metaTitle || page.name)}" />
+    <meta property="og:description" content="${shMeta(page.metaDescription)}" />
+    ${page.metaImage ? `<meta property="og:image" content="${shMeta(page.metaImage)}" />` : ""}
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"WebPage","name":"${shMeta(page.metaTitle || page.name)}","description":"${shMeta(page.metaDescription)}"}
+    </script>
+    ${gaScript}
+    ${pixelScript}
+    <style>
+      .faq-answer { display:none; }
+      .faq-item.open .faq-answer { display:block; }
+      .faq-item.open .faq-question span { transform:rotate(45deg); display:inline-block; }
+    </style>
+  </head>
+  <body>
+    ${pageContent}
+    <script>
+      document.querySelectorAll('.faq-question').forEach(q => {
+        q.addEventListener('click', () => q.parentElement.classList.toggle('open'));
+      });
+
+      const form = document.getElementById('lp-form-${page.slug}');
+      if (form) {
+        const params = new URLSearchParams(window.location.search);
+        form.querySelectorAll('input[name^="utm"]').forEach(input => {
+          input.value = params.get(input.name) || '';
+        });
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const data = new FormData(form);
+          const body = Object.fromEntries(data.entries());
+          const normalizedBody = {
+            ...body,
+            name: body.name || body.nome,
+            email: body.email,
+            phone: body.phone || body.telefone,
+            message: body.message || body.mensagem,
+          };
+
+          try {
+            const res = await fetch('${apiUrl}/api/landing-pages/${page.slug}/lead', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(normalizedBody),
+            });
+            if (res.ok) {
+              form.style.display = 'none';
+              document.getElementById('lp-form-success').style.display = 'block';
+              ${tracking?.gaId ? `gtag('event','conversion',{'send_to':'${gaId}','event_category':'lead','event_label':'${page.slug}'});` : ""}
+              ${tracking?.pixelId ? `fbq('track','Lead');` : ""}
+            }
+          } catch(err) {
+            console.error('Form error:', err);
+          }
+        });
+      }
+    </script>
+  </body>
+  </html>`;
+
+  const csp = `default-src 'self' https: data:; script-src 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https:`;
+  res.setHeader("Content-Security-Policy", csp);
+  res.setHeader("Content-Type", "text/html; charset=utf-8").send(html);
+}
+
 export function landingPagePublicRoutes(prisma: PrismaClient) {
   const router = Router();
+
+  router.get("/", async (req, res, next) => {
+    try {
+      const page = await findPublishedLandingPageByHost(prisma, req.headers["x-forwarded-host"] || req.headers.host);
+      if (!page) return next();
+      return sendPublicLandingPage(prisma, req, res, page);
+    } catch (error) {
+      next(error);
+    }
+  });
 
   router.get("/lp/:slug", async (req, res, next) => {
     try {

@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import dns from "node:dns/promises";
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
@@ -32,6 +33,8 @@ const ADMIN_PASSWORD = "WooTech@2026";
 const CLOSER_EMAIL = "closer@wootech.com.br";
 const CLOSER_PASSWORD = "CloserWooTech@2026";
 const LANDING_SLUG = "wootech-inteligente";
+const LANDING_DOMAIN = "wootech.com.br";
+const CRM_DOMAIN = "crm.wootech.com.br";
 const ASSET_BASE_URL = "/lp-assets/wootech";
 const WOOTECH_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="70" viewBox="0 0 260 70"><rect width="260" height="70" fill="#030507"/><g transform="translate(14 17) skewX(-28)"><rect width="23" height="36" rx="2" fill="#ffd10a"/><rect x="24" width="23" height="36" rx="2" fill="#e6a900"/><rect x="48" width="23" height="36" rx="2" fill="#f7f8fb"/></g><text x="94" y="44" fill="#f7f8fb" font-family="Inter,Arial,sans-serif" font-size="20" font-weight="800" letter-spacing="6">WOO</text><text x="169" y="44" fill="#ffd10a" font-family="Inter,Arial,sans-serif" font-size="20" font-weight="800" letter-spacing="6">TECH</text></svg>`;
 const WOOTECH_LOGO_DATA_URL = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(WOOTECH_LOGO_SVG)}`;
@@ -68,6 +71,29 @@ async function copyWootechAssets() {
     await fs.copyFile(asset.source, publicTarget);
     await fs.copyFile(asset.source, outputTarget);
   }
+}
+
+async function getDomainStatus(domain) {
+  const expectedIp = process.env.WHITELABEL_DOCKER_IP || "207.58.153.219";
+  const expectedCname = (process.env.WHITELABEL_CNAME_TARGET || "nexus360.consultio.com.br")
+    .replace(/\.$/, "")
+    .toLowerCase();
+
+  try {
+    const addresses = await dns.resolve4(domain);
+    if (addresses.includes(expectedIp)) return "verified";
+  } catch {
+    // Fall through to CNAME check.
+  }
+
+  try {
+    const cnames = (await dns.resolveCname(domain)).map(item => item.replace(/\.$/, "").toLowerCase());
+    if (cnames.includes(expectedCname)) return "verified";
+  } catch {
+    // Pending until DNS propagates.
+  }
+
+  return "pending";
 }
 
 function wootechPageContent(assetBase = ASSET_BASE_URL) {
@@ -432,7 +458,7 @@ async function upsertWootechAccount() {
         name: ACCOUNT_NAME,
         type: "WHITELABEL",
         slug: ACCOUNT_SLUG,
-        domain: "wootech.com.br",
+        domain: CRM_DOMAIN,
         plan: selectedPlan?.name || "Pro",
         planId: selectedPlan?.id || null,
         subscriptionStatus: "TRIAL",
@@ -443,6 +469,8 @@ async function upsertWootechAccount() {
           whitelabelOnboardingStep: 4,
           whitelabelOnboardingComplete: true,
           linkedLandingPageSlug: LANDING_SLUG,
+          landingDomain: LANDING_DOMAIN,
+          crmDomain: CRM_DOMAIN,
         },
         whiteLabelConfig: {
           name: "WooTech",
@@ -451,13 +479,15 @@ async function upsertWootechAccount() {
           primaryColor: "#ffd10a",
           secondaryColor: "#030507",
           landingPageSlug: LANDING_SLUG,
+          landingDomain: LANDING_DOMAIN,
+          crmDomain: CRM_DOMAIN,
           landingPageUrl: `/lp/${LANDING_SLUG}`,
         },
       },
       update: {
         name: ACCOUNT_NAME,
         type: "WHITELABEL",
-        domain: "wootech.com.br",
+        domain: CRM_DOMAIN,
         plan: selectedPlan?.name || "Pro",
         planId: selectedPlan?.id || null,
         subscriptionStatus: "TRIAL",
@@ -468,6 +498,8 @@ async function upsertWootechAccount() {
           whitelabelOnboardingStep: 4,
           whitelabelOnboardingComplete: true,
           linkedLandingPageSlug: LANDING_SLUG,
+          landingDomain: LANDING_DOMAIN,
+          crmDomain: CRM_DOMAIN,
         },
         whiteLabelConfig: {
           name: "WooTech",
@@ -476,6 +508,8 @@ async function upsertWootechAccount() {
           primaryColor: "#ffd10a",
           secondaryColor: "#030507",
           landingPageSlug: LANDING_SLUG,
+          landingDomain: LANDING_DOMAIN,
+          crmDomain: CRM_DOMAIN,
           landingPageUrl: `/lp/${LANDING_SLUG}`,
         },
       },
@@ -590,6 +624,42 @@ async function upsertWootechAccount() {
     },
   };
 
+  const [landingDomainStatus, crmDomainStatus] = await Promise.all([
+    getDomainStatus(LANDING_DOMAIN),
+    getDomainStatus(CRM_DOMAIN),
+  ]);
+
+  await Promise.all([
+    prisma.domain.upsert({
+      where: { name: LANDING_DOMAIN },
+      update: {
+        organizationId: result.organization.id,
+        provider: "landing",
+        status: landingDomainStatus,
+      },
+      create: {
+        name: LANDING_DOMAIN,
+        provider: "landing",
+        status: landingDomainStatus,
+        organizationId: result.organization.id,
+      },
+    }),
+    prisma.domain.upsert({
+      where: { name: CRM_DOMAIN },
+      update: {
+        organizationId: result.organization.id,
+        provider: "crm",
+        status: crmDomainStatus,
+      },
+      create: {
+        name: CRM_DOMAIN,
+        provider: "crm",
+        status: crmDomainStatus,
+        organizationId: result.organization.id,
+      },
+    }),
+  ]);
+
   const saved = await prisma.landingPage.upsert({
     where: { slug: page.slug },
     create: {
@@ -601,6 +671,8 @@ async function upsertWootechAccount() {
       metaTitle: page.metaTitle,
       metaDescription: page.metaDescription,
       metaImage: null,
+      domain: LANDING_DOMAIN,
+      customDomain: LANDING_DOMAIN,
       publishedAt: new Date(),
       theme: page.theme,
     },
@@ -612,6 +684,8 @@ async function upsertWootechAccount() {
       metaTitle: page.metaTitle,
       metaDescription: page.metaDescription,
       metaImage: null,
+      domain: LANDING_DOMAIN,
+      customDomain: LANDING_DOMAIN,
       publishedAt: new Date(),
       sections: null,
       headline: null,
@@ -641,8 +715,10 @@ async function main() {
     tipo: "WHITELABEL",
     landing: result.page.name,
     status: result.page.status,
+    dominioLanding: LANDING_DOMAIN,
+    dominioCrm: CRM_DOMAIN,
     local: `http://localhost:10000/lp/${result.page.slug}`,
-    prod: `https://nexus360.consultio.com.br/lp/${result.page.slug}`,
+    prod: `https://${LANDING_DOMAIN}`,
   }]);
   console.log(`Usuario: ${ADMIN_EMAIL}`);
   console.log(`Senha: ${ADMIN_PASSWORD}`);

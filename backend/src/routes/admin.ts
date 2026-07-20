@@ -779,7 +779,9 @@ export function adminRoutes(prisma: PrismaClient) {
           role: role || 'USER',
           status: status || 'ACTIVE',
           permissions: permissions || {},
-          organizationId
+          organizationId,
+          emailVerified: true,
+          phoneVerified: true
         }
       });
       const { password: _password, ...safeUser } = user;

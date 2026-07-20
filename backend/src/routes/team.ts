@@ -89,7 +89,9 @@ export function teamRoutes(prisma: PrismaClient) {
           permissions: permissions || {},
           accessProfileId: accessProfileId || null,
           organizationId: orgId,
-          status: 'ACTIVE'
+          status: 'ACTIVE',
+          emailVerified: true,
+          phoneVerified: true
         }
       });
 

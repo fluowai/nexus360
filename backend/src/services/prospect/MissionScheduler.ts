@@ -1,8 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import { LeadExtractorAgent } from "./LeadExtractorAgent.js";
-import { LeadValidatorAgent } from "./LeadValidatorAgent.js";
-import { DossierAgent } from "./DossierAgent.js";
-import { FilterAgent } from "./FilterAgent.js";
 import { LeadCaptureService } from "../../modules/lead-capture/lead-capture.service.js";
 import { LeadAiService } from "../../modules/lead-capture/lead-ai.service.js";
 import { LeadEnrichmentService } from "../leadEnrichment.js";
@@ -15,10 +11,6 @@ export class MissionScheduler {
   private intervalId: NodeJS.Timeout | null = null;
   private isRunning: boolean = false;
 
-  private extractorAgent: LeadExtractorAgent;
-  private validatorAgent: LeadValidatorAgent;
-  private dossierAgent: DossierAgent;
-  private filterAgent: FilterAgent;
   private leadCaptureService: LeadCaptureService;
   private leadAiService: LeadAiService;
   private leadEnrichmentService: LeadEnrichmentService;
@@ -26,10 +18,6 @@ export class MissionScheduler {
 
   constructor(prisma: PrismaClient) {
     this.prisma = prisma;
-    this.extractorAgent = new LeadExtractorAgent(prisma);
-    this.validatorAgent = new LeadValidatorAgent(prisma);
-    this.dossierAgent = new DossierAgent(prisma);
-    this.filterAgent = new FilterAgent(prisma);
     this.leadCaptureService = new LeadCaptureService(prisma);
     this.leadAiService = new LeadAiService(prisma);
     this.leadEnrichmentService = new LeadEnrichmentService(prisma);
@@ -122,77 +110,7 @@ export class MissionScheduler {
       // Etapa 1: Extração
       const capturedLeadIds = await this.captureAndPrepareLeads(mission);
 
-      // Mantem o pipeline legado como fallback local quando o provedor real nao estiver configurado.
-      const extracted = capturedLeadIds.length > 0 || await this.extractorAgent.run(mission);
-      if (!extracted) throw new Error("Falha na extração de leads");
-
-      // Etapa 2: Validação
-      const validated = await this.validatorAgent.run(mission.id);
-      if (!validated) throw new Error("Falha na validação de leads");
-
-      // Etapa 3: Dossiê e Inteligência
-      const dossiered = await this.dossierAgent.run(mission.id);
-      if (!dossiered) throw new Error("Falha na geração de dossiês");
-
-      // Etapa 4: Filtragem e Aprovação
-      const filtered = await this.filterAgent.run(mission.id);
-      if (!filtered) throw new Error("Falha na filtragem");
-
-      let allLeadIds = [...capturedLeadIds];
-
-      // Se o pipeline legado rodou (ProspectLead), converte aprovados para CapturedLead e matricula
-      if (capturedLeadIds.length === 0) {
-        const approvedLeads = await this.prisma.prospectLead.findMany({
-          where: {
-            missionId: mission.id,
-            status: "aprovado_para_contato",
-            whatsapp: { not: null }
-          },
-          include: { validation: true, dossier: true }
-        });
-
-        for (const lead of approvedLeads) {
-          const phoneDigits = (lead.whatsapp || lead.phone || "").replace(/\D/g, "");
-          if (phoneDigits.length < 10) continue;
-
-          const created = await this.prisma.capturedLead.upsert({
-            where: {
-              organizationId_provider_externalId: {
-                organizationId: mission.organizationId,
-                provider: "prospect_mission_legacy",
-                externalId: `prospect-lead-${lead.id}`
-              }
-            },
-            update: {
-              businessName: lead.companyName,
-              category: lead.category,
-              phone: lead.phone,
-              phoneNormalized: lead.whatsapp,
-              website: lead.website,
-              city: lead.city,
-              state: lead.state,
-              cnpjStatus: "validated",
-              crmStatus: "prospecting_funnel"
-            },
-            create: {
-              organizationId: mission.organizationId,
-              provider: "prospect_mission_legacy",
-              externalId: `prospect-lead-${lead.id}`,
-              businessName: lead.companyName,
-              category: lead.category,
-              phone: lead.phone,
-              phoneNormalized: lead.whatsapp,
-              website: lead.website,
-              city: lead.city,
-              state: lead.state,
-              hasPhone: true,
-              cnpjStatus: "validated",
-              crmStatus: "prospecting_funnel"
-            }
-          });
-          allLeadIds.push(created.id);
-        }
-      }
+      const allLeadIds = [...capturedLeadIds];
 
       if (allLeadIds.length > 0) {
         await enrollCapturedLeadsInFunnel(this.prisma, mission.organizationId, allLeadIds, "default");
@@ -201,7 +119,7 @@ export class MissionScheduler {
           "ProspectingFunnelAgent",
           "Matricula no Funil",
           "success",
-          `${allLeadIds.length} leads (${capturedLeadIds.length} CapturedLead + ${allLeadIds.length - capturedLeadIds.length} ProspectLead) enviados ao funil SDR IA.`
+          `${allLeadIds.length} leads captados por provedor real enviados ao funil SDR IA.`
         );
       }
 
@@ -213,12 +131,7 @@ export class MissionScheduler {
           ...nextState,
           missionResult: {
             capturedLeadIds,
-            prospectLeadIds: capturedLeadIds.length === 0
-              ? (await this.prisma.prospectLead.findMany({
-                  where: { missionId: mission.id },
-                  select: { id: true }
-                })).map(l => l.id)
-              : [],
+            prospectLeadIds: [],
             completedAt: new Date().toISOString(),
             totalLeads: allLeadIds.length
           }
@@ -298,7 +211,7 @@ export class MissionScheduler {
         "error",
         error.message
       );
-      return [];
+      throw error;
     }
   }
 

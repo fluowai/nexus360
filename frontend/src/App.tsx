@@ -64,6 +64,7 @@ const ReleaseControl = lazy(() => import("./pages/admin/ReleaseControl"));
 const AdminAcpManager = lazy(() => import("./pages/admin/AcpManager"));
 const AdminGoogleLocalManager = lazy(() => import("./pages/admin/GoogleLocalManager"));
 const AdminAIManager = lazy(() => import("./pages/admin/AIManager"));
+const PaperclipManager = lazy(() => import("./pages/admin/PaperclipManager"));
 const LandingPage = lazy(() => import("./pages/marketing/LandingPage"));
 const LandingPageWizard = lazy(() => import("./pages/marketing/LandingPageWizard"));
 const LandingPageEditor = lazy(() => import("./pages/marketing/LandingPageEditor"));
@@ -84,6 +85,7 @@ const ContactVerification = lazy(() => import("./pages/auth/ContactVerification"
 const CRMSalesPage = lazy(() => import("./pages/crm/CRMSalesPage"));
 const AcpHub = lazy(() => import("./pages/settings/AcpHub"));
 const GoogleLocal = lazy(() => import("./pages/marketing/GoogleLocal"));
+const PaperclipHub = lazy(() => import("./pages/settings/PaperclipHub"));
 
 const QualificationForms = lazy(() => import("./pages/qualification/QualificationForms"));
 const AutomationBuilder = lazy(() => import("./pages/settings/AutomationBuilder"));
@@ -331,7 +333,7 @@ function useNavigationGuard(user: any, selectedClientId: string | null) {
         return;
       }
 
-    if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin') && pathname !== '/acp') {
+    if (isSuperAdmin && !selectedClientId && !pathname.startsWith('/admin') && pathname !== '/acp' && pathname !== '/paperclip') {
       navigate('/admin', { replace: true });
       return;
     }
@@ -439,6 +441,7 @@ export default function App() {
           <Route path="/acp" element={<AcpHub selectedClientId={selectedClientId} />} />
           <Route path="/ai-settings" element={<AISettings />} />
           <Route path="/prompt-architect" element={<PromptArchitect />} />
+          <Route path="/paperclip" element={<PaperclipHub />} />
           <Route path="/site" element={<LandingPage />} />
           <Route path="/vendas" element={<CRMSalesPage />} />
           <Route path="/login" element={<Login onAuthenticated={setUser} />} />
@@ -472,6 +475,7 @@ export default function App() {
           <Route path="/admin/acp" element={<AdminAcpManager />} />
           <Route path="/admin/google-local" element={<AdminGoogleLocalManager />} />
           <Route path="/admin/ai" element={<AdminAIManager />} />
+          <Route path="/admin/paperclip" element={<PaperclipManager />} />
 
           <Route path="/whitelabel/:slug/*" element={<WorkspaceAliasRedirect />} />
 
@@ -513,6 +517,7 @@ export default function App() {
           <Route path="/:slug/google-local" element={<GoogleLocal />} />
           <Route path="/:slug/ai-settings" element={<AISettings />} />
           <Route path="/:slug/prompt-architect" element={<PromptArchitect />} />
+          <Route path="/:slug/paperclip" element={<PaperclipHub />} />
           <Route path="/:slug/billing" element={<Billing />} />
 
           <Route path="/:slug/automations" element={<AutomationBuilder />} />
@@ -531,7 +536,6 @@ export default function App() {
           <Route path="/knowledge-base" element={<KnowledgeBase />} />
           <Route path="/client-health" element={<ClientHealthDashboard />} />
           <Route path="/google-local" element={<GoogleLocal />} />
-
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/billing" element={<Billing />} />
         </Routes>

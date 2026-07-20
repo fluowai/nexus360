@@ -17,7 +17,12 @@ export const errorHandler = (err: AppError, req: Request, res: Response, _next: 
     stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
   });
 
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+  // `instanceof` pode falhar quando existem duas copias do Prisma Client no
+  // processo. Os codigos Pxxxx sao o contrato estavel exposto pelo Prisma.
+  const isKnownPrismaError =
+    err instanceof Prisma.PrismaClientKnownRequestError || /^P\d{4}$/.test(err.code || '');
+
+  if (isKnownPrismaError) {
     if (err.code === 'P2000') {
       return res.status(400).json({
         success: false,
@@ -26,7 +31,8 @@ export const errorHandler = (err: AppError, req: Request, res: Response, _next: 
       });
     }
     if (err.code === 'P2002') {
-      const target = (err.meta?.target as string[]) || ['campo'];
+      const meta = (err as AppError & { meta?: { target?: unknown } }).meta;
+      const target = (meta?.target as string[]) || ['campo'];
       return res.status(409).json({
         success: false,
         error: `Conflito de dados: O valor para '${target.join(', ')}' já está em uso.`,

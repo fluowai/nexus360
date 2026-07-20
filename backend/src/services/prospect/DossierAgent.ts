@@ -40,20 +40,26 @@ export class DossierAgent {
         else if (score >= 70) classification = "quente";
         else if (score >= 40) classification = "morno";
 
-        // Simulação de chamada de LLM (Gemini/Groq)
-        // Em um ambiente real, aqui injetaríamos os dados do lead num prompt 
-        // e faríamos fetch() na API do provedor de IA da Organização
-        const aiSummary = `Percebemos que a empresa ${lead.companyName} possui boa avaliação no Google, mas ainda pode estar perdendo oportunidades por falta de uma triagem automática no WhatsApp. A abordagem ideal é iniciar com um diagnóstico rápido de atendimento.`;
+        const knownFacts = [
+          lead.category ? `categoria: ${lead.category}` : null,
+          lead.city ? `cidade: ${lead.city}` : null,
+          lead.state ? `estado: ${lead.state}` : null,
+          lead.googleRating != null ? `avaliacao Google: ${lead.googleRating}` : null,
+          lead.googleReviewsCount != null ? `avaliacoes: ${lead.googleReviewsCount}` : null,
+          lead.website ? `site: ${lead.website}` : "site nao informado",
+        ].filter(Boolean).join("; ");
 
         await this.prisma.prospectDossier.create({
           data: {
             leadId: lead.id,
-            companySummary: `Resumo gerado via IA para ${lead.companyName}`,
-            digitalPresenceDiagnosis: "Presença digital requer otimização de conversão.",
-            recommendedApproach: aiSummary,
+            companySummary: `${lead.companyName}; ${knownFacts}`,
+            digitalPresenceDiagnosis: lead.website
+              ? "Site informado pelo provedor de origem."
+              : "Nenhum site foi informado pelo provedor de origem.",
+            recommendedApproach: "Abordagem nao gerada: execute a inteligencia de IA configurada para obter uma recomendacao.",
             opportunityScore: score,
             classification,
-            classificationReason: "Calculado baseado nas métricas de maturidade digital e validações"
+            classificationReason: "Calculado somente com os campos e validacoes persistidos no lead."
           }
         });
 

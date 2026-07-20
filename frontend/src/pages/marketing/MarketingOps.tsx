@@ -159,7 +159,7 @@ export default function MarketingOps() {
             </div>
           </div>
 
-          {/* PREVIEW MOCKUP */}
+          {/* Preview visual */}
           <div className="hidden lg:flex justify-center">
              <div className="w-[380px] h-[480px] bg-white text-slate-900 rounded-[40px] p-10 shadow-2xl rotate-2 hover:rotate-0 transition-transform duration-700 relative overflow-hidden group">
                 <div className="space-y-6">

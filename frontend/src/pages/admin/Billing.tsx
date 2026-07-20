@@ -17,6 +17,7 @@ import { apiFetch } from "../../lib/api";
 export default function AdminBilling() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [metrics, setMetrics] = useState({
     totalPaid: 0,
     totalPending: 0,
@@ -24,20 +25,15 @@ export default function AdminBilling() {
   });
 
   useEffect(() => {
-    // Simulação de dados por enquanto, conectaremos ao backend no próximo passo
-    setTimeout(() => {
-      setInvoices([
-        { id: '1', orgName: 'Agência Alpha', amount: 499.00, status: 'PAID', dueDate: '2024-05-10', paidAt: '2024-05-09' },
-        { id: '2', orgName: 'Consultio Digital', amount: 999.00, status: 'PENDING', dueDate: '2024-05-15' },
-        { id: '3', orgName: 'Marketing Pro', amount: 499.00, status: 'OVERDUE', dueDate: '2024-05-01' },
-      ]);
-      setMetrics({
-        totalPaid: 15420.00,
-        totalPending: 2450.00,
-        activeSubscribers: 32
-      });
-      setLoading(false);
-    }, 800);
+    apiFetch("/api/admin/billing-overview")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Falha ao carregar faturamento.");
+        setInvoices(Array.isArray(data.invoices) ? data.invoices : []);
+        setMetrics(data.metrics || { totalPaid: 0, totalPending: 0, activeSubscribers: 0 });
+      })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Falha ao carregar faturamento."))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -60,21 +56,18 @@ export default function AdminBilling() {
           value={`R$ ${metrics.totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
           icon={CheckCircle2}
           color="emerald"
-          trend="+12%"
         />
         <MetricCard 
           label="Pendente" 
           value={`R$ ${metrics.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
           icon={Clock}
           color="amber"
-          trend="+5%"
         />
         <MetricCard 
           label="Assinantes Ativos" 
           value={metrics.activeSubscribers.toString()}
           icon={CreditCard}
           color="blue"
-          trend="+2"
         />
       </div>
 
@@ -111,6 +104,10 @@ export default function AdminBilling() {
             <tbody className="text-sm">
               {loading ? (
                 <tr><td colSpan={5} className="py-20 text-center text-gray-400">Carregando faturas...</td></tr>
+              ) : error ? (
+                <tr><td colSpan={5} className="py-20 text-center text-red-600">{error}</td></tr>
+              ) : invoices.length === 0 ? (
+                <tr><td colSpan={5} className="py-20 text-center text-gray-400">Nenhuma fatura SaaS encontrada.</td></tr>
               ) : invoices.map((invoice) => (
                 <tr key={invoice.id} className="group border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
                   <td className="px-8 py-5">
@@ -141,7 +138,7 @@ export default function AdminBilling() {
   );
 }
 
-function MetricCard({ label, value, icon: Icon, color, trend }: any) {
+function MetricCard({ label, value, icon: Icon, color }: any) {
   const colors: any = {
     emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
     amber: 'bg-amber-50 text-amber-600 border-amber-100',
@@ -153,10 +150,6 @@ function MetricCard({ label, value, icon: Icon, color, trend }: any) {
       <div className="flex justify-between items-start mb-4">
         <div className={`p-3 rounded-2xl ${colors[color]} border`}>
           <Icon size={24} />
-        </div>
-        <div className={`flex items-center gap-1 text-[10px] font-bold ${trend.startsWith('+') ? 'text-emerald-500' : 'text-red-500'} bg-gray-50 px-2 py-1 rounded-full`}>
-          {trend.startsWith('+') ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-          {trend}
         </div>
       </div>
       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>

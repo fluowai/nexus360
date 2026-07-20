@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { 
   History, 
   Search, 
@@ -10,14 +10,22 @@ import {
   LogIn
 } from "lucide-react";
 import { motion } from "motion/react";
+import { apiFetch } from "../../lib/api";
 
 export default function AdminAudit() {
-  const [logs] = useState([
-    { id: 1, user: 'Paulo (Dono)', action: 'Criou Agência', target: 'Agência Beta', date: 'Há 5 minutos', type: 'CREATE', icon: User, color: 'text-blue-500' },
-    { id: 2, user: 'Sistema', action: 'Login Super Admin', target: 'contato@consultio.com.br', date: 'Há 12 minutos', type: 'AUTH', icon: LogIn, color: 'text-emerald-500' },
-    { id: 3, user: 'Paulo (Dono)', action: 'Alterou Plano', target: 'Agência Alpha', date: 'Há 1 hora', type: 'UPDATE', icon: Settings, color: 'text-purple-500' },
-    { id: 4, user: 'Admin 2', action: 'Excluiu Usuário', target: 'user_42', date: 'Há 2 horas', type: 'DELETE', icon: ShieldAlert, color: 'text-red-500' },
-  ]);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    apiFetch("/api/admin/audit-logs?limit=200")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Falha ao carregar auditoria.");
+        setLogs(Array.isArray(data) ? data : []);
+      })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Falha ao carregar auditoria."))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="flex flex-col gap-8">
@@ -42,7 +50,12 @@ export default function AdminAudit() {
         </div>
 
         <div className="flex flex-col">
-          {logs.map((log, i) => (
+          {loading && <p className="p-12 text-center text-gray-400">Carregando registros reais...</p>}
+          {!loading && error && <p className="p-12 text-center text-red-600">{error}</p>}
+          {!loading && !error && logs.length === 0 && <p className="p-12 text-center text-gray-400">Nenhum registro de auditoria encontrado.</p>}
+          {!loading && !error && logs.map((log, i) => {
+            const Icon = log.action === "DELETE" ? ShieldAlert : log.action === "LOGIN" ? LogIn : log.action === "UPDATE" ? Settings : User;
+            return (
             <motion.div 
               key={log.id}
               initial={{ opacity: 0, x: -20 }}
@@ -50,20 +63,20 @@ export default function AdminAudit() {
               transition={{ delay: i * 0.05 }}
               className="p-6 border-b border-gray-50 hover:bg-gray-50/50 transition-colors flex items-center gap-6"
             >
-              <div className={`w-12 h-12 rounded-2xl bg-gray-50 ${log.color} flex items-center justify-center shrink-0`}>
-                <log.icon size={20} />
+              <div className="w-12 h-12 rounded-2xl bg-gray-50 text-blue-500 flex items-center justify-center shrink-0">
+                <Icon size={20} />
               </div>
               
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="font-bold text-gray-900">{log.user}</span>
+                  <span className="font-bold text-gray-900">{log.user?.name || log.user?.email || "Sistema"}</span>
                   <ArrowRight size={14} className="text-gray-300" />
-                  <span className="text-gray-600">{log.action}</span>
+                  <span className="text-gray-600">{log.action} {log.resource}</span>
                 </div>
                 <div className="flex items-center gap-3 text-xs">
-                  <span className="text-gray-400">Alvo: <span className="font-medium text-gray-500">{log.target}</span></span>
+                  <span className="text-gray-400">Alvo: <span className="font-medium text-gray-500">{log.resourceId || "—"}</span></span>
                   <div className="w-1 h-1 bg-gray-200 rounded-full" />
-                  <span className="text-gray-400">{log.date}</span>
+                  <span className="text-gray-400">{new Date(log.createdAt).toLocaleString("pt-BR")}</span>
                 </div>
               </div>
 
@@ -72,11 +85,11 @@ export default function AdminAudit() {
                   log.type === 'CREATE' ? 'border-blue-100 text-blue-600' :
                   log.type === 'DELETE' ? 'border-red-100 text-red-600' : 'border-gray-100 text-gray-400'
                 }`}>
-                  {log.type}
+                  {log.action}
                 </span>
               </div>
             </motion.div>
-          ))}
+          )})}
         </div>
         
         <div className="p-6 bg-gray-50/50 flex justify-center">

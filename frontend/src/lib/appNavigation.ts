@@ -127,6 +127,7 @@ export const RESERVED_WORKSPACE_SEGMENTS = new Set([
   'whatsapp',
   'acp',
   'google-local',
+  'paperclip',
   'clients',
   'sold-services',
   'ad-accounts',
@@ -214,6 +215,7 @@ export const menuGroups: MenuGroup[] = [
       { module: 'ai', icon: Rocket, label: 'Autopilot', path: '/autopilot', isAi: true, badge: 'novo' },
       { module: 'prompt_architect', icon: Brain, label: 'Arquiteto de Prompts', path: '/prompt-architect', isAi: true },
       { module: 'ai', icon: Zap, label: 'Orquestrador ACP', path: '/acp', isAi: true, badge: 'v2' },
+      { module: 'paperclip', icon: Cpu, label: 'Paperclip', path: '/paperclip', isAi: true, badge: 'beta' },
       { module: 'knowledge_base', icon: BookOpen, label: 'Base de Conhecimento', path: '/knowledge-base' },
     ],
   },
@@ -285,6 +287,7 @@ export const adminClusters: AdminMenuCluster[] = [
       { icon: Brain, label: 'Orquestrador ACP', path: '/acp', badge: 'v2', isAi: true },
       { icon: Cpu, label: 'AI Core', path: '/admin/ai', isAi: true },
       { icon: Brain, label: 'ACP - Liberacao', path: '/admin/acp', isAi: true },
+      { icon: Bot, label: 'Paperclip - Liberacao', path: '/admin/paperclip', isAi: true },
     ],
   },
   {
@@ -310,6 +313,7 @@ export function useAppNavigation(user: User | null): AppNavigationModel {
   const access = useAccess(user);
   const isSuper = user?.role === 'SUPER_ADMIN';
   const [googleLocalEnabled, setGoogleLocalEnabled] = useState(isSuper);
+  const [paperclipEnabled, setPaperclipEnabled] = useState(isSuper);
   const [experienceModules, setExperienceModules] = useState<Set<string> | null>(null);
 
   useEffect(() => {
@@ -322,6 +326,18 @@ export function useAppNavigation(user: User | null): AppNavigationModel {
       .then((response) => response.ok ? response.json() : null)
       .then((data) => setGoogleLocalEnabled(Boolean(data?.enabled)))
       .catch(() => setGoogleLocalEnabled(false));
+  }, [isSuper, user?.id]);
+
+  useEffect(() => {
+    if (isSuper) {
+      setPaperclipEnabled(true);
+      return;
+    }
+
+    apiFetch('/api/paperclip/access')
+      .then((response) => response.ok ? response.json() : null)
+      .then((data) => setPaperclipEnabled(Boolean(data?.enabled)))
+      .catch(() => setPaperclipEnabled(false));
   }, [isSuper, user?.id]);
 
   useEffect(() => {
@@ -346,11 +362,12 @@ export function useAppNavigation(user: User | null): AppNavigationModel {
   }, [currentSlug]);
 
   const canSeeModule = useCallback((moduleKey: string) => {
-    const enabledByExperience = !experienceModules || experienceModules.has(moduleKey);
+    const enabledByExperience = moduleKey === 'paperclip' || !experienceModules || experienceModules.has(moduleKey);
     if (!enabledByExperience) return false;
     if (moduleKey === 'google_local') return googleLocalEnabled && (isSuper || access.hasModule(moduleKey));
+    if (moduleKey === 'paperclip') return paperclipEnabled;
     return isSuper || access.hasModule(moduleKey);
-  }, [access, experienceModules, googleLocalEnabled, isSuper]);
+  }, [access, experienceModules, googleLocalEnabled, isSuper, paperclipEnabled]);
 
   const isItemActive = useCallback((item: MenuItem) => {
     const path = getPath(item.path);

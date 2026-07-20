@@ -82,6 +82,7 @@ import { outboundRoutes } from "./routes/outbound.js";
 import { storageRoutes, adminStorageRoutes } from "./routes/storage.js";
 import { landingPageRoutes, landingPagePublicRoutes } from "./routes/landingPages.js";
 import { googleLocalRoutes } from "./routes/googleLocal.js";
+import { paperclipRoutes } from "./routes/paperclip.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { whatsappCallRoutes } from "./routes/whatsappCalls.js";
 import { dashboardRoutes } from "./routes/dashboard.js";
@@ -228,12 +229,25 @@ app.use(helmet({
 
 // ==================== ROTAS PÚBLICAS ====================
 
-app.get("/api/health", async (req, res, next) => {
+app.get("/api/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ success: true, message: 'Backend Nexus360 Online' });
+    res.json({
+      success: true,
+      message: 'Backend Nexus360 Online',
+      database: 'connected',
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
-    next(error);
+    logger.error('HealthCheck', 'Database health check failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(503).json({
+      success: false,
+      message: 'Backend Nexus360 Online, mas o banco de dados nao respondeu.',
+      database: 'disconnected',
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
@@ -443,6 +457,7 @@ const protectedRoutes = [
   { path: "/api/storage", router: storageRoutes },
   { path: "/api/landing-pages", router: landingPageRoutes },
   { path: "/api/google-local", router: googleLocalRoutes },
+  { path: "/api/paperclip", router: paperclipRoutes },
   { path: "/api/webhooks", router: webhookRoutes },
   { path: "/api/dashboard", router: dashboardRoutes },
   { path: "/api/experience", router: experienceRoutes },

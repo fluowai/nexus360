@@ -24,12 +24,6 @@ type Plan = {
   planFeatures?: Array<{ featureKey: string; isEnabled: boolean }>;
 };
 
-const fallbackPlans: Plan[] = [
-  { id: "fallback-starter", name: "Starter", slug: "starter", description: "Para estruturar a operação e sair das planilhas.", priceMonthly: 97, maxUsers: 3, maxClients: 5, maxLeads: 1000, maxAutomations: 5 },
-  { id: "fallback-pro", name: "Pro", slug: "pro", description: "Para agências que querem crescer com processo e IA.", priceMonthly: 197, maxUsers: 10, maxClients: 25, maxLeads: 10000, maxAutomations: 25 },
-  { id: "fallback-scale", name: "Scale", slug: "scale", description: "Para operações maduras, times e múltiplas carteiras.", priceMonthly: 397, maxUsers: 30, maxClients: 100, maxLeads: 50000, maxAutomations: 100 },
-];
-
 const capabilities = [
   { icon: Target, title: "Prospecção & CRM", text: "Capture, qualifique e acompanhe oportunidades em um funil comercial completo." },
   { icon: MessageCircle, title: "WhatsApp inteligente", text: "Centralize conversas, follow-ups e automações sem perder o contexto do cliente." },
@@ -63,7 +57,9 @@ function planFeatures(plan: Plan) {
 export default function CRMSalesPage() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [plans, setPlans] = useState<Plan[]>(fallbackPlans);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
+  const [plansError, setPlansError] = useState("");
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -73,11 +69,12 @@ export default function CRMSalesPage() {
   useEffect(() => {
     publicApiFetch("/api/billing/plans")
       .then(async (res) => {
-        if (!res.ok) return;
-        const data = await res.json();
-        if (Array.isArray(data) && data.length) setPlans(data);
+        const data = await readJsonResponse<Plan[]>(res, "Não foi possível carregar os planos.");
+        if (!res.ok) throw new Error("Não foi possível carregar os planos publicados.");
+        setPlans(Array.isArray(data) ? data : []);
       })
-      .catch(() => undefined);
+      .catch((loadError) => setPlansError(loadError instanceof Error ? loadError.message : "Não foi possível carregar os planos."))
+      .finally(() => setPlansLoading(false));
   }, []);
 
   const featuredId = useMemo(() => plans[Math.min(1, plans.length - 1)]?.id, [plans]);
@@ -98,7 +95,7 @@ export default function CRMSalesPage() {
         method: "POST",
         body: JSON.stringify({
           ...form,
-          ...(!selectedPlan.id.startsWith("fallback-") ? { planId: selectedPlan.id } : {}),
+          planId: selectedPlan.id,
         }),
       });
       const data = await readJsonResponse(response, "Não foi possível criar sua conta.");
@@ -271,6 +268,9 @@ export default function CRMSalesPage() {
           <div className="mx-auto max-w-7xl">
             <div className="text-center"><div className="text-xs font-black uppercase tracking-[.22em] text-[#0F9F6E]">Planos para cada fase</div><h2 className="mt-4 text-4xl font-black tracking-[-.04em] sm:text-5xl">Comece por 3 dias. Decida depois.</h2><p className="mt-5 text-lg text-[#587064]">Sem cartão de crédito e sem cobrança automática durante o teste.</p></div>
             <div className={`mt-14 grid gap-6 ${plans.length >= 3 ? "lg:grid-cols-3" : "mx-auto max-w-4xl md:grid-cols-2"}`}>
+              {plansLoading && <p className="col-span-full text-center text-[#587064]">Carregando planos publicados...</p>}
+              {!plansLoading && plansError && <p className="col-span-full text-center text-red-600">{plansError}</p>}
+              {!plansLoading && !plansError && plans.length === 0 && <p className="col-span-full text-center text-[#587064]">Nenhum plano público está disponível no momento.</p>}
               {plans.map((plan) => {
                 const featured = plan.id === featuredId;
                 return <div key={plan.id} className={`relative flex flex-col rounded-[30px] border bg-white p-8 ${featured ? "border-[#0F9F6E] shadow-2xl shadow-emerald-100 ring-4 ring-[#0F9F6E]/5" : "border-[#DDEEE5]"}`}>

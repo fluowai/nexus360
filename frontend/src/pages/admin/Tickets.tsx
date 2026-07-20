@@ -13,49 +13,31 @@ import {
   Building2
 } from "lucide-react";
 import { motion } from "motion/react";
+import { apiFetch } from "../../lib/api";
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    // Simulação de tickets
-    setTimeout(() => {
-      setTickets([
-        { 
-          id: '1', 
-          orgName: 'Agência Alpha', 
-          subject: 'Erro ao configurar domínio', 
-          category: 'TECHNICAL',
-          priority: 'HIGH',
-          status: 'OPEN',
-          createdAt: '2024-05-12T10:30:00Z',
-          lastUpdate: 'há 2 horas'
-        },
-        { 
-          id: '2', 
-          orgName: 'Consultio Digital', 
-          subject: 'Dúvida sobre faturamento Pro', 
-          category: 'BILLING',
-          priority: 'MEDIUM',
-          status: 'IN_PROGRESS',
-          createdAt: '2024-05-11T15:20:00Z',
-          lastUpdate: 'há 1 dia'
-        },
-        { 
-          id: '3', 
-          orgName: 'Mkt Pro', 
-          subject: 'Sugestão de nova feature na IA', 
-          category: 'FEATURE',
-          priority: 'LOW',
-          status: 'RESOLVED',
-          createdAt: '2024-05-10T09:00:00Z',
-          lastUpdate: 'há 2 dias'
-        },
-      ]);
-      setLoading(false);
-    }, 800);
+    apiFetch("/api/admin/support-tickets")
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Falha ao carregar chamados.");
+        setTickets((Array.isArray(data) ? data : []).map((ticket) => ({
+          ...ticket,
+          orgName: ticket.organization?.name || "Organização não encontrada",
+          lastUpdate: new Date(ticket.updatedAt).toLocaleString("pt-BR"),
+        })));
+      })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Falha ao carregar chamados."))
+      .finally(() => setLoading(false));
   }, []);
+
+  const pendingCount = tickets.filter((ticket) => !["RESOLVED", "CLOSED"].includes(ticket.status)).length;
+  const resolvedCount = tickets.filter((ticket) => ["RESOLVED", "CLOSED"].includes(ticket.status)).length;
+  const countCategory = (category: string) => tickets.filter((ticket) => ticket.category === category).length;
 
   return (
     <div className="flex flex-col gap-8">
@@ -67,11 +49,11 @@ export default function AdminTickets() {
         <div className="flex items-center gap-4 text-sm font-medium text-gray-500">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-blue-500" />
-            <span>12 Pendentes</span>
+            <span>{pendingCount} Pendentes</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>450 Resolvidos</span>
+            <span>{resolvedCount} Resolvidos</span>
           </div>
         </div>
       </div>
@@ -96,6 +78,10 @@ export default function AdminTickets() {
             <div className="divide-y divide-gray-50">
               {loading ? (
                 <div className="p-20 text-center text-gray-400">Carregando chamados...</div>
+              ) : error ? (
+                <div className="p-20 text-center text-red-600">{error}</div>
+              ) : tickets.length === 0 ? (
+                <div className="p-20 text-center text-gray-400">Nenhum chamado encontrado.</div>
               ) : tickets.map((ticket) => (
                 <TicketRow key={ticket.id} ticket={ticket} />
               ))}
@@ -108,19 +94,18 @@ export default function AdminTickets() {
           <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
             <h3 className="text-sm font-bold text-gray-900 mb-6 uppercase tracking-widest">Categorias</h3>
             <div className="flex flex-col gap-4">
-              <CategoryStat label="Técnico" count={8} color="blue" />
-              <CategoryStat label="Financeiro" count={3} color="amber" />
-              <CategoryStat label="Sugestões" count={5} color="purple" />
-              <CategoryStat label="Bugs" count={1} color="red" />
+              <CategoryStat label="Técnico" count={countCategory("TECHNICAL")} color="blue" />
+              <CategoryStat label="Financeiro" count={countCategory("BILLING")} color="amber" />
+              <CategoryStat label="Sugestões" count={countCategory("FEATURE")} color="purple" />
+              <CategoryStat label="Bugs" count={countCategory("BUG")} color="red" />
             </div>
           </div>
 
           <div className="bg-primary p-8 rounded-[32px] shadow-xl shadow-primary/20 text-white relative overflow-hidden">
             <div className="relative z-10">
               <h3 className="text-lg font-bold mb-2">Tempo de Resposta</h3>
-              <p className="text-blue-100 text-xs mb-6">Média de atendimento nas últimas 24h.</p>
-              <div className="text-4xl font-black mb-2">42 min</div>
-              <div className="text-[10px] uppercase font-bold tracking-widest text-blue-200">Meta: &lt; 60 min</div>
+              <p className="text-blue-100 text-xs mb-6">Este indicador exige histórico de respostas, ainda não registrado pelo modelo atual.</p>
+              <div className="text-2xl font-black mb-2">Não medido</div>
             </div>
             <Ticket className="absolute -bottom-4 -right-4 w-32 h-32 text-white/10 rotate-12" />
           </div>
@@ -144,7 +129,8 @@ function TicketRow({ ticket }: { ticket: any }) {
     RESOLVED: { icon: CheckCircle2, color: 'text-emerald-500' }
   };
 
-  const StatusIcon = statusIcons[ticket.status].icon;
+  const statusConfig = statusIcons[ticket.status] || statusIcons.OPEN;
+  const StatusIcon = statusConfig.icon;
 
   return (
     <div className="p-6 hover:bg-gray-50/50 transition-colors cursor-pointer group">
@@ -160,7 +146,7 @@ function TicketRow({ ticket }: { ticket: any }) {
 
       <div className="flex items-start justify-between">
         <div className="flex gap-4">
-          <div className={`mt-1 ${statusIcons[ticket.status].color}`}>
+          <div className={`mt-1 ${statusConfig.color}`}>
             <StatusIcon size={20} />
           </div>
           <div>

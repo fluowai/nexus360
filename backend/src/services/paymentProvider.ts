@@ -43,7 +43,7 @@ export class AsaasProvider extends BasePaymentProvider {
   }
 
   async createPixPayment(req: PixPaymentRequest): Promise<PixPaymentResponse> {
-    if (!this.apiKey) return this.fallbackPix(req);
+    if (!this.apiKey) throw new Error("ASAAS_API_KEY nao configurada.");
     try {
       const customer = await this.findOrCreateCustomer(req.clientName, req.clientCpfCnpj, req.clientEmail);
       const resp = await fetch(`${this.baseUrl}/payments`, {
@@ -78,24 +78,21 @@ export class AsaasProvider extends BasePaymentProvider {
       };
     } catch (error: any) {
       console.error("[ASAAS_PIX_ERROR]", error.message);
-      return this.fallbackPix(req);
+      throw error;
     }
   }
 
   async checkPaymentStatus(externalId: string): Promise<PaymentStatus> {
-    if (!this.apiKey) return { status: "pending", externalId };
-    try {
-      const resp = await fetch(`${this.baseUrl}/payments/${externalId}`, {
-        headers: { "access_token": this.apiKey },
-      });
-      const data = await resp.json();
-      const statusMap: Record<string, string> = {
-        RECEIVED: "paid", CONFIRMED: "paid", PENDING: "pending", OVERDUE: "expired", CANCELLED: "cancelled",
-      };
-      return { status: statusMap[data.status] || "pending", externalId, paidAt: data.paymentDate };
-    } catch {
-      return { status: "pending", externalId };
-    }
+    if (!this.apiKey) throw new Error("ASAAS_API_KEY nao configurada.");
+    const resp = await fetch(`${this.baseUrl}/payments/${externalId}`, {
+      headers: { "access_token": this.apiKey },
+    });
+    if (!resp.ok) throw new Error(`Asaas status error: HTTP ${resp.status}`);
+    const data = await resp.json();
+    const statusMap: Record<string, string> = {
+      RECEIVED: "paid", CONFIRMED: "paid", PENDING: "pending", OVERDUE: "expired", CANCELLED: "cancelled",
+    };
+    return { status: statusMap[data.status] || "pending", externalId, paidAt: data.paymentDate };
   }
 
   private async findOrCreateCustomer(name: string, cpfCnpj: string, email: string) {
@@ -112,17 +109,6 @@ export class AsaasProvider extends BasePaymentProvider {
     return resp.json();
   }
 
-  private fallbackPix(req: PixPaymentRequest): PixPaymentResponse {
-    return {
-      success: true,
-      externalId: `pix_${Date.now()}`,
-      qrCodeBase64: "",
-      pixCopiaECola: `000201010212261060014br.gov.bcb.pix2588fake${req.externalReference || ""}520400005303986540${req.amount.toFixed(2).replace(".", "")}5802BR5925${req.clientName.substring(0, 25)}6008BRASILIA62070503***6304FFFF`,
-      expiresAt: new Date(Date.now() + 3600000).toISOString(),
-      status: "pending",
-      provider: `${this.name}_SIMULATED`,
-    };
-  }
 }
 
 export class MercadoPagoProvider extends BasePaymentProvider {
@@ -135,7 +121,7 @@ export class MercadoPagoProvider extends BasePaymentProvider {
   }
 
   async createPixPayment(req: PixPaymentRequest): Promise<PixPaymentResponse> {
-    if (!this.accessToken) return this.fallbackPix(req);
+    if (!this.accessToken) throw new Error("MERCADO_PAGO_ACCESS_TOKEN nao configurado.");
     try {
       const resp = await fetch("https://api.mercadopago.com/v1/payments", {
         method: "POST",
@@ -166,58 +152,32 @@ export class MercadoPagoProvider extends BasePaymentProvider {
       };
     } catch (error: any) {
       console.error("[MP_PIX_ERROR]", error.message);
-      return this.fallbackPix(req);
+      throw error;
     }
   }
 
   async checkPaymentStatus(externalId: string): Promise<PaymentStatus> {
-    if (!this.accessToken) return { status: "pending", externalId };
-    try {
-      const resp = await fetch(`https://api.mercadopago.com/v1/payments/${externalId}`, {
-        headers: { "Authorization": `Bearer ${this.accessToken}` },
-      });
-      const data = await resp.json();
-      const statusMap: Record<string, string> = { approved: "paid", pending: "pending", rejected: "failed", cancelled: "cancelled", expired: "expired" };
-      return { status: statusMap[data.status] || "pending", externalId, paidAt: data.date_approved };
-    } catch {
-      return { status: "pending", externalId };
-    }
+    if (!this.accessToken) throw new Error("MERCADO_PAGO_ACCESS_TOKEN nao configurado.");
+    const resp = await fetch(`https://api.mercadopago.com/v1/payments/${externalId}`, {
+      headers: { "Authorization": `Bearer ${this.accessToken}` },
+    });
+    if (!resp.ok) throw new Error(`Mercado Pago status error: HTTP ${resp.status}`);
+    const data = await resp.json();
+    const statusMap: Record<string, string> = { approved: "paid", pending: "pending", rejected: "failed", cancelled: "cancelled", expired: "expired" };
+    return { status: statusMap[data.status] || "pending", externalId, paidAt: data.date_approved };
   }
 
-  private fallbackPix(req: PixPaymentRequest): PixPaymentResponse {
-    return {
-      success: true,
-      externalId: `mp_${Date.now()}`,
-      pixCopiaECola: `000201010212261060014br.gov.bcb.pix2588mpsimulated${req.externalReference || ""}520400005303986540${req.amount.toFixed(2).replace(".", "")}5802BR5925${req.clientName.substring(0, 25)}6008BRASILIA62070503***6304FFFF`,
-      expiresAt: new Date(Date.now() + 3600000).toISOString(),
-      status: "pending",
-      provider: `${this.name}_SIMULATED`,
-    };
-  }
 }
 
 export class InterProvider extends BasePaymentProvider {
   name = "INTER";
-  private apiUrl: string;
 
-  constructor() {
-    super();
-    this.apiUrl = process.env.INTER_API_URL || "https://cdpj.partners.bancointer.com.br";
+  async createPixPayment(_req: PixPaymentRequest): Promise<PixPaymentResponse> {
+    throw new Error("Integracao PIX do Banco Inter nao implementada.");
   }
 
-  async createPixPayment(req: PixPaymentRequest): Promise<PixPaymentResponse> {
-    return {
-      success: true,
-      externalId: `inter_${Date.now()}`,
-      pixCopiaECola: `000201010212261060014br.gov.bcb.pix2588intersimulated${req.externalReference || ""}520400005303986540${req.amount.toFixed(2).replace(".", "")}5802BR5925${req.clientName.substring(0, 25)}6008BRASILIA62070503***6304FFFF`,
-      expiresAt: new Date(Date.now() + 3600000).toISOString(),
-      status: "pending",
-      provider: `${this.name}_SIMULATED`,
-    };
-  }
-
-  async checkPaymentStatus(externalId: string): Promise<PaymentStatus> {
-    return { status: "pending", externalId };
+  async checkPaymentStatus(_externalId: string): Promise<PaymentStatus> {
+    throw new Error("Integracao PIX do Banco Inter nao implementada.");
   }
 }
 
@@ -227,5 +187,7 @@ export function getPaymentProvider(provider: string): BasePaymentProvider {
     MERCADO_PAGO: new MercadoPagoProvider(),
     INTER: new InterProvider(),
   };
-  return providers[provider] || new AsaasProvider();
+  const selected = providers[provider.toUpperCase()];
+  if (!selected) throw new Error(`Provedor de pagamento nao suportado: ${provider}`);
+  return selected;
 }

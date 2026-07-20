@@ -231,11 +231,21 @@ function TemplatesTab({ templates, onRefresh }: any) {
     if (!file) return;
 
     try {
+      const isTextFile = file.type.startsWith("text/") || /\.(txt|md|html|css|json|csv)$/i.test(file.name);
+      if (!isTextFile) {
+        alert("Envie um arquivo de texto. Extração de conteúdo de arquivos binários ainda não está configurada.");
+        return;
+      }
+      const content = await file.text();
+      if (!content.trim()) {
+        alert("O arquivo está vazio.");
+        return;
+      }
       await apiFetch('/api/org/templates', {
         method: 'POST',
         body: JSON.stringify({
           name: file.name.split('.')[0],
-          content: `Conteúdo extraído do arquivo ${file.name} (Simulação)`,
+          content,
           category: 'Padrão Agência'
         })
       });

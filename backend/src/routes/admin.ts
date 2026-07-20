@@ -33,13 +33,16 @@ export function adminRoutes(prisma: PrismaClient) {
       const orgsCount = await prisma.organization.count();
       const usersCount = await prisma.user.count();
       const totalLeads = await prisma.lead.count();
-      const revenue = await prisma.organization.findMany({ select: { plan: true } });
+      const revenue = await prisma.saaSInvoice.aggregate({
+        where: { status: 'PAID' },
+        _sum: { amount: true },
+      });
 
       res.json({
         agencies: orgsCount,
         totalUsers: usersCount,
         totalLeads,
-        revenue: revenue.length * 499
+        revenue: revenue._sum.amount || 0
       });
     } catch (error) {
        res.status(500).json({ error: "Failed to fetch admin metrics" });
@@ -805,6 +808,98 @@ export function adminRoutes(prisma: PrismaClient) {
     } catch (error) {
       res.status(500).json({ error: "Failed to delete user" });
     }
+  });
+
+  router.get("/audit-logs", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const take = Math.min(Math.max(Number(req.query.limit) || 100, 1), 500);
+    const logs = await prisma.auditLog.findMany({
+      take,
+      orderBy: { createdAt: "desc" },
+      include: { organization: { select: { name: true } } },
+    });
+    const userIds = [...new Set(logs.map((log) => log.userId).filter(Boolean) as string[])];
+    const users = userIds.length
+      ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } })
+      : [];
+    const usersById = new Map(users.map((user) => [user.id, user]));
+    res.json(logs.map((log) => ({ ...log, user: log.userId ? usersById.get(log.userId) || null : null })));
+  });
+
+  router.get("/domains", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const domains = await prisma.domain.findMany({
+      include: { organization: { select: { id: true, name: true, slug: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(await refreshPendingDomainList(prisma, domains));
+  });
+
+  router.get("/feature-flags", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    res.json(await prisma.featureFlag.findMany({ orderBy: { key: "asc" } }));
+  });
+
+  router.patch("/feature-flags/:id", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const flag = await prisma.featureFlag.update({
+      where: { id: req.params.id },
+      data: { isEnabled: Boolean(req.body?.isEnabled) },
+    });
+    res.json(flag);
+  });
+
+  router.get("/support-tickets", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const tickets = await prisma.supportTicket.findMany({
+      include: { organization: { select: { id: true, name: true } } },
+      orderBy: { updatedAt: "desc" },
+    });
+    res.json(tickets);
+  });
+
+  router.get("/billing-overview", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const [invoices, paid, pending, activeSubscribers] = await Promise.all([
+      prisma.saaSInvoice.findMany({
+        include: { organization: { select: { id: true, name: true } } },
+        orderBy: { dueDate: "desc" },
+      }),
+      prisma.saaSInvoice.aggregate({ where: { status: "PAID", paidAt: { gte: monthStart } }, _sum: { amount: true } }),
+      prisma.saaSInvoice.aggregate({ where: { status: { in: ["PENDING", "OVERDUE"] } }, _sum: { amount: true } }),
+      prisma.saaSSubscription.count({ where: { status: "ACTIVE" } }),
+    ]);
+    res.json({
+      invoices: invoices.map((invoice) => ({ ...invoice, orgName: invoice.organization.name })),
+      metrics: {
+        totalPaid: paid._sum.amount || 0,
+        totalPending: pending._sum.amount || 0,
+        activeSubscribers,
+      },
+    });
+  });
+
+  router.get("/monitor", async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'SUPER_ADMIN') return res.status(403).json({ error: "Unauthorized" });
+    const startedAt = performance.now();
+    await prisma.$queryRaw`SELECT 1`;
+    const databaseLatencyMs = Math.round((performance.now() - startedAt) * 100) / 100;
+    const memory = process.memoryUsage();
+    const alerts = await prisma.systemAlert.findMany({
+      where: { isResolved: false },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+    res.json({
+      api: { status: "online", uptimeSeconds: Math.floor(process.uptime()) },
+      database: { status: "online", latencyMs: databaseLatencyMs },
+      process: { heapUsedBytes: memory.heapUsed, rssBytes: memory.rss },
+      alerts,
+      checkedAt: new Date().toISOString(),
+    });
   });
 
   // --- Modular Routes Handle elsewhere ---
